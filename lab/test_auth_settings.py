@@ -391,6 +391,53 @@ class CompatibilityTests(unittest.TestCase):
             auth_settings.validate({**VALID, 'providers': {'github': {'enabled': True, 'client_id': 'a', 'secret': 's', 'skip_nonce_check': True}}})
 
 
+class ConfigStoreTests(unittest.TestCase):
+    def test_a_file_with_only_the_version_two_switches_carries_no_config_key(self):
+        on = auth_settings.file_form(auth_settings.validate({**VALID, 'manual_linking': True}))
+        self.assertEqual(on['version'], 2)
+        self.assertNotIn('config', on)
+        with_config = auth_settings.file_form(auth_settings.validate({**VALID, 'config': {'SESSIONS_SINGLE_PER_USER': True}}))
+        self.assertEqual(with_config['config'], {'SESSIONS_SINGLE_PER_USER': True})
+
+    def test_leaked_password_protection_gives_auth_a_way_out(self):
+        off = auth_settings.validate(VALID)
+        on = auth_settings.validate({**VALID, 'providers': {}, 'config': {'PASSWORD_HIBP_ENABLED': True}})
+        none = auth_settings.validate({**VALID, 'providers': {}})
+        self.assertFalse(durable_runtime.egress_wanted(None, none))
+        self.assertTrue(durable_runtime.egress_wanted(None, on))
+        self.assertTrue(durable_runtime.egress_wanted(None, off))  # GitHub is enabled in VALID
+
+    def test_the_password_length_bound_is_the_hash_limit(self):
+        with self.assertRaises(auth_settings.SettingsError):
+            auth_settings.validate({**VALID, 'config': {'PASSWORD_MIN_LENGTH': 73}})
+        auth_settings.validate({**VALID, 'config': {'PASSWORD_MIN_LENGTH': 72}})
+
+    def test_a_key_that_is_not_set_adds_nothing_and_a_set_one_reaches_auth(self):
+        self.assertNotIn('GOTRUE_SESSIONS_SINGLE_PER_USER', auth_settings.configuration(E, auth_settings.validate(VALID)))
+        settings = auth_settings.validate({**VALID, 'config': {'SESSIONS_SINGLE_PER_USER': True, 'RATE_LIMIT_WEB3': 20,
+                                                                'PASSWORD_HIBP_ENABLED': False, 'MFA_MAX_ENROLLED_FACTORS': None}})
+        config = auth_settings.configuration(E, settings)
+        self.assertEqual((config['GOTRUE_SESSIONS_SINGLE_PER_USER'], config['GOTRUE_RATE_LIMIT_WEB3'], config['GOTRUE_PASSWORD_HIBP_ENABLED']),
+                         ('true', '20', 'false'))
+        self.assertNotIn('GOTRUE_MFA_MAX_ENROLLED_FACTORS', config)
+
+    def test_values_outside_the_registry_range_or_type_are_refused(self):
+        for bad in ({'SESSIONS_SINGLE_PER_USER': 1}, {'RATE_LIMIT_WEB3': 0}, {'RATE_LIMIT_WEB3': True},
+                    {'PASSWORD_MIN_LENGTH': 5}, {'SECURITY_REFRESH_TOKEN_REUSE_INTERVAL': 301}, {'NOT_A_KEY': 1}):
+            with self.assertRaises(auth_settings.SettingsError, msg=str(bad)):
+                auth_settings.validate({**VALID, 'config': bad})
+
+    def test_every_config_key_has_one_owner(self):
+        for key in auth_settings.CONFIG_KEYS:
+            variable = 'GOTRUE_' + key
+            self.assertTrue(auth_settings.owned(variable), variable)
+            self.assertFalse(durable_runtime.is_mail_key(variable), variable)
+        # The mail owner keeps what it always had.
+        for variable in ('GOTRUE_SMTP_HOST', 'GOTRUE_MAILER_OTP_EXP', 'GOTRUE_RATE_LIMIT_EMAIL_SENT', 'GOTRUE_RATE_LIMIT_OTP', 'GOTRUE_RATE_LIMIT_VERIFY'):
+            self.assertTrue(durable_runtime.is_mail_key(variable), variable)
+            self.assertFalse(auth_settings.owned(variable), variable)
+
+
 class StartTests(unittest.TestCase):
     def test_a_stray_previous_auth_comes_back_and_an_unchecked_new_one_goes(self):
         name = durable_runtime.PREFIX + '-' + E + '-auth'

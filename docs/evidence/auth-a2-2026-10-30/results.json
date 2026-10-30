@@ -1,0 +1,48 @@
+{
+ "date": "2026-10-30",
+ "checkpoint": "A2 Sessions, Rate Limits, Attack Protection, Multi-Factor",
+ "base_commit": "512152dbec473bcfccda66cf9222b6cb85ceea65",
+ "working_blobs": {
+  "lab/auth_settings.py": "83e5a3fc81f13b3b98b456d029e39247f110ba10",
+  "lab/durable_runtime.py": "3d90fa096db1c6686ebe3dd830762e1756ef41fb",
+  "lab/test_auth_settings.py": "fa7cf722ba2db927fc48e271d9fb4fe7d1093642",
+  "lab/test_auth_config_registry.py": "37cfe72bd1d3e948efc2c71bee91af04219ce3a9",
+  "src/control/sign-in.ts": "0a69aff74d1b1c6814503755cbaed4f2927a9cac",
+  "src/control/auth-config.ts": "1861df39f768fb5742d6fa55fd754ef78a1dafd6",
+  "src/control/auth-config-registry.json": "2a59d46f76d63a6afd8d812baa9b45004fbb8a36",
+  "tests/sign-in.test.ts": "a5b62dc903758f399a3c4dab9e6d16154c3019d8",
+  "tests/auth-config.test.ts": "9806be12c4a9a8a967036cec9f1e85a8645f47c3",
+  "ui/SignIn.tsx": "ac545b349894a0f1c1b127e62e3f092c86cc3a53",
+  "docs/guides/sign-in.md": "88f4a20f4f5f2e7ae21bc8da81675c278670f4b3",
+  "docs/guides/sign-in.ar.md": "762926a7d3714055e3e2b4d1d82b8b5fc610d35c"
+ },
+ "key_verification": {
+  "statically confirmed in the pinned Auth binary (gotrue v2.197.0)": [
+   "json tags single_per_user, refresh_token_rotation_enabled (default true), refresh_token_reuse_interval, min_length, enroll_enabled (default true), verify_enabled (default true)",
+   "MaxEnrolledFactors (default 10)",
+   "env name strings RATE_LIMIT_TOKEN_REFRESH, RATE_LIMIT_ANONYMOUS_USERS, RATE_LIMIT_WEB3",
+   "HIBP structures (password HIBP name from Studio schema)"
+  ],
+  "not found in the binary, so not offered": [
+   "captcha settings (no CAPTCHA names found)",
+   "sign-in and sign-up rate limit (no RATE_LIMIT_SIGN_IN_SIGN_UPS name found)"
+  ],
+  "caveat": "Static checks show the field or name exists, not which parent prefix it sits under nor its behavior; no live Auth probe was run."
+ },
+ "screenshots": [
+  "dark-rate-limits.jpg",
+  "dark-sessions.jpg",
+  "light-multi-factor.jpg"
+ ],
+ "checks": {
+  "bun test sign-in auth-config auth-workspace-ui": "22 pass",
+  "python unittest docs, auth_settings, registry, mail_config, rolling, signing (lab/)": "265 OK",
+  "tsc control and ui": "ok"
+ },
+ "not_verified": [
+  "A running Auth honoring each variable",
+  "Phone, SMS rate limit, captcha, password character rules: later phases or unavailable",
+  "Right to left render of the new pages (same components as U0)"
+ ],
+ "review": "Independent read only review of A2 found 4 defects and 3 notes; fixed: a file with only version 2 switches carries no config key (an A1 build still reads it), leaked password protection opens outbound access for that Auth (egress_wanted), password length maximum 72, docs separate binary-found names from Studio-only names and state the limits, a switch set back to its default and not saved becomes unset again, a failed schema fetch shows a message and disables Save. Noted: new owned prefixes (PASSWORD_, MFA_, SECURITY_REFRESH_TOKEN_) would also mark an image-set key as an owned difference; nothing in the repo sets one."
+}

@@ -13,7 +13,9 @@ import auth_settings
 
 REGISTRY = json.loads((Path(__file__).resolve().parents[1] / 'src' / 'control' / 'auth-config-registry.json').read_text())
 E = 'e_' + 'c' * 24
-FULL = {'revision': 1, 'site_url': 'https://app.example.com', 'redirect_urls': ['https://app.example.com/**', 'myapp://cb'],
+CONFIG = {entry['key']: (True if entry['type'] == 'bool' else entry['min'])
+          for entry in REGISTRY['core'] if entry.get('store') == 'config'}
+FULL = {'revision': 1, 'config': CONFIG, 'site_url': 'https://app.example.com', 'redirect_urls': ['https://app.example.com/**', 'myapp://cb'],
         'signup': False, 'anonymous': True, 'manual_linking': True,
         'session': {'access_token_seconds': 1800, 'timebox_seconds': 7200, 'inactivity_seconds': 600},
         'providers': {name: {'enabled': True, 'client_id': 'id-' + name, 'secret': 'secret-' + name,
@@ -46,6 +48,8 @@ class RegistryParityTests(unittest.TestCase):
                 self.assertEqual(value, 'true' if saved else 'false', entry['key'])
             elif entry['type'] == 'list':
                 self.assertEqual(value, ','.join(saved), entry['key'])
+            elif entry['type'] == 'int':
+                self.assertEqual(value, str(saved), entry['key'])
             elif entry['type'] == 'seconds':
                 # JWT_EXP is a count of seconds; the two caps are Go durations in seconds.
                 self.assertEqual(value, str(saved) if entry['key'] == 'JWT_EXP' else f'{saved}s', entry['key'])

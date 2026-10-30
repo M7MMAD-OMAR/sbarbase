@@ -13,6 +13,18 @@
   {
    "id": "sessions",
    "label": "Sessions"
+  },
+  {
+   "id": "rate-limits",
+   "label": "Rate Limits"
+  },
+  {
+   "id": "protection",
+   "label": "Attack Protection"
+  },
+  {
+   "id": "mfa",
+   "label": "Multi-Factor"
   }
  ],
  "core": [
@@ -93,6 +105,162 @@
    "default": null,
    "owner": "auth",
    "null_text": "No limit"
+  },
+  {
+   "key": "SESSIONS_SINGLE_PER_USER",
+   "page": "sessions",
+   "label": "Enforce single session per user",
+   "type": "bool",
+   "from": "config.SESSIONS_SINGLE_PER_USER",
+   "store": "config",
+   "default": false,
+   "owner": "auth",
+   "hint": "If enabled, all but a user's most recently active session will be terminated.",
+   "evidence": "json tag single_per_user in the pinned Auth binary"
+  },
+  {
+   "key": "SECURITY_REFRESH_TOKEN_ROTATION_ENABLED",
+   "page": "sessions",
+   "label": "Detect and revoke potentially compromised refresh tokens",
+   "type": "bool",
+   "from": "config.SECURITY_REFRESH_TOKEN_ROTATION_ENABLED",
+   "store": "config",
+   "default": true,
+   "owner": "auth",
+   "hint": "Prevent replay attacks from potentially compromised refresh tokens.",
+   "evidence": "json tag refresh_token_rotation_enabled in the pinned Auth binary; default true in the same binary tag"
+  },
+  {
+   "key": "SECURITY_REFRESH_TOKEN_REUSE_INTERVAL",
+   "page": "sessions",
+   "label": "Refresh token reuse interval",
+   "type": "int",
+   "from": "config.SECURITY_REFRESH_TOKEN_REUSE_INTERVAL",
+   "store": "config",
+   "default": null,
+   "owner": "auth",
+   "hint": "Time interval where the same refresh token can be used multiple times to request for an access token. Recommendation: 10 seconds. Maximum 300 seconds (5 minutes).",
+   "unit": "seconds",
+   "min": 0,
+   "max": 300,
+   "null_text": "Auth default",
+   "evidence": "json tag refresh_token_reuse_interval in the pinned Auth binary"
+  },
+  {
+   "key": "RATE_LIMIT_TOKEN_REFRESH",
+   "page": "rate-limits",
+   "label": "Rate limit for token refreshes",
+   "type": "int",
+   "from": "config.RATE_LIMIT_TOKEN_REFRESH",
+   "store": "config",
+   "default": null,
+   "owner": "auth",
+   "hint": "Number of sessions that can be refreshed in a 5 minute interval per IP address",
+   "unit": "requests/5 min",
+   "min": 1,
+   "max": 1000000,
+   "null_text": "Auth default",
+   "evidence": "env name string GOTRUE_RATE_LIMIT_TOKEN_REFRESH in the pinned Auth binary"
+  },
+  {
+   "key": "RATE_LIMIT_ANONYMOUS_USERS",
+   "page": "rate-limits",
+   "label": "Rate limit for anonymous users",
+   "type": "int",
+   "from": "config.RATE_LIMIT_ANONYMOUS_USERS",
+   "store": "config",
+   "default": null,
+   "owner": "auth",
+   "hint": "Number of anonymous sign-ins that can be made per hour per IP address",
+   "unit": "requests/h",
+   "min": 1,
+   "max": 1000000,
+   "null_text": "Auth default",
+   "evidence": "env name string RATE_LIMIT_ANONYMOUS_USERS in the pinned Auth binary"
+  },
+  {
+   "key": "RATE_LIMIT_WEB3",
+   "page": "rate-limits",
+   "label": "Rate limit for Web3 sign-ups and sign-ins",
+   "type": "int",
+   "from": "config.RATE_LIMIT_WEB3",
+   "store": "config",
+   "default": null,
+   "owner": "auth",
+   "hint": "Number of Web3 sign-up or sign-in requests that can be made per IP address in 5 minutes",
+   "unit": "requests/5 min",
+   "min": 1,
+   "max": 1000000,
+   "null_text": "Auth default",
+   "evidence": "env name string RATE_LIMIT_WEB3 in the pinned Auth binary"
+  },
+  {
+   "key": "PASSWORD_HIBP_ENABLED",
+   "page": "protection",
+   "label": "Prevent use of leaked passwords",
+   "type": "bool",
+   "from": "config.PASSWORD_HIBP_ENABLED",
+   "store": "config",
+   "default": false,
+   "owner": "auth",
+   "hint": "Rejects the use of known or easy to guess passwords on sign up or password change. Auth checks the Have I Been Pwned range service, so this environment gets outbound network access while it is on.",
+   "evidence": "HIBP structures in the pinned Auth binary; the name PASSWORD_HIBP_ENABLED comes from the Studio schema only"
+  },
+  {
+   "key": "PASSWORD_MIN_LENGTH",
+   "page": "protection",
+   "label": "Minimum password length",
+   "type": "int",
+   "from": "config.PASSWORD_MIN_LENGTH",
+   "store": "config",
+   "default": null,
+   "owner": "auth",
+   "hint": "Passwords shorter than this are rejected on sign up and password change. Auth hashes at most 72 bytes of a password, so the highest value is 72.",
+   "unit": "characters",
+   "min": 6,
+   "max": 72,
+   "null_text": "Auth default",
+   "evidence": "json tag min_length in the pinned Auth binary; the name PASSWORD_MIN_LENGTH comes from the Studio schema only. Maximum 72: the bcrypt limit, not read from the binary."
+  },
+  {
+   "key": "MFA_MAX_ENROLLED_FACTORS",
+   "page": "mfa",
+   "label": "Maximum number of per-user MFA factors",
+   "type": "int",
+   "from": "config.MFA_MAX_ENROLLED_FACTORS",
+   "store": "config",
+   "default": null,
+   "owner": "auth",
+   "hint": "How many MFA factors can be enrolled at once per user.",
+   "unit": "factors",
+   "min": 1,
+   "max": 30,
+   "null_text": "Auth default",
+   "evidence": "MaxEnrolledFactors split_words default 10 in the pinned Auth binary"
+  },
+  {
+   "key": "MFA_TOTP_ENROLL_ENABLED",
+   "page": "mfa",
+   "label": "Allow people to add an authenticator app (TOTP)",
+   "type": "bool",
+   "from": "config.MFA_TOTP_ENROLL_ENABLED",
+   "store": "config",
+   "default": true,
+   "owner": "auth",
+   "hint": "Turn this off to stop new TOTP factors being enrolled. Existing factors keep working while verification stays on.",
+   "evidence": "json tag enroll_enabled in the pinned Auth binary; default true in the same binary tag"
+  },
+  {
+   "key": "MFA_TOTP_VERIFY_ENABLED",
+   "page": "mfa",
+   "label": "Allow people to verify with an authenticator app (TOTP)",
+   "type": "bool",
+   "from": "config.MFA_TOTP_VERIFY_ENABLED",
+   "store": "config",
+   "default": true,
+   "owner": "auth",
+   "hint": "Turn this off to stop TOTP codes being accepted. Use with care: people who rely on them cannot pass a second factor.",
+   "evidence": "json tag verify_enabled in the pinned Auth binary; default true in the same binary tag"
   }
  ],
  "provider_fields": [

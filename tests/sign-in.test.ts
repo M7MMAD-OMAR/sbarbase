@@ -234,3 +234,34 @@ test('google takes a tidy list of client IDs, the nonce switch is for apple and 
   try{expect((await put(valid)).status).toBe(202);}finally{Date.now=real;}
  } finally {catalog.close();}
 });
+
+test('a file with only the version 2 switches carries no config key',async()=>{
+ const catalog=new Catalog(':memory:');
+ const directory=mkdtempSync(join(tmpdir(),'sign-in-'));
+ try {
+  const org=catalog.createOrganization('alice','A');
+  const environment=catalog.createEnvironment('alice',catalog.createProject('alice',org,'P'),'production');
+  const job=catalog.claimProvision()!;catalog.finishProvision(environment,job.claim!,true);
+  const handler=signInHandler(catalog,async request=>request.headers.get('authorization'),directory,0);
+  const put=(body:unknown)=>handler(new Request(`http://local/management/v1/environments/${environment}/sign-in`,
+   {method:'PUT',headers:{authorization:'alice','content-type':'application/json'},body:JSON.stringify(body)}));
+  expect((await put({...valid,manual_linking:true})).status).toBe(202);
+  const runtime=catalog.getProvision('alice',environment).runtime;
+  const written=JSON.parse(readFileSync(join(directory,runtime+'-auth.json'),'utf8'));
+  expect(written.version).toBe(2);expect(written.manual_linking).toBe(true);expect('config' in written).toBe(false);
+  expect((await put({...valid,manual_linking:true,config:{SESSIONS_SINGLE_PER_USER:true}})).status).toBe(202);
+  expect(JSON.parse(readFileSync(join(directory,runtime+'-auth.json'),'utf8')).config).toEqual({SESSIONS_SINGLE_PER_USER:true});
+ } finally {catalog.close();}
+});
+
+test('the simple settings of the registry are validated by type and range, kept when omitted, cleared by null, and audited by name',async()=>{
+ const first=settingsFromInput({...valid,config:{SESSIONS_SINGLE_PER_USER:true,RATE_LIMIT_WEB3:20}},null);
+ expect(first.config).toEqual({SESSIONS_SINGLE_PER_USER:true,RATE_LIMIT_WEB3:20});
+ // Omitted object or member: kept. Null: cleared.
+ expect(settingsFromInput(valid,first).config).toEqual(first.config);
+ const second=settingsFromInput({...valid,config:{RATE_LIMIT_WEB3:null,PASSWORD_MIN_LENGTH:10}},first);
+ expect(second.config).toEqual({SESSIONS_SINGLE_PER_USER:true,PASSWORD_MIN_LENGTH:10});
+ expect(changedKeys(first,second)).toEqual(['RATE_LIMIT_WEB3','PASSWORD_MIN_LENGTH']);
+ for(const config of [{SESSIONS_SINGLE_PER_USER:1},{RATE_LIMIT_WEB3:0},{RATE_LIMIT_WEB3:1.5},{PASSWORD_MIN_LENGTH:5},{SECURITY_REFRESH_TOKEN_REUSE_INTERVAL:301},{NOT_A_KEY:1},[]])
+  expect(()=>settingsFromInput({...valid,config},null)).toThrow(SettingsError);
+});

@@ -7,7 +7,8 @@ import type {SignInSettings} from './sign-in';
  * is which; this module only reads it. A secret is never returned: its entry says only whether
  * one is set. An environment with no saved settings shows the pinned defaults. */
 
-type CoreEntry={key:string;page:string;label:string;type:'url'|'list'|'bool'|'seconds';from:string;invert?:boolean;default:unknown;null_text?:string;owner:string};
+type CoreEntry={key:string;page:string;label:string;type:'url'|'list'|'bool'|'seconds'|'int';from:string;invert?:boolean;default:unknown;null_text?:string;owner:string;
+ store?:'config';hint?:string;unit?:string;min?:number;max?:number};
 type ProviderField={suffix:string;type:'bool'|'text'|'secret'|'url'|'callback';from?:string;default?:unknown;only?:string;secret?:boolean;computed?:boolean};
 type ProviderEntry={label:string;url:'none'|'optional'|'required'};
 type Registry={version:number;pages:{id:string;label:string}[];core:CoreEntry[];provider_fields:ProviderField[];providers:Record<string,ProviderEntry>;nonce_providers:string[]};
@@ -15,7 +16,8 @@ export const REGISTRY=registryFile as unknown as Registry;
 
 /** `invert`: the value is the platform key's own (DISABLE_SIGNUP), the label asks the positive question, so the console shows the opposite.
  * `inactive`: saved, but Auth receives nothing for it while its provider is disabled. `null_text`: what an empty value means. */
-export type ConfigField={key:string;label:string;type:string;value?:unknown;secret_set?:boolean;from_default:boolean;invert?:boolean;inactive?:boolean;null_text?:string};
+export type ConfigField={key:string;label:string;type:string;value?:unknown;secret_set?:boolean;from_default:boolean;invert?:boolean;inactive?:boolean;null_text?:string;
+ store?:'config';hint?:string;unit?:string;min?:number;max?:number};
 export type ConfigPage={id:string;label:string;fields:ConfigField[]};
 export type ProviderView={id:string;label:string;url:'none'|'optional'|'required';fields:ConfigField[]};
 export type AuthConfigView={configured:boolean;callback_url:string;pages:ConfigPage[];providers:ProviderView[]};
@@ -38,7 +40,8 @@ function core(entry:CoreEntry,settings:SignInSettings|null):ConfigField {
  if(saved&&entry.invert)value=!value;
  if(!saved)value=entry.default;
  return {key:entry.key,label:entry.label,type:entry.type,value,from_default:!saved,...(entry.invert?{invert:true}:{}),
-  ...(entry.null_text?{null_text:entry.null_text}:{})};
+  ...(entry.null_text?{null_text:entry.null_text}:{}),...(entry.store?{store:entry.store}:{}),...(entry.hint?{hint:entry.hint}:{}),
+  ...(entry.unit?{unit:entry.unit}:{}),...(entry.min!==undefined?{min:entry.min}:{}),...(entry.max!==undefined?{max:entry.max}:{})};
 }
 
 function providerFields(name:string,settings:SignInSettings|null,callback:string):ConfigField[] {

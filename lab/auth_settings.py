@@ -38,6 +38,10 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
+# The map of settings the console shows, shared with src/control/auth-config.ts. Keys with store `config` are validated
+# and written from it, so a new one is one registry entry.
+REGISTRY = json.loads((ROOT / 'src' / 'control' / 'auth-config-registry.json').read_text())
+CONFIG_KEYS = {entry['key']: entry for entry in REGISTRY['core'] if entry.get('store') == 'config'}
 DIRECTORY = ROOT / '.secrets' / 'upstream'
 CATALOG = ROOT / '.lab' / 'upstream' / 'control.sqlite'
 OPERATION_LOCK = ROOT / '.lab' / 'upstream' / 'operation.lock'
@@ -62,7 +66,8 @@ SESSION_LIMITS = {'access_token_seconds': (60, 86400), 'timebox_seconds': (3600,
 # own settings, never a sign of drift.
 # GOTRUE_JWT_EXP and GOTRUE_SESSIONS_ are the session settings below: operator settings of that
 # environment, never drift.
-OWNED_PREFIXES = ('GOTRUE_EXTERNAL_', 'GOTRUE_SECURITY_MANUAL_LINKING_', 'GOTRUE_SITE_URL', 'GOTRUE_URI_ALLOW_LIST', 'GOTRUE_DISABLE_SIGNUP',
+OWNED_PREFIXES = ('GOTRUE_EXTERNAL_', 'GOTRUE_PASSWORD_', 'GOTRUE_MFA_', 'GOTRUE_SECURITY_REFRESH_TOKEN_', 'GOTRUE_RATE_LIMIT_TOKEN_REFRESH',
+                  'GOTRUE_RATE_LIMIT_ANONYMOUS_USERS', 'GOTRUE_RATE_LIMIT_WEB3', 'GOTRUE_SECURITY_MANUAL_LINKING_', 'GOTRUE_SITE_URL', 'GOTRUE_URI_ALLOW_LIST', 'GOTRUE_DISABLE_SIGNUP',
                   'API_EXTERNAL_URL', 'GOTRUE_JWT_EXP', 'GOTRUE_SESSIONS_')
 
 
@@ -96,7 +101,7 @@ def redirect_address(value):
 
 def validate(settings):
     """The settings as the file holds them, or SettingsError naming the first bad field."""
-    if not isinstance(settings, dict) or set(settings) - {'version', 'revision', 'site_url', 'redirect_urls', 'signup', 'anonymous', 'manual_linking',
+    if not isinstance(settings, dict) or set(settings) - {'version', 'revision', 'site_url', 'redirect_urls', 'signup', 'anonymous', 'manual_linking', 'config',
                                                           'providers', 'session'}:
         raise SettingsError('settings')
     version = settings.get('version', 1)
@@ -114,6 +119,20 @@ def validate(settings):
     if not isinstance(redirects, list) or len(redirects) > MAX_REDIRECTS:
         raise SettingsError('redirect_urls')
     result['redirect_urls'] = [redirect_address(item) for item in redirects]
+    config = settings.get('config', {})
+    if not isinstance(config, dict) or set(config) - set(CONFIG_KEYS):
+        raise SettingsError('config')
+    result['config'] = {}
+    for key, value in config.items():
+        entry = CONFIG_KEYS[key]
+        if value is None:
+            continue
+        if entry['type'] == 'bool':
+            if not isinstance(value, bool):
+                raise SettingsError(key)
+        elif isinstance(value, bool) or not isinstance(value, int) or not entry['min'] <= value <= entry['max']:
+            raise SettingsError(key)
+        result['config'][key] = value
     providers = settings.get('providers', {})
     if not isinstance(providers, dict) or set(providers) - set(PROVIDERS):
         raise SettingsError('providers')
@@ -196,11 +215,13 @@ def load_applied(e):
 def file_form(settings):
     """The settings as a file holds them. While none of the switches added with version 2 is on, the file
     keeps the version 1 shape, so a build from before them still reads it (a rollback is not an outage)."""
-    plain = not settings.get('manual_linking') and not any(
+    plain = not settings.get('manual_linking') and not settings.get('config') and not any(
         entry.get('skip_nonce_check') or entry.get('email_optional') for entry in settings['providers'].values())
     if not plain:
-        return {**settings, 'version': VERSION}
-    stripped = {key: value for key, value in settings.items() if key != 'manual_linking'}
+        # An empty config is left out, so a build from before the simple settings still reads a file that only uses version 2 switches.
+        shaped = {key: value for key, value in settings.items() if key != 'config' or value}
+        return {**shaped, 'version': VERSION}
+    stripped = {key: value for key, value in settings.items() if key not in ('manual_linking', 'config')}
     stripped['providers'] = {name: {key: value for key, value in entry.items() if key not in ('skip_nonce_check', 'email_optional')}
                              for name, entry in settings['providers'].items()}
     return {**stripped, 'version': 1}
@@ -247,6 +268,9 @@ def configuration(e, settings):
     # this setting existed keeps the very environment it had.
     if settings.get('manual_linking'):
         config['GOTRUE_SECURITY_MANUAL_LINKING_ENABLED'] = 'true'
+    # A value the person set, and only that: an unset key adds nothing, so Auth keeps its own default.
+    for key, value in (settings.get('config') or {}).items():
+        config['GOTRUE_' + key] = ('true' if value else 'false') if isinstance(value, bool) else str(value)
     # A null member adds nothing, so a file without session settings yields the same dict as before.
     session = settings.get('session') or {}
     for name, variable in (('access_token_seconds', 'GOTRUE_JWT_EXP'), ('timebox_seconds', 'GOTRUE_SESSIONS_TIMEBOX'),

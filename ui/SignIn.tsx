@@ -10,7 +10,10 @@ type Provider={enabled:boolean;client_id:string;secret_set?:boolean;secret?:stri
 /** The providers whose sign-in accepts ID tokens with any nonce (the switch the cloud shows for them). */
 const NONCE_PROVIDERS=['apple','google'];
 type Session={access_token_seconds:number|null;timebox_seconds:number|null;inactivity_seconds:number|null};
-type Settings={site_url:string;redirect_urls:string[];signup:boolean;anonymous:boolean;manual_linking:boolean;session:Session;providers:Record<string,Provider>};
+type ConfigValue=boolean|number;
+type SchemaField={key:string;label:string;type:string;value?:unknown;hint?:string;unit?:string;min?:number;max?:number;null_text?:string;store?:string};
+type SchemaPage={id:string;fields:SchemaField[]};
+type Settings={config?:Record<string,ConfigValue>;site_url:string;redirect_urls:string[];signup:boolean;anonymous:boolean;manual_linking:boolean;session:Session;providers:Record<string,Provider>};
 type State={state:'unconfigured'|'pending'|'applied'|'failed';revision:number;failure:string|null;callback_url:string;settings:Settings|null};
 
 /** The providers Auth offers, as people know them. `url` marks those that name their own server. */
@@ -44,12 +47,33 @@ const hoursOrNull=(text:string)=>{const value=secondsOrNull(text);return value==
 
 const TABS=[{id:'signin',label:'Sign In / Providers',hint:'Who can sign up, and which providers people sign in with.'},
  {id:'urls',label:'URL Configuration',hint:'Where Auth sends people after they sign in or open an email link.'},
- {id:'sessions',label:'Sessions',hint:'How long a person stays signed in.'}] as const;
+ {id:'sessions',label:'Sessions',hint:'How long a person stays signed in, and how access and refresh tokens behave.'},
+ {id:'rate-limits',label:'Rate Limits',hint:'Safeguard against bursts of incoming traffic to prevent abuse and maximize stability.'},
+ {id:'protection',label:'Attack Protection',hint:'Security settings that protect this environment from attacks.'},
+ {id:'mfa',label:'Multi-Factor',hint:'Requires people to provide additional verification factors to authenticate.'}] as const;
 type TabId=typeof TABS[number]['id'];
+/** The registry's pages that hold simple settings, by tab. */
+const CONFIG_TABS:string[]=['sessions','rate-limits','protection','mfa'];
 
 function Switch({id,checked,disabled,label,hint,onChange}:{id:string;checked:boolean;disabled:boolean;label:string;hint:string;onChange:(value:boolean)=>void}){
  return <div className="aw-row"><div className="aw-text"><label id={id+'-label'} htmlFor={id}>{label}</label><p className="aw-hint">{hint}</p></div>
   <button id={id} type="button" role="switch" aria-checked={checked} aria-labelledby={id+'-label'} disabled={disabled} className="aw-switch" onClick={()=>onChange(!checked)}><span/></button></div>;
+}
+
+/** The registry's simple settings of one page: a switch for each true or false setting, a number field for the rest.
+ * A setting never touched stays unset, so Auth keeps its own default; clearing a number puts it back to that. */
+function ConfigFields({fields,cfg,setCfg,busy,errors,persisted,failed}:{fields:SchemaField[];cfg:Record<string,ConfigValue|null>;setCfg:(value:Record<string,ConfigValue|null>)=>void;busy:boolean;errors:FieldErrors;persisted:Record<string,ConfigValue>;failed:string}){
+ if(failed)return <p className="aw-notice" role="alert">These settings could not be loaded. Reload the page to try again. {failed}</p>;
+ if(fields.length===0)return <p className="aw-hint">Loading these settings…</p>;
+ const switches=fields.filter(field=>field.type==='bool'),numbers=fields.filter(field=>field.type!=='bool');
+ return <>{switches.length>0&&<div className="aw-group">{switches.map(field=>{
+   const saved=cfg[field.key],on=typeof saved==='boolean'?saved:field.value===true;
+   return <Switch key={field.key} id={'config-'+field.key} checked={on} disabled={busy} label={field.label} hint={field.hint??''} onChange={value=>setCfg({...cfg,[field.key]:value===(field.value===true)&&persisted[field.key]===undefined?null:value})}/>;})}</div>}
+  {numbers.map(field=>{const value=cfg[field.key],id='config-'+field.key;
+   return <div className="aw-field" key={field.key}><label htmlFor={id}>{field.label}{field.unit?` (${field.unit})`:''}</label>
+    <input id={id} type="number" min={field.min} max={field.max} step={1} disabled={busy} aria-invalid={Boolean(errors[id])} aria-describedby={errors[id]?id+'-error':undefined}
+     placeholder={field.null_text??''} value={typeof value==='number'?String(value):''} onChange={event=>setCfg({...cfg,[field.key]:event.target.value.trim()===''?null:Number(event.target.value)})}/>
+    {errors[id]&&<p id={id+'-error'} className="aw-error" role="alert">{errors[id]}</p>}{field.hint&&<p className="aw-hint">{field.hint}</p>}</div>;})}</>;
 }
 
 /** An opened provider that was never filled in is not a saved provider. */
@@ -62,6 +86,9 @@ function savedProviders(providers:Record<string,Provider>):Record<string,Provide
 export function SignInSection({path,request}:{path:string;request:Api}){
  const data=useData<{data:State}>(signal=>request(path+'/sign-in','GET',undefined,signal),[path,request]);
  // The last answer stays on screen while a refresh runs: polling a pending apply must not rebuild the page under an edit.
+ const schema=useData<{data:{config:{pages:SchemaPage[]}}}>(signal=>request(path+'/auth-config','GET',undefined,signal),[path,request]);
+ const configFields=(page:string)=>(schema.data?.data.config.pages.find(item=>item.id===page)?.fields??[]).filter(field=>field.store==='config');
+ const [cfg,setCfg]=useState<Record<string,ConfigValue|null>>({});
  const latest=useRef<State|undefined>(undefined);
  if(data.data?.data)latest.current=data.data.data;
  const current=data.data?.data??latest.current;
@@ -72,12 +99,22 @@ export function SignInSection({path,request}:{path:string;request:Api}){
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[copied,setCopied]=useState('');
  const [validated,setValidated]=useState(false),[tab,setTab]=useState<TabId>('signin'),[open,setOpen]=useState('');
  const [baseline,setBaseline]=useState('');
- const fields:FieldErrors=validated?{...signInErrors(form.site_url,redirects,form.providers),...sessionErrors(session)}:{};
+ const fields:FieldErrors=validated?{...signInErrors(form.site_url,redirects,form.providers),...sessionErrors(session),...configErrors()}:{};
  const field=(id:string)=>({disabled:busy,'aria-invalid':Boolean(fields[id]),'aria-describedby':fields[id]?id+'-error':undefined});
  const fieldMessage=(id:string)=>fields[id]?<p id={id+'-error'} className="aw-error" role="alert">{fields[id]}</p>:null;
+ /** Whole numbers inside the bounds the registry gives each setting. */
+ function configErrors():FieldErrors{
+  const errors:FieldErrors={};
+  for(const page of schema.data?.data.config.pages??[])for(const field of page.fields){
+   const value=cfg[field.key];
+   if(field.store!=='config'||field.type!=='int'||value===null||value===undefined)continue;
+   if(typeof value!=='number'||!Number.isInteger(value)||value<field.min!||value>field.max!)errors['config-'+field.key]=`Use a whole number from ${field.min} to ${field.max}.`;
+  }
+  return errors;
+ }
  /** What the person can change, as one string: the save bar is lit only when it differs from what loaded.
  * It counts the providers `savedProviders` would send, so opening one and closing it again is not a change. */
- const snapshot=(value:Settings,lines:string,lifetimes:SessionText)=>JSON.stringify([value.site_url,lines,value.signup,value.anonymous,value.manual_linking,lifetimes,
+ const snapshot=(value:Settings,lines:string,lifetimes:SessionText,values:Record<string,ConfigValue|null>)=>JSON.stringify([value.site_url,lines,value.signup,value.anonymous,value.manual_linking,lifetimes,Object.entries(values).filter(([,member])=>member!==null).sort(),
   Object.entries(savedProviders(value.providers)).map(([name,entry])=>[name,entry.enabled,entry.client_id,entry.url,Boolean(entry.secret),Boolean(entry.skip_nonce_check),Boolean(entry.email_optional)]).sort()]);
  useEffect(()=>{
   if(!current)return;
@@ -91,27 +128,28 @@ export function SignInSection({path,request}:{path:string;request:Api}){
   const lifetimes=saved.session??EMPTY.session,hours=(seconds:number|null)=>seconds===null?'':String(seconds/3600);
   const text={token:lifetimes.access_token_seconds===null?'':String(lifetimes.access_token_seconds),
    timebox:hours(lifetimes.timebox_seconds),inactivity:hours(lifetimes.inactivity_seconds)};
-  setSession(text);setBaseline(snapshot(loaded,lines,text));
+  const savedConfig=saved.config??{};setCfg(savedConfig);
+  setSession(text);setBaseline(snapshot(loaded,lines,text,savedConfig));
  },[current?.revision,current?.settings]);
  useEffect(()=>{if(current?.state!=='pending')return;const timer=setTimeout(data.refresh,3000);return()=>clearTimeout(timer);},[current?.state,data.data]);
  useEffect(()=>{if(!open)return;const close=(event:KeyboardEvent)=>{if(event.key==='Escape'){setOpen('');setTimeout(()=>opener.current?.focus(),0);}};window.addEventListener('keydown',close);return()=>window.removeEventListener('keydown',close);},[open]);
  /** Closing the panel puts focus back on the provider that opened it. */
  function close(){setOpen('');setTimeout(()=>opener.current?.focus(),0);}
- const dirty=baseline!==''&&snapshot(form,redirects,session)!==baseline;
+ const dirty=baseline!==''&&snapshot(form,redirects,session,cfg)!==baseline;
  const blank:Provider={enabled:false,client_id:'',secret:'',url:''};
  const provider=(name:string,change:Partial<Provider>)=>setForm(value=>({...value,providers:{...value.providers,[name]:{...blank,...value.providers[name],...change}}}));
  function remove(name:string){setForm(value=>{const providers={...value.providers};delete providers[name];return {...value,providers};});setOpen('');}
  function discard(){if(!current)return;setValidated(false);setError('');
   const saved=current.settings??EMPTY;
   setForm({...saved,providers:Object.fromEntries(Object.entries(saved.providers).map(([name,entry])=>[name,{...entry,secret:''}]))});
-  setRedirects(saved.redirect_urls.join('\n'));
+  setRedirects(saved.redirect_urls.join('\n'));setCfg(saved.config??{});
   const lifetimes=saved.session??EMPTY.session,hours=(seconds:number|null)=>seconds===null?'':String(seconds/3600);
   setSession({token:lifetimes.access_token_seconds===null?'':String(lifetimes.access_token_seconds),timebox:hours(lifetimes.timebox_seconds),inactivity:hours(lifetimes.inactivity_seconds)});}
  async function save(){
   if(busy)return;
   const kept=savedProviders(form.providers);
-  const invalid={...signInErrors(form.site_url,redirects,kept),...sessionErrors(session)};setValidated(true);const first=Object.keys(invalid)[0];
-  if(first){const target=first.startsWith('session')?'sessions':first.startsWith('site')||first==='redirects'?'urls':'signin';setTab(target);
+  const invalid={...signInErrors(form.site_url,redirects,kept),...sessionErrors(session),...configErrors()};setValidated(true);const first=Object.keys(invalid)[0];
+  if(first){const target=first.startsWith('config-')?(schema.data?.data.config.pages.find(item=>item.fields.some(field=>'config-'+field.key===first))?.id as TabId??'sessions'):first.startsWith('session')?'sessions':first.startsWith('site')||first==='redirects'?'urls':'signin';setTab(target);
    if(target==='signin'&&first.includes('-')){setOpen(first.split('-')[0]!);}
    setTimeout(()=>document.getElementById(first)?.focus(),50);return;}
   setBusy(true);setError('');
@@ -119,7 +157,7 @@ export function SignInSection({path,request}:{path:string;request:Api}){
    const providers=Object.fromEntries(Object.entries(kept).map(([name,{enabled,client_id,secret,url,skip_nonce_check,email_optional}])=>
     [name,{enabled,client_id:name==='google'?client_id.split(',').map(part=>part.trim()).join(','):client_id,secret:secret??'',url,skip_nonce_check:Boolean(skip_nonce_check),email_optional:Boolean(email_optional)}]));
    await request(path+'/sign-in','PUT',{base_revision:current?.revision,site_url:form.site_url.trim(),redirect_urls:redirects.split('\n').map(line=>line.trim()).filter(Boolean),
-    signup:form.signup,anonymous:form.anonymous,manual_linking:form.manual_linking,providers,
+    signup:form.signup,anonymous:form.anonymous,manual_linking:form.manual_linking,config:cfg,providers,
     session:{access_token_seconds:secondsOrNull(session.token),timebox_seconds:hoursOrNull(session.timebox),
      inactivity_seconds:hoursOrNull(session.inactivity)}});
    setOpen('');data.refresh();
@@ -157,6 +195,7 @@ export function SignInSection({path,request}:{path:string;request:Api}){
      <textarea id="redirects" rows={5} {...field('redirects')} value={redirects} onChange={event=>setRedirects(event.target.value)} placeholder={'https://app.example.com/**\nmyapp://callback'}/>
      {fieldMessage('redirects')}<p className="aw-hint">One address per line. Wildcards are allowed: <code>*</code> and <code>**</code> match parts of an address. Total: {redirects.split('\n').map(line=>line.trim()).filter(Boolean).length}.</p></div>
    </>}
+   {CONFIG_TABS.includes(tab)&&tab!=='sessions'&&<ConfigFields fields={configFields(tab)} cfg={cfg} setCfg={setCfg} busy={busy} errors={fields} persisted={current?.settings?.config??{}} failed={schema.error}/>}
    {tab==='sessions'&&<>
     <div className="aw-field"><label htmlFor="session-token">Access token expiry time (seconds)</label>
      <input id="session-token" type="number" min={60} max={86400} step={1} placeholder="3600" {...field('session-token')} value={session.token} onChange={event=>setSession({...session,token:event.target.value})}/>
@@ -167,13 +206,14 @@ export function SignInSection({path,request}:{path:string;request:Api}){
     <div className="aw-field"><label htmlFor="session-inactivity">Inactivity timeout (hours)</label>
      <input id="session-inactivity" type="number" min={1} max={87600} step={1} {...field('session-inactivity')} value={session.inactivity} onChange={event=>setSession({...session,inactivity:event.target.value})}/>
      {fieldMessage('session-inactivity')}<p className="aw-hint">How long a person can be idle before they must sign in again. Empty means no limit.</p></div>
+    <ConfigFields fields={configFields('sessions')} cfg={cfg} setCfg={setCfg} busy={busy} errors={fields} persisted={current?.settings?.config??{}} failed={schema.error}/>
    </>}
   </div>
  </div>}
  {current&&<div className="aw-savebar" role="region" aria-label="Save changes" inert={open?true:undefined}>
   <p role="status">{dirty?'You have unsaved changes.':current.state==='failed'?'Not applied. Save again to retry.':current.state==='pending'?'Auth is restarting with the saved settings.':'Saving restarts this environment\'s Auth. Users and sessions are kept.'}</p>
   <div className="aw-actions"><button type="button" className="aw-ghost" disabled={busy||!dirty} onClick={discard}>Discard</button>
-   <button type="button" className="aw-primary" disabled={busy||(!dirty&&current.state!=='failed')||current.state==='pending'} onClick={()=>void save()}><Save aria-hidden="true"/>Save and apply</button></div>
+   <button type="button" className="aw-primary" disabled={busy||(!dirty&&current.state!=='failed')||current.state==='pending'||Boolean(schema.error)} onClick={()=>void save()}><Save aria-hidden="true"/>Save and apply</button></div>
  </div>}
  {open&&meta&&<div className="aw-scrim" onMouseDown={event=>{if(event.target===event.currentTarget)close();}}><div className="aw-drawer" role="dialog" aria-modal="true" aria-labelledby="aw-drawer-title">
   <div className="aw-drawer-head"><ProviderIcon name={open} label={meta.label}/><h3 id="aw-drawer-title">{meta.label}</h3><button type="button" className="aw-close" aria-label="Close" onClick={close}><X aria-hidden="true"/></button></div>

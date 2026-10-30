@@ -4,7 +4,7 @@ import {lstatSync,mkdirSync,readFileSync,renameSync,writeFileSync} from 'node:fs
 import {join} from 'node:path';
 import {Catalog} from './catalog';
 import {authenticate,reply,type ManagementIdentity} from './auth';
-import {authConfigView} from './auth-config';
+import {authConfigView,REGISTRY} from './auth-config';
 
 /** Sign-in settings for one environment: where Auth sends people after a login or an email
  * link, which OAuth providers it offers, and how long its sessions live. The console saves
@@ -25,9 +25,9 @@ type Provider={enabled:boolean;client_id:string;secret:string;url:string;skip_no
  * may stay signed in, and the idle time before a sign out. A null member sets no variable,
  * so that session does not expire. The ranges mirror lab/auth_settings.py `validate`. */
 export type SignInSession={access_token_seconds:number|null;timebox_seconds:number|null;inactivity_seconds:number|null};
-export type SignInSettings={version?:number;revision:number;site_url:string;redirect_urls:string[];signup:boolean;anonymous:boolean;manual_linking:boolean;
+export type SignInSettings={version?:number;revision:number;site_url:string;redirect_urls:string[];signup:boolean;anonymous:boolean;manual_linking:boolean;config:Record<string,boolean|number>;
  session:SignInSession;providers:Record<string,Provider>};
-export type SignInView=Omit<SignInSettings,'providers'|'revision'|'version'>&{providers:Record<string,{enabled:boolean;client_id:string;
+export type SignInView=Omit<SignInSettings,'providers'|'revision'|'version'|'config'>&{config:Record<string,boolean|number>}&{providers:Record<string,{enabled:boolean;client_id:string;
  secret_set:boolean;url:string;skip_nonce_check:boolean;email_optional:boolean}>};
 const NO_CAP:SignInSession={access_token_seconds:null,timebox_seconds:null,inactivity_seconds:null};
 const SESSION_RANGE:Record<keyof SignInSession,[number,number]>={access_token_seconds:[60,86400],
@@ -73,6 +73,25 @@ function sessionFromInput(value:unknown,current:SignInSession|null):SignInSessio
  return session;
 }
 
+/** The registry's simple settings (store `config`): booleans and bounded integers, one entry each. */
+const CONFIG_KEYS=new Map(REGISTRY.core.filter(entry=>entry.store==='config').map(entry=>[entry.key,entry]));
+
+/** One config object from the console's input. An omitted object or member keeps what is saved; null clears a member. */
+function configFromInput(value:unknown,current:Record<string,boolean|number>):Record<string,boolean|number> {
+ const result={...current};
+ if(value===undefined)return result;
+ if(!value||typeof value!=='object'||Array.isArray(value))throw new SettingsError('config');
+ for(const [key,member] of Object.entries(value as Record<string,unknown>)) {
+  const entry=CONFIG_KEYS.get(key);
+  if(!entry)throw new SettingsError('config');
+  if(member===null){delete result[key];continue;}
+  if(entry.type==='bool'){if(typeof member!=='boolean')throw new SettingsError(key);result[key]=member;continue;}
+  if(typeof member!=='number'||!Number.isInteger(member)||member<entry.min!||member>entry.max!)throw new SettingsError(key);
+  result[key]=member;
+ }
+ return result;
+}
+
 /** The settings to save, from the console's input and what is saved now. An empty secret
  * keeps the saved one, so the console never needs to hold it. */
 /** The providers the nonce check applies to (lab/auth_settings.py NONCE_PROVIDERS). */
@@ -81,7 +100,7 @@ const NONCE_PROVIDERS=['apple','google'];
 export function settingsFromInput(input:unknown,current:SignInSettings|null):SignInSettings {
  if(!input||typeof input!=='object'||Array.isArray(input))throw new SettingsError('settings');
  const value=input as Record<string,unknown>;
- const allowed=new Set(['site_url','redirect_urls','signup','anonymous','session','providers','manual_linking','base_revision']);
+ const allowed=new Set(['site_url','redirect_urls','signup','anonymous','session','providers','manual_linking','config','base_revision']);
  if(Object.keys(value).some(key=>!allowed.has(key)))throw new SettingsError('settings');
  const site_url=webAddress(value.site_url,'site_url');
  const redirects=value.redirect_urls??[];
@@ -114,7 +133,7 @@ export function settingsFromInput(input:unknown,current:SignInSettings|null):Sig
   providers[name]={enabled,client_id:ids,secret,url,skip_nonce_check:nonce,email_optional:optional};
  }
  return {version:FILE_VERSION,revision:(current?.revision??0)+1,site_url,redirect_urls:redirects.map(redirectAddress),signup,anonymous,manual_linking:linking,
-  session:sessionFromInput(value.session,current?.session??null),providers};
+  session:sessionFromInput(value.session,current?.session??null),config:configFromInput(value.config,current?.config??{}),providers};
 }
 
 export function view(settings:SignInSettings|null):SignInView|null {
@@ -123,7 +142,7 @@ export function view(settings:SignInSettings|null):SignInView|null {
  for(const [name,entry] of Object.entries(settings.providers))
   providers[name]={enabled:entry.enabled,client_id:entry.client_id,secret_set:!!entry.secret,url:entry.url,
    skip_nonce_check:!!entry.skip_nonce_check,email_optional:!!entry.email_optional};
- return {site_url:settings.site_url,redirect_urls:settings.redirect_urls,signup:settings.signup,anonymous:settings.anonymous,manual_linking:!!settings.manual_linking,
+ return {site_url:settings.site_url,redirect_urls:settings.redirect_urls,signup:settings.signup,anonymous:settings.anonymous,manual_linking:!!settings.manual_linking,config:settings.config??{},
   session:settings.session,providers};
 }
 
@@ -137,6 +156,7 @@ export function changedKeys(before:SignInSettings|null,after:SignInSettings):str
  if((before?.signup??true)!==after.signup)keys.push('DISABLE_SIGNUP');
  if((before?.anonymous??false)!==after.anonymous)keys.push('EXTERNAL_ANONYMOUS_USERS_ENABLED');
  if((before?.manual_linking??false)!==after.manual_linking)keys.push('SECURITY_MANUAL_LINKING_ENABLED');
+ for(const key of CONFIG_KEYS.keys())if(before?.config?.[key]!==after.config[key])keys.push(key);
  const was=before?.session??NO_CAP;
  if(was.access_token_seconds!==after.session.access_token_seconds)keys.push('JWT_EXP');
  if(was.timebox_seconds!==after.session.timebox_seconds)keys.push('SESSIONS_TIMEBOX');
@@ -178,14 +198,15 @@ export function readSettings(directory:string,runtime:string):SignInSettings|nul
  // A file may lack `providers`, which the Python validator reads as none.
  // Files from before manual linking and the provider switches have none of them: all off, as Auth's own default.
  const providers=Object.fromEntries(Object.entries(saved.providers??{}).map(([name,entry])=>[name,{...entry,skip_nonce_check:entry.skip_nonce_check??false,email_optional:entry.email_optional??false}]));
- return {...saved,manual_linking:saved.manual_linking??false,providers,session:{...NO_CAP,...session}};
+ return {...saved,manual_linking:saved.manual_linking??false,config:saved.config??{},providers,session:{...NO_CAP,...session}};
 }
 
 /** As lab/auth_settings.py `file_form`: the version 1 shape while no switch added with version 2 is on. */
 function fileForm(settings:SignInSettings):Record<string,unknown> {
- const plain=!settings.manual_linking&&!Object.values(settings.providers).some(entry=>entry.skip_nonce_check||entry.email_optional);
- if(!plain)return {...settings,version:FILE_VERSION};
- const {manual_linking:_linking,...rest}=settings;
+ const plain=!settings.manual_linking&&Object.keys(settings.config??{}).length===0&&!Object.values(settings.providers).some(entry=>entry.skip_nonce_check||entry.email_optional);
+ // An empty config is left out, so a build from before the simple settings still reads a file that only uses version 2 switches.
+ if(!plain){const {config,...rest}=settings;return {...rest,...(Object.keys(config??{}).length>0?{config}:{}),version:FILE_VERSION};}
+ const {manual_linking:_linking,config:_config,...rest}=settings;
  return {...rest,version:1,providers:Object.fromEntries(Object.entries(settings.providers).map(([name,{skip_nonce_check:_nonce,email_optional:_optional,...entry}])=>[name,entry]))};
 }
 

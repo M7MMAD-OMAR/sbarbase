@@ -41,8 +41,9 @@ MAIL_KEY_PREFIXES = ('GOTRUE_SMTP_', 'GOTRUE_MAILER_', 'GOTRUE_RATE_LIMIT_')
 
 
 def is_mail_key(key):
-    """An Auth setting that belongs to the mail configuration."""
-    return key.startswith(MAIL_KEY_PREFIXES)
+    """An Auth setting that belongs to the mail configuration. A rate limit or other key the sign-in settings
+    own (lab/auth_settings.py `owned`) is not one, whatever its prefix: a key has one owner."""
+    return key.startswith(MAIL_KEY_PREFIXES) and not auth_settings.owned(key)
 
 
 def run_locked(main, failure):
@@ -590,9 +591,11 @@ def join(container, networks):
 
 
 def egress_wanted(mail, settings):
-    """Whether an environment's Auth needs a way out: a mail configuration or an enabled OAuth provider."""
+    """Whether an environment's Auth needs a way out: a mail configuration, an enabled OAuth provider, or leaked
+    password protection (Auth asks the Have I Been Pwned range service)."""
     providers = (settings or {}).get('providers') or {}
-    return mail is not None or any(entry.get('enabled') for entry in providers.values())
+    leaked = bool(((settings or {}).get('config') or {}).get('PASSWORD_HIBP_ENABLED'))
+    return mail is not None or leaked or any(entry.get('enabled') for entry in providers.values())
 
 
 def egress(name, wanted):
