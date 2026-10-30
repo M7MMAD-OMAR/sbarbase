@@ -61,7 +61,7 @@ KINDS = frozenset((
     'backup.export_completed', 'backup.export_failed', 'backup.completed', 'backup.failed',
     'restore.verified', 'restore.failed', 'environment.saturated',
     'update.available', 'update.applied', 'update.rolled_back', 'update.rollback_failed',
-    'host.disk_low', 'runtime.container_stopped'))
+    'host.disk_low', 'runtime.container_stopped', 'service.unused'))
 REASONS = frozenset((
     'runtime_failed', 'retry_limit', 'retry_requested', 'owner_changed', 'ownership_changed',
     'routing_paused', 'routing_resumed', 'installation_limit', 'memory_headroom',
@@ -73,7 +73,7 @@ REASONS = frozenset((
     'export_completed', 'export_failed', 'restore_verified', 'restore_failed',
     'environment_saturated', 'telegram_unreachable', 'telegram_status',
     'update_available', 'update_applied', 'update_rolled_back', 'update_rollback_failed',
-    'disk_low', 'container_stopped'))
+    'disk_low', 'container_stopped', 'service_unused'))
 CHANNELS = ('email', 'webhook', 'telegram')
 SEVERITIES = ('info', 'warning', 'critical')
 DETAIL_KEYS = {
@@ -110,6 +110,8 @@ DETAIL_KEYS = {
     # The supervisor's host watch (lab/host_watch.py).
     'host.disk_low': ('filesystem', 'available_mib', 'percent'),
     'runtime.container_stopped': ('container', 'minutes'),
+    # The unused service check (src/control/service-hints.ts).
+    'service.unused': ('service', 'days', 'memory_mib'),
 }
 REASON_CLASS = {
     'runtime_failed': 'provisioning_outcome', 'retry_limit': 'provisioning_outcome',
@@ -134,6 +136,7 @@ REASON_CLASS = {
     'update_available': 'upgrade_outcome', 'update_applied': 'upgrade_outcome',
     'update_rolled_back': 'upgrade_outcome', 'update_rollback_failed': 'upgrade_outcome',
     'disk_low': 'capacity_pressure', 'container_stopped': 'supervisor_lifecycle',
+    'service_unused': 'capacity_pressure',
 }
 # Fixed renderer. summary and action are looked up here and interpolate only safe
 # identifiers, a closed reason name and a number. No caller supplies either string.
@@ -202,6 +205,8 @@ SUMMARY = {
                       'Free space or grow the disk; old backups are kept under .lab/backups.'),
     'runtime.container_stopped': ('A Sbarbase service container has stayed stopped for several minutes.',
                                   'Run docker ps -a and the service logs to see why, then restart Sbarbase.'),
+    'service.unused': ('An optional service is on for an environment and has not been used for days.',
+                       'Open the environment, then Services, and turn it off if you do not need it. Nothing was changed.'),
 }
 # Allow-list. The rendered envelope contains exactly these keys, in these positions.
 ENVELOPE_FIELDS = ('schema', 'id', 'delivery', 'kind', 'severity', 'at', 'last_at', 'occurrences',
@@ -674,6 +679,8 @@ PLAIN = {
                       'Backups and databases stop working when the disk is full.', 'Free space or add disk.'),
     'runtime.container_stopped': ('A Sbarbase service has stopped', 'It has stayed stopped for several minutes.',
                                   'Check the server logs, then restart Sbarbase.'),
+    'service.unused': ('A service nobody is using is still running', 'It holds memory that other services could use.',
+                       'Open the environment in the console, then Services, and turn it off if you do not need it. Nothing was changed.'),
 }
 # Said in place of "why" when the recorded reason says it better than the kind does.
 PLAIN_REASON = {
@@ -695,6 +702,7 @@ PLAIN_CHANNEL_REASON = {
     'telegram_unreachable': 'Telegram could not be reached', 'telegram_status': 'Telegram refused the message, '
     'for example a wrong bot or chat',
 }
+PLAIN_SERVICE = {'realtime': 'Realtime', 'functions': 'Edge Functions'}
 PLAIN_DISK = {'checkout': 'the disk Sbarbase is installed on', 'docker': 'the disk Docker keeps its data on'}
 PLAIN_SEVERITY = {'info': 'ℹ️', 'warning': '⚠️', 'critical': '🚨'}
 
@@ -750,6 +758,10 @@ def plain_detail(kind, detail, reason=None):
         cause = PLAIN_CHANNEL_REASON.get(reason)
         return 'The ' + PLAIN_CHANNEL[detail['channel']] + ' channel failed' + (': ' + cause if cause else '') + \
             '. This message came by another channel.'
+    if kind == 'service.unused' and detail.get('service') in PLAIN_SERVICE and isinstance(detail.get('days'), int):
+        memory = detail.get('memory_mib')
+        return PLAIN_SERVICE[detail['service']] + ' has not been used for %d days' % detail['days'] + (
+            ' and holds about %d MiB.' % memory if isinstance(memory, int) and memory > 0 else '.')
     if kind == 'runtime.container_stopped' and isinstance(detail.get('container'), str) \
             and re.fullmatch(r'[0-9A-Za-z._-]{1,40}', detail['container']):
         minutes = detail.get('minutes')

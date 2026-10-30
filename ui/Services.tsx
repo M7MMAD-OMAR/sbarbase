@@ -2,7 +2,7 @@ import {useEffect,useRef,useState} from 'react';
 import {useData,type Api} from './api';
 import {ErrorMessage,Loading} from './components';
 import {ago} from './functions-workspace/format';
-import {ABOUT,COST_NOTE,NAMES,STATE_CLASS,STATE_LABEL,SWITCH_ROUTE,changing,confirmOff,costText,lastUsedText,memory,memoryText,staleText,
+import {ABOUT,COST_NOTE,NAMES,STATE_CLASS,STATE_LABEL,SWITCH_ROUTE,changing,confirmOff,costText,lastUsedText,memory,memoryText,staleText,unusedText,
  type Service,type ServiceId,type Services} from './services-view';
 import './auth-workspace.css';
 import './services.css';
@@ -29,6 +29,11 @@ function Confirm({service,text,busy,onKeep,onOff}:{service:Service;text:string;b
  return <div ref={box} tabIndex={-1} className="aw-notice" role="alertdialog" aria-label={'Turn off '+NAMES[service.id]}><p className="svc-ask">{text}</p>
   <div className="aw-actions"><button type="button" className="aw-ghost" onClick={onKeep}>Keep it on</button>
    <button type="button" className="aw-primary" disabled={busy} onClick={onOff}>Turn off {NAMES[service.id]}</button></div></div>;
+}
+
+/** A hint, never an action: the question and one button that asks, like the switch does. */
+function Hint({service,busy,canAct,onOff}:{service:Service;busy:boolean;canAct:boolean;onOff:()=>void}){
+ return <div className="svc-hint" role="note"><p>{unusedText(service)}</p>{canAct&&<button type="button" className="aw-ghost" disabled={busy} onClick={onOff}>Turn off {NAMES[service.id]}</button>}</div>;
 }
 
 /** The Services of one environment: what is running, what it holds in memory, when it was last used and a switch for each
@@ -82,6 +87,7 @@ export function ServicesPage({path,request,go}:{path:string;request:Api;go:(sect
         <p className="aw-hint"><bdi>{memoryText(service)}</bdi><span aria-hidden="true"> · </span>Last used: <bdi>{lastUsedText(service,now,ago)}</bdi></p></div>
        <Chip service={service}/>
        {SWITCH_ROUTE[id]?<Switcher service={service} disabled={locked} onToggle={s=>void toggle(s)}/>:<span className="svc-spacer" aria-hidden="true"/>}</div>
+       {unusedText(service)&&<Hint service={service} busy={locked} canAct={current.canChange} onOff={()=>void toggle(service)}/>}
        {ask?.id===id&&<Confirm service={service} text={ask.text} busy={busy} onKeep={()=>setAsk(null)} onOff={()=>void turn(id,false)}/>}</div>;})}</div>
     </>}
     {tab!=='overview'&&(()=>{const service=byId(tab);if(!service)return null;const cost=service.state==='off'?costText(service,current.capacity):null,owner=current.canChange?OWNER_SECTION[tab]:undefined;
@@ -93,6 +99,7 @@ export function ServicesPage({path,request,go}:{path:string;request:Api;go:(sect
       {SWITCH_ROUTE[tab]&&<div className="aw-group"><div className="aw-row"><div className="aw-text"><span className="svc-state">{isOn(service)?'On':'Off'}</span>
         <p className="aw-hint">{cost??COST_NOTE[tab]}</p></div>
         <Switcher id={'svc-'+tab} service={service} disabled={locked} onToggle={s=>void toggle(s)}/></div></div>}
+      {unusedText(service)&&<Hint service={service} busy={locked} canAct={current.canChange} onOff={()=>void toggle(service)}/>}
       {ask?.id===tab&&<Confirm service={service} text={ask.text} busy={busy} onKeep={()=>setAsk(null)} onOff={()=>void turn(tab,false)}/>}
       {(cost||owner)&&<p className="aw-hint svc-note">{COST_NOTE[tab]}</p>}
       {owner&&<button type="button" className="aw-ghost" onClick={()=>go(owner.section)}>{owner.label}</button>}

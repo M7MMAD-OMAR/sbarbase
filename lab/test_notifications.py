@@ -664,6 +664,15 @@ class TelegramPlainTextTests(unittest.TestCase):
         self.assertIn('Docker keeps its data', notify.telegram_text(
             self.envelope('host.disk_low'), {'filesystem': 'docker', 'available_mib': 1, 'percent': 3}))
 
+    def test_an_unused_service_says_which_one_for_how_long_and_that_nothing_changed(self):
+        text = notify.telegram_text(self.envelope('service.unused'), {'service': 'realtime', 'days': 11, 'memory_mib': 183})
+        self.assertIn('Realtime has not been used for 11 days and holds about 183 MiB.', text)
+        self.assertIn('Nothing was changed', text)
+        self.assertIn('Edge Functions has not been used for 8 days.', notify.telegram_text(
+            self.envelope('service.unused'), {'service': 'functions', 'days': 8, 'memory_mib': 0}))
+        self.assertNotIn('has not been used', notify.telegram_text(self.envelope('service.unused'), {'service': 'cron; drop', 'days': 8, 'memory_mib': 0}))
+        self.assertEqual(notify.DETAIL_KEYS['service.unused'], ('service', 'days', 'memory_mib'))
+
     def test_a_catalog_without_the_name_tables_yields_no_names(self):
         database = notify.sqlite3.connect(':memory:')
         self.assertEqual(notify.subject_names(database, {'organization': 'o'}), {})

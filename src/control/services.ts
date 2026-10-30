@@ -3,6 +3,9 @@ import {bindReadyEnvironmentPublication} from './ready-publication';
 import {Catalog,type ServiceRow,type ServicesState} from './catalog';
 import {authenticate,reply,type ManagementIdentity} from './auth';
 import type {ServiceActivity} from '../gateway/activity';
+import {unusedHint,type Hint} from './service-hints';
+import {requireOperatorPublication,managementPublication,bindManagementPublication} from './management-publication';
+import {refreshCurrentManagement} from './management-context';
 
 /** GET `/environments/{id}/services`: the Services page of one environment (docs/guides/services.md).
  *
@@ -23,7 +26,9 @@ export type ServiceView={id:ServiceId;state:ServiceState;failure:string|null;upd
  /** Last use in milliseconds. null: never seen, or not recorded for this service (`tracked` false). */
  lastUsedAt:number|null;tracked:boolean;
  /** Open Realtime sockets, or Edge Functions calls in flight, in this process; null for the other services. */
- inUse:number|null};
+ inUse:number|null;
+ /** Set when the service has been on with no use for the installation's number of days: a hint, never an action. */
+ unused:Hint|null};
 export type ServicesAnswer={runtime:string;services:ServiceView[];canChange:boolean;
  stats:{capturedAt:number|null;stale:boolean};
  capacity:{availableBytes:number|null;totalBytes:number|null}};
@@ -42,7 +47,7 @@ export function readStats(path:string=STATS_FILE):Stats|undefined {
   if(value?.version!==1||!count(value.capturedAt)||!value.containers||typeof value.containers!=='object'||Array.isArray(value.containers))return undefined;
   const containers:Stats['containers']={};
   for(const [name,entry] of Object.entries(value.containers as Record<string,{memoryBytes?:unknown;limitBytes?:unknown}>)){
-   if(!/^(db|storage|management-auth|e_[a-f0-9]{24}-[a-z]{3,8})$/.test(name)||!entry||!count(entry.memoryBytes)||!count(entry.limitBytes))continue;
+   if(!/^(db|storage|management-auth|e_[a-f0-9]{24}-[a-z]{3,9})$/.test(name)||!entry||!count(entry.memoryBytes)||!count(entry.limitBytes))continue;
    containers[name]={memoryBytes:entry.memoryBytes,limitBytes:entry.limitBytes};
   }
   const costs=(value.costs??{}) as {realtime?:unknown;functions?:unknown};
@@ -56,7 +61,7 @@ function stateOf(row:ServiceRow):ServiceState {
  return row.state==='pending'?row.desired==='on'?'starting':'stopping':SERVICE_STATE[row.state];
 }
 
-export type ServicesInput={state:ServicesState;stats?:Stats;now:number;activity?:ServiceActivity;
+export type ServicesInput={state:Omit<ServicesState,'actorCanChange'>&{actorCanChange?:boolean};stats?:Stats;now:number;activity?:ServiceActivity;unusedDays?:number;
  memory?:{availableBytes:number|null;totalBytes:number|null}};
 
 /** Pure: the answer from what the catalog, the sampler and the gateway know. */
@@ -68,13 +73,14 @@ export function composeServices(input:ServicesInput):ServicesAnswer {
   return entry&&!stale?{memoryBytes:entry.memoryBytes,memoryLimitBytes:entry.limitBytes}:{memoryBytes:null,memoryLimitBytes:null};
  };
  const row=(id:ServiceId,item:ServiceRow,extra:Partial<ServiceView>):ServiceView=>({id,state:stateOf(item),failure:item.state==='failed'?item.failure:null,updatedAt:item.updatedAt,
-  memoryBytes:null,memoryLimitBytes:null,costBytes:null,lastUsedAt:state.activity[id]??null,tracked:false,inUse:null,...extra});
- return {runtime:state.runtime,canChange:state.actorCanChange,
+  memoryBytes:null,memoryLimitBytes:null,costBytes:null,lastUsedAt:state.activity[id]??null,tracked:false,inUse:null,unused:null,...extra});
+ const withHint=(view:ServiceView,item:ServiceRow):ServiceView=>({...view,unused:input.unusedDays===undefined?null:unusedHint({state:view.state,inUse:view.inUse,lastUsedAt:view.lastUsedAt,onSince:item.updatedAt,now,days:input.unusedDays})});
+ return {runtime:state.runtime,canChange:state.actorCanChange??false,
   services:[
-   row('realtime',state.realtime,{...memory('realtime'),costBytes:stats?.costs.realtime??null,tracked:true,
-    lastUsedAt:activity?.lastUsed(state.runtime,'realtime')??state.activity.realtime??null,inUse:activity?.openSockets(state.runtime)??null}),
-   row('functions',state.functions,{...memory('functions'),costBytes:stats?.costs.functions??null,tracked:true,
-    lastUsedAt:activity?.lastUsed(state.runtime,'functions')??state.activity.functions??null,inUse:activity?.inFlightCalls(state.runtime)??null}),
+   withHint(row('realtime',state.realtime,{...memory('realtime'),costBytes:stats?.costs.realtime??null,tracked:true,
+    lastUsedAt:activity?.lastUsed(state.runtime,'realtime')??state.activity.realtime??null,inUse:activity?.openSockets(state.runtime)??null}),state.realtime),
+   withHint(row('functions',state.functions,{...memory('functions'),costBytes:stats?.costs.functions??null,tracked:true,
+    lastUsedAt:activity?.lastUsed(state.runtime,'functions')??state.activity.functions??null,inUse:activity?.inFlightCalls(state.runtime)??null}),state.functions),
    row('database',state.database,{}),
    row('cron',state.cron,{}),
    row('studio',state.studio,{...memory('studio'),tracked:true}),
@@ -93,12 +99,39 @@ export function servicesHandler(catalog:Catalog,identify:ManagementIdentity,opti
   if(actor instanceof Response)return actor;
   try{
    const state=catalog.services(actor,match[1]!);
-   const data=composeServices({state,stats:(options.stats??readStats)(),now:(options.now??Date.now)(),activity:options.activity,memory:options.memory?.()});
+   const data=composeServices({state,stats:(options.stats??readStats)(),now:(options.now??Date.now)(),activity:options.activity,memory:options.memory?.(),unusedDays:catalog.installationServices().unusedDays});
    return bindReadyEnvironmentPublication(reply(200,{data}),catalog,actor,match[1]!,state.runtime,false);
   }catch(error){
    const message=error instanceof Error?error.message:'';
    if(message==='Forbidden')return reply(403,{message:'Forbidden'});
    if(message==='Environment is not ready')return reply(409,{message});
+   return reply(500,{message:'Management operation failed'});
+  }
+ };
+}
+
+/** GET and PUT `/management/v1/installation/services`: the installation wide settings of the optional services (`{"unusedDays": n}`, 1 to 365).
+ * Installation operators only, for both. */
+export function installationServicesHandler(catalog:Catalog,identify:ManagementIdentity) {
+ return async(request:Request):Promise<Response>=>{
+  if(new URL(request.url).pathname!=='/management/v1/installation/services')return reply(404,{message:'Unknown route'});
+  if(!['GET','PUT'].includes(request.method))return reply(405,{message:'Method not allowed'});
+  const actor=await authenticate(identify,request);
+  if(actor instanceof Response)return actor;
+  try{
+   if(!catalog.installationOperator(actor))return reply(403,{message:'Forbidden'});
+   if(request.method==='GET')return managementPublication(catalog,()=>{requireOperatorPublication(catalog,actor);return reply(200,{data:catalog.installationServices()});});
+   let input:unknown;
+   try{input=await request.json();}catch{return reply(400,{message:'Invalid JSON'});}
+   await refreshCurrentManagement();
+   const body=input as {unusedDays?:unknown}|null;
+   if(!body||typeof body!=='object'||Array.isArray(body)||Object.keys(body).some(key=>key!=='unusedDays')||typeof body.unusedDays!=='number')return reply(400,{message:'Send {"unusedDays": 7}'});
+   const data=catalog.setInstallationServices(actor,{unusedDays:body.unusedDays});
+   return bindManagementPublication(reply(200,{data}),catalog,()=>{requireOperatorPublication(catalog,actor);return reply(200,{data:catalog.installationServices()});});
+  }catch(error){
+   const message=error instanceof Error?error.message:'';
+   if(message==='Forbidden')return reply(403,{message:'Forbidden'});
+   if(message==='Invalid services setting')return reply(400,{message:'unusedDays must be a whole number from 1 to 365'});
    return reply(500,{message:'Management operation failed'});
   }
  };

@@ -12,6 +12,7 @@ The declared package version is 0.9.2. Historical 0.1.0 and 0.2.0 entries retain
 
 ### Added
 
+- **Hints for services nobody uses.** Realtime or Edge Functions that has been on for 7 days with no use shows "No connection for 11 days, 183 MiB. Turn it off?" on the Services page, and the installation operator gets one notice per service, repeated at most every 14 days. Nothing is ever turned off by a hint. The 7 days is an installation setting with a floor of 1 day (`GET` and `PUT /management/v1/installation/services`, operators only, audited). The catalog schema moves to version 7, so the previous release refuses a catalog this one has opened; the way back is the pre-upgrade snapshot.
 - **A Services page for every environment.** One page lists Realtime, Edge Functions, scheduled jobs, direct database access and Studio with each one's state, the memory its container holds now (measured once a minute by the supervisor, shown as out of date after three minutes), when it was last used, and what turning it on needs against the server's free memory. Every member can read it; only owners and admins switch a service. Turning off Realtime or Edge Functions while connections are open or calls are running asks first and says how many. New route `GET /management/v1/environments/{id}/services`; the switches and their audit events are unchanged. See [Services](docs/guides/services.md).
 
 ### Still open

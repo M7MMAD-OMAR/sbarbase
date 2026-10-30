@@ -63,6 +63,8 @@ export class ServiceActivity {
   return last===null||now-last>=idleMs;
  }
  flush() {
+  // A socket held open keeps its runtime in use: its time is refreshed here, so a restart or a handover never sees an old open socket as idle.
+  for(const runtime of this.sockets.keys())this.mark(runtime,'realtime');
   if(!this.store||!this.dirty.size)return;
   const rows=[...this.dirty].map(key=>{const [runtime,service]=key.split('|') as [string,string];return {runtime,service,at:this.last.get(key)!};});
   try{this.store.save(rows);this.dirty.clear();}catch{}

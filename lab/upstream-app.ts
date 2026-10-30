@@ -8,6 +8,8 @@ import {PressureMonitor} from '../src/gateway/pressure';
 import {applicationConcurrency} from '../src/gateway/managed';
 import {ServiceActivity} from '../src/gateway/activity';
 import {createServerHealthReader} from '../src/control/server-health';
+import {checkUnusedServices} from '../src/control/service-hints';
+import {readStats} from '../src/control/services';
 import {createHmac} from 'node:crypto';
 import {Catalog} from '../src/control/catalog';
 import {durableInventoryDeriver} from '../src/control/durable-lifecycle';
@@ -124,6 +126,10 @@ export function openUpstreamApplication() {
  const activity=new ServiceActivity({load:runtime=>catalog.serviceActivity(runtime),save:rows=>catalog.saveServiceActivity(rows)},Date.now,
   runtime=>applicationConcurrency.inFlight(runtime,'functions'));
  activity.start();
+ // Once an hour, and fifteen minutes after a start: an operator notice for a service that sits unused (a hint, never an action).
+ const hints=()=>{try{checkUnusedServices(catalog,activity,Date.now(),readStats());}catch{console.error('The unused service check failed; it is tried again in an hour.');}};
+ // The first look waits fifteen minutes, so clients of a restarted console have reconnected before anything is called unused.
+ const hintTimer=setInterval(hints,3600_000);hintTimer.unref?.();setTimeout(hints,15*60_000).unref?.();
  const health=createServerHealthReader();
  const database=new DirectDatabase();
  const handler=application(catalog,keys,{get auth(){return managementAuth();},publishableKey:managementPublishableKey,
@@ -158,5 +164,5 @@ export function openUpstreamApplication() {
   // The internal route also serves each environment's email templates to its own Auth (src/control/mail-templates.ts).
   const templates=mailTemplateRoute('.secrets/upstream');
   return {handler,studio,upstream:(request:Request)=>templates(request)??upstream(request),realtime,catalog,keys,tokens,database,listening(port:number){loopback=`http://127.0.0.1:${port}`;},
-   close(){activity.stop();database.stop();pressure.stop();catalog.close();keys.close();tokens.close();}};
+   close(){clearInterval(hintTimer);activity.stop();database.stop();pressure.stop();catalog.close();keys.close();tokens.close();}};
 }

@@ -84,8 +84,8 @@ test('the sampler file is read with a size cap and only what it should hold',()=
   const path=join(directory,'stats.json');
   const E='e_'+'a'.repeat(24);
   writeFileSync(path,JSON.stringify({version:1,capturedAt:5,containers:{[`${E}-realtime`]:{memoryBytes:7,limitBytes:9},'db':{memoryBytes:1,limitBytes:2},
-   '../etc':{memoryBytes:1,limitBytes:2},[`${E}-rest`]:{memoryBytes:-1,limitBytes:2},[`${E}-auth`]:{memoryBytes:'x',limitBytes:2}},costs:{realtime:10,functions:'no'}}));
-  expect(readStats(path)).toEqual({capturedAt:5,containers:{[`${E}-realtime`]:{memoryBytes:7,limitBytes:9},db:{memoryBytes:1,limitBytes:2}},costs:{realtime:10,functions:null}});
+   [`${E}-functions`]:{memoryBytes:3,limitBytes:4},'../etc':{memoryBytes:1,limitBytes:2},[`${E}-rest`]:{memoryBytes:-1,limitBytes:2},[`${E}-auth`]:{memoryBytes:'x',limitBytes:2}},costs:{realtime:10,functions:'no'}}));
+  expect(readStats(path)).toEqual({capturedAt:5,containers:{[`${E}-realtime`]:{memoryBytes:7,limitBytes:9},[`${E}-functions`]:{memoryBytes:3,limitBytes:4},db:{memoryBytes:1,limitBytes:2}},costs:{realtime:10,functions:null}});
   writeFileSync(path,JSON.stringify({version:2,capturedAt:5,containers:{}}));expect(readStats(path)).toBeUndefined();
   writeFileSync(path,'not json');expect(readStats(path)).toBeUndefined();
   writeFileSync(path,JSON.stringify({version:1,capturedAt:5,containers:{},pad:'x'.repeat(300*1024)}));expect(readStats(path)).toBeUndefined();
@@ -251,5 +251,17 @@ test('Studio failure text reaches a member only as a fixed sentence, never the e
   const failure=catalog.services('carol',environment).studio.failure!;
   expect(failure).not.toContain('sha256');
   expect(failure).toContain('Studio could not start');
+ }finally{catalog.close();}
+});
+
+test('a socket held open keeps refreshing its last use, so a restart or handover never reads it as idle',()=>{
+ const {catalog,runtime}=ready();
+ try{
+  let now=1_000;
+  const activity=new ServiceActivity({load:r=>catalog.serviceActivity(r),save:rows=>catalog.saveServiceActivity(rows)},()=>now);
+  const close=activity.socketOpened(runtime);
+  now+=8*86_400_000;activity.flush();
+  expect(catalog.serviceActivity(runtime).realtime).toBe(now);
+  close();
  }finally{catalog.close();}
 });

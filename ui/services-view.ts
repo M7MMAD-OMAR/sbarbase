@@ -2,7 +2,7 @@
 export type ServiceId='realtime'|'functions'|'database'|'cron'|'studio';
 export type ServiceState='off'|'starting'|'stopping'|'on'|'failed';
 export type Service={id:ServiceId;state:ServiceState;failure:string|null;updatedAt:number|null;memoryBytes:number|null;memoryLimitBytes:number|null;
- costBytes:number|null;lastUsedAt:number|null;tracked:boolean;inUse:number|null};
+ costBytes:number|null;lastUsedAt:number|null;tracked:boolean;inUse:number|null;unused?:{days:number;neverUsed:boolean}|null};
 export type Services={runtime:string;services:Service[];canChange:boolean;stats:{capturedAt:number|null;stale:boolean};
  capacity:{availableBytes:number|null;totalBytes:number|null}};
 
@@ -75,4 +75,14 @@ export const changing=(service:Service)=>service.state==='starting'||service.sta
 export function staleText(stats:Services['stats'],now:number,ago:(then:number,now:number)=>string):string|null {
  if(!stats.stale)return null;
  return stats.capturedAt===null?'Memory figures are not available yet. The server measures them once a minute.':`Memory figures are out of date (measured ${ago(stats.capturedAt,now)}).`;
+}
+
+/** The hint under a service that is on and sits unused: how long, what it holds, and the question. Never an action by itself. */
+export function unusedText(service:Service):string|null {
+ const hint=service.unused;
+ if(!hint)return null;
+ const days=`${hint.days} ${hint.days===1?'day':'days'}`;
+ const what=service.id==='realtime'?'connection':'call';
+ const held=service.memoryBytes===null?'':`, ${memory(service.memoryBytes)}`;
+ return hint.neverUsed?`No ${what} since it was turned on ${days} ago${held}. Turn it off?`:`No ${what} for ${days}${held}. Turn it off?`;
 }

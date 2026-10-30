@@ -13,6 +13,12 @@ Optional services are the ones an environment can run or not: Realtime (320 MiB 
 - **Quiet time** (`ServiceActivity.quietFor`, used from S3): never quiet while a socket is open or a call is in flight, within the window of the last use, or before this process has itself been up for the window.
 - **Not a change of behaviour.** Nothing here starts or stops anything; Realtime, Functions, database access and scheduled jobs are off for a new environment exactly as before.
 
+## S2: hints, never actions
+
+`unusedHint` (`src/control/service-hints.ts`): a service that is plainly on (not starting, stopping, failed), with nothing open, not in On demand mode, and whose clock (the later of last use and the time it was turned on, `updated_at` of its settings row) is at least `unusedDays` old. `ServiceView.unused` carries `{days, neverUsed}` and the Services page shows it with a button that goes through the same confirm as the switch. `checkUnusedServices` runs from `lab/upstream-app.ts` two minutes after a start and then hourly: one `service.unused` operator notice per service (kind and reason added to `catalog.ts` and `lab/notify.py`, severity info), repeated at most every 14 days by `service_hints` (the outbox window of an info event is an hour, so the table is what spaces the repeats). It never writes a service row.
+
+The days are `installation_services.unused_days`, default 7, floor 1, ceiling 365; `GET`/`PUT /management/v1/installation/services` (installation operators only, an out of range value is refused, each change an audit event `services.settings_changed`). The catalog moved to schema version 7 for the two tables; the previous release refuses it, as for version 5 and 6, so the way back is the pre-upgrade snapshot.
+
 ### Not established
 
 The console against a live installation (the renders use stubs; the route is tested against the real handler and catalog). Realtime sockets and Functions calls are counted per console process; two processes during a handover each count their own.

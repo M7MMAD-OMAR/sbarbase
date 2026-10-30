@@ -20,6 +20,12 @@ Every member of the client can read the page. Only owners and admins can switch 
 
 If a service has open connections (Realtime) or running calls (Edge Functions), turning it off first asks you to confirm and says how many there are. The page asks about what is open right now, not about what it showed a minute ago. Turning Edge Functions off ends calls that are still running.
 
+## Hints for services nobody uses
+
+When Realtime or Edge Functions has been on for 7 days with no use, its row says so under its name, to every member (only owners and admins get the button): "No connection for 11 days, 183 MiB. Turn it off?", with a button that asks the same way the switch does. The clock starts at the later of the last use and the time you turned it on, so a service you switched on yesterday is never called unused. Nothing is ever turned off by a hint.
+
+The operator of the installation gets one notice per service (through the [notification channels](../engineering/OPERATOR-NOTIFICATIONS.md)), repeated at most every 14 days. The 7 days is a setting with a floor of 1 day: `GET` and `PUT /management/v1/installation/services` with `{"unusedDays": 3}`, for installation operators only. Each change is an audit event with the actor and the old and new value.
+
 ## How the memory is measured
 
 The supervisor reads the containers' memory once a minute and writes one small private file that the console reads (`lab/service_stats.py`); the console process never touches the Docker socket. A figure older than three minutes is shown as out of date, never as current. The page asks again every few seconds while a service is starting or stopping.

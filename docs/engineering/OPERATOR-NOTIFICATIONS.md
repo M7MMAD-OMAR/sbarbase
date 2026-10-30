@@ -218,6 +218,7 @@ enabled.
 | `update.applied` | info | a pending upgrade passed its health checks and was confirmed |
 | `update.rolled_back` | warning | a new version failed its start and the automatic way back moved the checkout (emitted after the control state snapshot is restored) |
 | `update.rollback_failed` | critical | an upgrade and its way back both failed |
+| `service.unused` | info | Realtime or Edge Functions on for the installation's days (7 by default) with no use; reason `service_unused`, detail `service`, `days`, `memory_mib`; at most one per service every 14 days (`service_hints`), nothing is changed (`src/control/service-hints.ts`) |
 
 ## 2. Durable outbox design
 

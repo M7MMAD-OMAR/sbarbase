@@ -1,5 +1,6 @@
 import {Database} from 'bun:sqlite';
 import {ENVIRONMENT_LIMIT,GATEWAY} from '../gateway/shares';
+import {NOTIFY_EVERY_MS,UNUSED_CEILING_DAYS,UNUSED_FLOOR_DAYS,unusedDays} from './service-hints';
 import {validatePlacement,validatePlacementTransition,resolveRuntimePlacement,placementServices,type RuntimePlacement,type RuntimeRouting} from './placement';
 import {randomUUID,randomBytes,createHash} from 'node:crypto';
 import {chmodSync} from 'node:fs';
@@ -94,6 +95,8 @@ const NOTIFICATION_DETAIL_KEYS = {
   // Written by the supervisor's host watch: lab/host_watch.py.
   'host.disk_low':['filesystem','available_mib','percent'],
   'runtime.container_stopped':['container','minutes'],
+  // Written by the unused service check: src/control/service-hints.ts.
+  'service.unused':['service','days','memory_mib'],
 } satisfies Record<string,string[]>;
 const NOTIFICATION_REASONS = [
   'runtime_failed','retry_limit','retry_requested','owner_changed','ownership_changed',
@@ -105,7 +108,7 @@ const NOTIFICATION_REASONS = [
   'export_completed','export_failed','restore_verified','restore_failed',
   'environment_saturated','telegram_unreachable','telegram_status',
   'update_available','update_applied','update_rolled_back','update_rollback_failed',
-  'disk_low','container_stopped'] as const;
+  'disk_low','container_stopped','service_unused'] as const;
 const NOTIFICATION_MAX_ATTEMPTS = 8;
 const NOTIFICATION_WINDOW_SECONDS:Record<NotificationSeverity,number> = {info:3600,warning:1800,critical:300};
 const NOTIFICATION_BACKOFF_SECONDS = [15,60,300,1800,7200];
@@ -134,7 +137,7 @@ function credentialShape(value:string):boolean {
 export {ENVIRONMENT_LIMIT};
 
 /** Bumped with each step of Catalog.migrate(). */
-export const CATALOG_SCHEMA_VERSION=6;
+export const CATALOG_SCHEMA_VERSION=7;
 /** What PostgREST serves for an environment with no saved Data API settings (lab/data_api.py). */
 export const DATA_API_DEFAULT={schemas:['public'],extraSearchPath:['public'],maxRows:null as number|null};
 
@@ -150,6 +153,7 @@ export type DataApiState=DataApiSettings&{runtime:string;state:'default'|'pendin
 /** What lab/data_api.py serves when none of the exposed schemas exists: an empty platform schema. */
 export const DATA_API_EMPTY='sbarbase_empty';
 export type RealtimeState={runtime:string;desired:'on'|'off';state:'off'|'pending'|'on'|'failed';failure:string|null;updatedAt:number|null};
+export type InstallationServices={unusedDays:number};
 export type ServiceRow={desired:'on'|'off';state:'off'|'pending'|'on'|'failed';failure:string|null;updatedAt:number|null};
 export type ServicesState={runtime:string;realtime:ServiceRow;functions:ServiceRow;database:ServiceRow;cron:ServiceRow;studio:ServiceRow;
  activity:Record<string,number>;actorCanChange:boolean};
@@ -242,6 +246,14 @@ export class Catalog {
       -- CATALOG_SCHEMA_VERSION to 6, so the previous release refuses this catalog: the way back is the pre-upgrade snapshot.
       CREATE TABLE IF NOT EXISTS service_activity(
         runtime TEXT NOT NULL, service TEXT NOT NULL, last_at INTEGER NOT NULL, PRIMARY KEY(runtime,service));
+      -- Installation wide settings of the optional services (the days a service may sit unused before it is reported, and
+      -- later the On demand defaults and the kill switch), changed by installation operators only.
+      CREATE TABLE IF NOT EXISTS installation_services(
+        key TEXT PRIMARY KEY, value TEXT NOT NULL, actor TEXT NOT NULL, updated_at INTEGER NOT NULL);
+      -- When the operator was last told that an optional service of a runtime sits unused: one notice per service at most
+      -- every 14 days (src/control/service-hints.ts), whatever the outbox window.
+      CREATE TABLE IF NOT EXISTS service_hints(
+        runtime TEXT NOT NULL, service TEXT NOT NULL, notified_at INTEGER NOT NULL, PRIMARY KEY(runtime,service));
       CREATE TABLE IF NOT EXISTS invitations(
         id TEXT PRIMARY KEY, organization TEXT NOT NULL REFERENCES organizations(id),
         email TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('owner','admin','viewer')),
@@ -370,6 +382,7 @@ export class Catalog {
       }
       // Version 5: the database_external table (external database access), created by the schema above.
       // Version 6: the service_activity table (when each optional service was last used), created by the schema above.
+      // Version 7: installation_services (installation wide settings of the optional services) and service_hints (when an unused service was last reported), created by the schema above.
       this.db.exec(`PRAGMA user_version=${CATALOG_SCHEMA_VERSION}`);
     }).immediate();
     this.allowTelegramDeliveries();
@@ -1158,21 +1171,24 @@ export class Catalog {
       this.environmentProject(actor,environment,['owner','admin','viewer']);
       const job=this.job(environment);
       if(!job||job.state!=='succeeded'||this.runtimeDeleted(job.runtime))throw new Error('Environment is not ready');
-      const read=(table:string)=>{
-        const row=this.db.query<{desired:string;state:string;failure:string|null;updated_at:number},[string]>(
-          `SELECT desired,state,failure,updated_at FROM ${table} WHERE runtime=?`).get(job.runtime);
-        return {desired:(row?.desired??'off') as 'on'|'off',state:(row?.state??'off') as ServiceRow['state'],failure:row?.failure??null,updatedAt:row?.updated_at??null};
-      };
-      const studio=this.db.query<{desired:string;state:string;failure:string|null;updated_at:number},[string]>(
-        'SELECT desired,state,failure,updated_at FROM studio_sessions WHERE runtime=?').get(job.runtime);
-      const studioState=studio?.state==='running'?'on':studio?.state==='starting'?'pending':studio?.state==='failed'?'failed':'off';
-      return {runtime:job.runtime,
-        realtime:read('realtime_settings'),functions:read('functions_settings'),database:read('database_access'),cron:read('scheduled_jobs'),
-        // Studio's own failure text is an exception message: owners and admins read it on the Studio page, other members get a fixed sentence.
-        studio:{desired:studio?.desired==='running'?'on':'off',state:studioState,failure:studio?.failure?'Studio could not start. Open it again; if it keeps failing, ask the installation operator.':null,updatedAt:studio?.updated_at??null} as ServiceRow,
-        activity:this.serviceActivity(job.runtime),
-        actorCanChange:this.canChangeServices(actor,environment)};
+      return {...this.servicesOf(job.runtime),actorCanChange:this.canChangeServices(actor,environment)};
     }).immediate();
+  }
+  /** The five services of a ready runtime without an actor: for `services` and for the unused service check. */
+  servicesOf(runtime:string):Omit<ServicesState,'actorCanChange'> {
+    const read=(table:string)=>{
+      const row=this.db.query<{desired:string;state:string;failure:string|null;updated_at:number},[string]>(
+        `SELECT desired,state,failure,updated_at FROM ${table} WHERE runtime=?`).get(runtime);
+      return {desired:(row?.desired??'off') as 'on'|'off',state:(row?.state??'off') as ServiceRow['state'],failure:row?.failure??null,updatedAt:row?.updated_at??null};
+    };
+    const studio=this.db.query<{desired:string;state:string;failure:string|null;updated_at:number},[string]>(
+      'SELECT desired,state,failure,updated_at FROM studio_sessions WHERE runtime=?').get(runtime);
+    const studioState=studio?.state==='running'?'on':studio?.state==='starting'?'pending':studio?.state==='failed'?'failed':'off';
+    return {runtime,
+      realtime:read('realtime_settings'),functions:read('functions_settings'),database:read('database_access'),cron:read('scheduled_jobs'),
+      // Studio's own failure text is an exception message: owners and admins read it on the Studio page, other members get a fixed sentence.
+      studio:{desired:studio?.desired==='running'?'on':'off',state:studioState,failure:studio?.failure?'Studio could not start. Open it again; if it keeps failing, ask the installation operator.':null,updatedAt:studio?.updated_at??null} as ServiceRow,
+      activity:this.serviceActivity(runtime)};
   }
   private canChangeServices(actor:string,environment:string):boolean {
     try{this.environmentProject(actor,environment,['owner','admin']);return true;}catch{return false;}
@@ -1191,6 +1207,43 @@ export class Catalog {
     this.db.transaction(()=>{
       const statement=this.db.query('INSERT INTO service_activity(runtime,service,last_at) VALUES (?,?,?) ON CONFLICT(runtime,service) DO UPDATE SET last_at=max(last_at,excluded.last_at)');
       for(const row of rows)statement.run(row.runtime,row.service,row.at);
+    }).immediate();
+  }
+  /** Installation wide settings of the optional services, with their defaults. */
+  installationServices():InstallationServices {
+    const value=(key:string)=>this.db.query<{value:string},[string]>('SELECT value FROM installation_services WHERE key=?').get(key)?.value;
+    return {unusedDays:unusedDays(value('unused_days'))};
+  }
+  /** Only installation operators change them. A value outside the floor and ceiling is refused, never clamped. */
+  setInstallationServices(actor:string,patch:{unusedDays?:number}):InstallationServices {
+    return this.db.transaction(()=>{
+      if(!this.installationOperator(actor))throw new Error('Forbidden');
+      if(patch.unusedDays!==undefined){
+        if(!Number.isSafeInteger(patch.unusedDays)||patch.unusedDays<UNUSED_FLOOR_DAYS||patch.unusedDays>UNUSED_CEILING_DAYS)throw new Error('Invalid services setting');
+        const before=this.installationServices().unusedDays;
+        this.db.query('INSERT INTO installation_services(key,value,actor,updated_at) VALUES (?,?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,actor=excluded.actor,updated_at=excluded.updated_at')
+          .run('unused_days',String(patch.unusedDays),actor,Date.now());
+        this.record(actor,'services.settings_changed','installation',{setting:'unused_days',from:before,to:patch.unusedDays});
+      }
+      return this.installationServices();
+    }).immediate();
+  }
+  /** Every runtime that is ready (not deleted, not being restored). */
+  readyRuntimes():string[] {
+    return this.db.query<{runtime:string},[]>("SELECT runtime FROM provision_jobs WHERE state='succeeded' AND NOT EXISTS (SELECT 1 FROM environment_lifecycle l WHERE l.runtime=provision_jobs.runtime AND l.state!='active') ORDER BY runtime").all().map(row=>row.runtime);
+  }
+  /** One operator notice that an optional service sits unused, at most once every 14 days per service, and only for a ready runtime.
+   * Returns whether a notice was written. Nothing about the service changes. */
+  noticeUnusedService(runtime:string,service:'realtime'|'functions',days:number,memoryMib:number,now=Date.now()):boolean {
+    return this.db.transaction(()=>{
+      const job=this.db.query<ProvisionJob,[string]>('SELECT * FROM provision_jobs WHERE runtime=?').get(runtime);
+      if(!job||!this.runtimeReady(runtime))return false;
+      const last=this.db.query<{notified_at:number},[string,string]>('SELECT notified_at FROM service_hints WHERE runtime=? AND service=?').get(runtime,service)?.notified_at;
+      if(last!==undefined&&now-last<NOTIFY_EVERY_MS)return false;
+      this.notify('service.unused','info','service.unused|'+runtime+'|'+service,this.notificationScope(job.environment,job.organization,job.runtime),
+        'system:gateway','service_unused',{service,days,memory_mib:memoryMib});
+      this.db.query('INSERT INTO service_hints(runtime,service,notified_at) VALUES (?,?,?) ON CONFLICT(runtime,service) DO UPDATE SET notified_at=excluded.notified_at').run(runtime,service,now);
+      return true;
     }).immediate();
   }
   /** Direct database access for one environment: the developer login is on or off, and a new
