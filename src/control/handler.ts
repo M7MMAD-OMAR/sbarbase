@@ -32,7 +32,7 @@ export function controlHandler(catalog:Catalog,keys:KeyStore,identity:Management
   const path=new URL(request.url).pathname;
   if(studio&&/\/environments\/[^/]+\/studio(\/|$)/.test(path))return studio(request);
   if(/\/environments\/[^/]+\/deployment-setup$/.test(path))return deploymentSetup(request);
-  if(/\/environments\/[^/]+\/sign-in$/.test(path))return signIn(request);
+  if(/\/environments\/[^/]+\/(sign-in|auth-config)$/.test(path))return signIn(request);
   if(/\/environments\/[^/]+\/share$/.test(path))return share(request);
   if(path==='/management/invitations/redeem'||/\/organizations\/[^/]+\/invitations(\/|$)/.test(path))return invitations(request);
   if(/\/environments\/[^/]+\/realtime$/.test(path))return realtime(request);

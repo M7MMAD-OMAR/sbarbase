@@ -1,0 +1,198 @@
+{
+ "version": 1,
+ "about": "One map of the Authentication settings an environment can hold. Read by src/control/auth-config.ts and checked against lab/auth_settings.py by lab/test_auth_config_registry.py. Key names are the platform config names the pinned Studio carries (docs/evidence/auth-config-study-2026-10-30/study.json); each becomes the GOTRUE_ variable of the same name. A key has one owner file. A default is listed only where this repository sets it; JWT_EXP has none here (the pinned Auth applies its own), so it shows null_text.",
+ "pages": [
+  {
+   "id": "providers",
+   "label": "Sign In / Providers"
+  },
+  {
+   "id": "url-configuration",
+   "label": "URL Configuration"
+  },
+  {
+   "id": "sessions",
+   "label": "Sessions"
+  }
+ ],
+ "core": [
+  {
+   "key": "SITE_URL",
+   "page": "url-configuration",
+   "label": "Site URL",
+   "type": "url",
+   "from": "site_url",
+   "default": "http://localhost",
+   "owner": "auth",
+   "default_source": "lab/run.py auth_configuration base value"
+  },
+  {
+   "key": "URI_ALLOW_LIST",
+   "page": "url-configuration",
+   "label": "Redirect URLs",
+   "type": "list",
+   "from": "redirect_urls",
+   "default": [],
+   "owner": "auth"
+  },
+  {
+   "key": "DISABLE_SIGNUP",
+   "page": "providers",
+   "label": "Allow new users to sign up",
+   "type": "bool",
+   "from": "signup",
+   "invert": true,
+   "default": false,
+   "owner": "auth"
+  },
+  {
+   "key": "EXTERNAL_ANONYMOUS_USERS_ENABLED",
+   "page": "providers",
+   "label": "Allow anonymous sign-ins",
+   "type": "bool",
+   "from": "anonymous",
+   "default": false,
+   "owner": "auth"
+  },
+  {
+   "key": "JWT_EXP",
+   "page": "sessions",
+   "label": "Access token (JWT) expiry time",
+   "type": "seconds",
+   "from": "session.access_token_seconds",
+   "default": null,
+   "owner": "auth",
+   "null_text": "Auth default"
+  },
+  {
+   "key": "SESSIONS_TIMEBOX",
+   "page": "sessions",
+   "label": "Time-box user sessions",
+   "type": "seconds",
+   "from": "session.timebox_seconds",
+   "default": null,
+   "owner": "auth",
+   "null_text": "No limit"
+  },
+  {
+   "key": "SESSIONS_INACTIVITY_TIMEOUT",
+   "page": "sessions",
+   "label": "Inactivity timeout",
+   "type": "seconds",
+   "from": "session.inactivity_seconds",
+   "default": null,
+   "owner": "auth",
+   "null_text": "No limit"
+  }
+ ],
+ "provider_fields": [
+  {
+   "suffix": "ENABLED",
+   "type": "bool",
+   "from": "enabled",
+   "default": false
+  },
+  {
+   "suffix": "CLIENT_ID",
+   "type": "text",
+   "from": "client_id",
+   "default": ""
+  },
+  {
+   "suffix": "SECRET",
+   "type": "secret",
+   "from": "secret",
+   "secret": true
+  },
+  {
+   "suffix": "URL",
+   "type": "url",
+   "from": "url",
+   "default": "",
+   "only": "url"
+  },
+  {
+   "suffix": "REDIRECT_URI",
+   "type": "callback",
+   "computed": true
+  }
+ ],
+ "providers": {
+  "apple": {
+   "label": "Apple",
+   "url": "none"
+  },
+  "azure": {
+   "label": "Microsoft (Azure)",
+   "url": "optional"
+  },
+  "bitbucket": {
+   "label": "Bitbucket",
+   "url": "none"
+  },
+  "discord": {
+   "label": "Discord",
+   "url": "none"
+  },
+  "facebook": {
+   "label": "Facebook",
+   "url": "none"
+  },
+  "figma": {
+   "label": "Figma",
+   "url": "none"
+  },
+  "github": {
+   "label": "GitHub",
+   "url": "none"
+  },
+  "gitlab": {
+   "label": "GitLab",
+   "url": "optional"
+  },
+  "google": {
+   "label": "Google",
+   "url": "none"
+  },
+  "kakao": {
+   "label": "Kakao",
+   "url": "none"
+  },
+  "keycloak": {
+   "label": "Keycloak",
+   "url": "required"
+  },
+  "linkedin_oidc": {
+   "label": "LinkedIn",
+   "url": "none"
+  },
+  "notion": {
+   "label": "Notion",
+   "url": "none"
+  },
+  "slack_oidc": {
+   "label": "Slack",
+   "url": "none"
+  },
+  "spotify": {
+   "label": "Spotify",
+   "url": "none"
+  },
+  "twitch": {
+   "label": "Twitch",
+   "url": "none"
+  },
+  "twitter": {
+   "label": "X (Twitter)",
+   "url": "none"
+  },
+  "workos": {
+   "label": "WorkOS",
+   "url": "optional"
+  },
+  "zoom": {
+   "label": "Zoom",
+   "url": "none"
+  }
+ }
+}

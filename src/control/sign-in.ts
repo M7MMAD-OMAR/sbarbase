@@ -4,6 +4,7 @@ import {existsSync,mkdirSync,readFileSync,renameSync,writeFileSync} from 'node:f
 import {join} from 'node:path';
 import {Catalog} from './catalog';
 import {authenticate,reply,type ManagementIdentity} from './auth';
+import {authConfigView} from './auth-config';
 
 /** Sign-in settings for one environment: where Auth sends people after a login or an email
  * link, which OAuth providers it offers, and how long its sessions live. The console saves
@@ -131,7 +132,8 @@ export function readSettings(directory:string,runtime:string):SignInSettings|nul
  // as it is on disk until the next save writes the whole object.
  const saved=JSON.parse(readFileSync(path,'utf8')) as SignInSettings;
  const session=saved.session&&typeof saved.session==='object'?saved.session:NO_CAP;
- return {...saved,session:{...NO_CAP,...session}};
+ // A file may lack `providers`, which the Python validator reads as none.
+ return {...saved,providers:saved.providers??{},session:{...NO_CAP,...session}};
 }
 
 function writeSettings(directory:string,runtime:string,settings:SignInSettings) {
@@ -141,12 +143,14 @@ function writeSettings(directory:string,runtime:string,settings:SignInSettings) 
  renameSync(pending,path);
 }
 
-/** GET and PUT `/environments/{id}/sign-in`, for owners and admins of a ready environment. */
+/** GET and PUT `/environments/{id}/sign-in`, and GET `/environments/{id}/auth-config` (the read only
+ * Authentication configuration, src/control/auth-config.ts), for owners and admins of a ready environment. */
 export function signInHandler(catalog:Catalog,identify:ManagementIdentity,directory=SECRETS_DIRECTORY) {
  return async(request:Request):Promise<Response>=>{
-  const match=new URL(request.url).pathname.match(/^\/management\/v1\/environments\/([a-f0-9-]{36})\/sign-in$/);
+  const match=new URL(request.url).pathname.match(/^\/management\/v1\/environments\/([a-f0-9-]{36})\/(sign-in|auth-config)$/);
   if(!match)return reply(404,{message:'Unknown route'});
-  if(!['GET','PUT'].includes(request.method))return reply(405,{message:'Method not allowed'});
+  const readOnly=match[2]==='auth-config';
+  if(!(readOnly?['GET']:['GET','PUT']).includes(request.method))return reply(405,{message:'Method not allowed'});
   const actor=await authenticate(identify,request);
   if(actor instanceof Response)return actor;
   const environment=match[1]!;
@@ -154,6 +158,7 @@ export function signInHandler(catalog:Catalog,identify:ManagementIdentity,direct
    let state=catalog.signIn(actor,environment);
    const answer=(response:Response)=>bindReadyEnvironmentPublication(response,catalog,actor,environment,state.runtime,true);
    const callback_url=`${publicUrl()}/${state.runtime}/auth/v1/callback`;
+   if(readOnly)return answer(reply(200,{data:{...state,config:authConfigView(readSettings(directory,state.runtime),state.runtime,publicUrl())}}));
    if(request.method==='GET')return answer(reply(200,{data:{...state,callback_url,settings:view(readSettings(directory,state.runtime))}}));
    let input:unknown;
    try{input=await request.json();}catch{return reply(400,{message:'Invalid JSON'});}

@@ -46,6 +46,17 @@ Section **Session** sets three lifetimes. All three are optional, and an empty f
 
 A cap applies to sessions started after the change; a session already running keeps the lifetime it started with. The fields take whole numbers: hours for the two caps, seconds for the token.
 
+## See everything Auth is set to
+
+Under **Sign-in settings**, **Authentication configuration** shows what this environment's Auth is set to, grouped like the Supabase cloud's pages: Sign In / Providers, URL Configuration and Sessions, then every provider with its client ID and its callback URL. It is read only for now; change settings in the form below it.
+
+- A value you never saved is marked **default**.
+- A secret is never shown, only **Set (hidden)** or **Not set**.
+- It shows this environment alone. Another environment's providers and secrets never appear here, and cannot be read through it.
+- Only owners and admins see it.
+
+Editing every page of this view in the console, the way the cloud does, is planned in [the Authentication workspace plan](../engineering/plans/2026-10-30-auth-providers-workspace.md). Studio's own Authentication settings pages stay hidden by upstream design, so the console is where they are built.
+
 ## What happens when you save
 
 Saving recreates that environment's Auth with the new settings; other environments are not touched. Users, sessions and every row stay, because Auth keeps them in the environment's database. The section shows **Applying…**, then **Applied**. If Auth does not start with the new settings, the previous Auth keeps running and the section says **Not applied**.

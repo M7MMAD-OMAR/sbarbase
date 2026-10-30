@@ -1,0 +1,32 @@
+{
+ "date": "2026-10-30",
+ "checkpoint": "A0 read side of the Authentication workspace",
+ "base_commit": "4e1e666ab76083f2963bc55438d09e94cadacea7",
+ "source_blobs": {
+  "src/control/auth-config.ts": "c5cce834ca466fc7cf11a703a7a080dcd201be85",
+  "src/control/auth-config-registry.json": "6b710847b8bff0cdd6314710cf5fd3d3edf036bb",
+  "src/control/sign-in.ts": "785738dbef3ed7129c2675c337daff4d2e6ba214",
+  "src/control/handler.ts": "4994577e520c74d10c8c52c68908ae22cf1ee89d",
+  "tests/auth-config.test.ts": "00cddbafb4f18720d60e1cd13125c27a0028343e",
+  "lab/test_auth_config_registry.py": "bd43c300c09fbdb110b80cdf64e62f69de81c0fa",
+  "ui/AuthConfig.tsx": "dc93bae0980927520d3644555760a3e37ad94129",
+  "ui/Connection.tsx": "2120b64185afd36a76edb58eef653ab888e95cd2",
+  "ui/style.css": "4a07ac7cf555eb3c7feee84e3f7a3422b7dddbe9",
+  "docs/guides/sign-in.md": "f6db475064eef337348c21a1a18a3121e26b3345",
+  "docs/guides/sign-in.ar.md": "99c8fc388b8154150427f84b52c10de3944dba82",
+  "docs/engineering/plans/2026-10-30-auth-providers-workspace.md": "6e36d2824e4c53ec4a2126f89ff9aa7e48597ad3"
+ },
+ "checks": {
+  "bun test tests/auth-config.test.ts tests/sign-in.test.ts": "10 pass, 0 fail",
+  "python -m unittest test_auth_config_registry test_auth_settings (in lab/)": "26 tests OK",
+  "bun run typecheck:ui": "ok",
+  "bun x tsc -p tsconfig.control.json --noEmit": "ok",
+  "test_docs_links, test_docs_bilingual, test_doc_references": "OK"
+ },
+ "review": "Independent read only review (two rounds: plan, then code). Code review found 8 items; all fixed: inverted sign-up label (field carries invert), pending and failed banner, disabled provider shown as saved but unused with a parity test, defaults claimed only where the repo sets them, file without providers no longer 500, circular import removed, CSS token, tests added.",
+ "not_verified": [
+  "Rendered look of the new section in a browser (no running environment was started; the owner reported machine load).",
+  "Live read of a real environment in the lab; the handler path is tested with the real file writer and catalog.",
+  "Cloud observation pass (gate G0)."
+ ]
+}

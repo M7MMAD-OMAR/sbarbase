@@ -5,6 +5,7 @@ import {useData,type Api,type Organization,type Environment} from './api';
 import {mailDetails,mailState,type MailEntry} from './mail';
 import {ErrorMessage,Loading,Refresh} from './components';
 import {SignInSection} from './SignIn';
+import {AuthConfigSection} from './AuthConfig';
 import {RealtimeSection} from './Realtime';
 import {ScheduledJobsSection} from './ScheduledJobs';
 import {MetricsSection,LogsSection} from './Observe';
@@ -58,6 +59,7 @@ export function Connection({environment,organization,request,onBack}:{environmen
   <div className="form-row"><button onClick={()=>void copy(mailCommands)}><Copy aria-hidden="true"/>Copy</button></div>
   <p className="small muted">The SMTP password never crosses the management API, so this is a host command, not a console form.</p></>}</>}</section>
  </div>}{activeSection==='authentication'&&<div>
+ {canWrite&&<AuthConfigSection path={path} request={request}/>}
  {canWrite&&<SignInSection path={path} request={request}/>}
  {canWrite&&<SigningSection path={path} request={request}/>}
  </div>}{activeSection==='services'&&<div>
