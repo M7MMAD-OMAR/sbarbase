@@ -12,6 +12,8 @@
 // every token themselves. The gateway never sends a name that starts with an underscore, so
 // this route is not reachable from outside.
 
+import { Usage } from './usage.ts';
+
 const FUNCTIONS = Deno.env.get('SB_FUNCTIONS_DIR') ?? '/home/deno/functions';
 const SECRETS = Deno.env.get('SB_SECRETS_FILE') ?? '/run/sbarbase/secrets.json';
 const SELF = Deno.env.get('SB_SELF_URL') ?? 'http://127.0.0.1:9000';
@@ -60,15 +62,27 @@ function base64url(bytes: Uint8Array) {
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-/** The claims of an unexpired HS256 token signed with this environment's JWT secret, or null. */
-async function jwtClaims(authorization: string | null): Promise<Record<string, unknown> | null> {
+/** The key the event worker signs with: not the JWT secret itself but an HMAC of it under a fixed label, computed the same way in
+ * event-worker/index.ts. Auth signs its tokens with the JWT secret and a function holds the service role key, so a function could have
+ * Auth mint a token with any role claim; it cannot make one that verifies under this derived key. */
+let derivedKey: string | undefined;
+async function eventSecret(): Promise<string> {
+  if (derivedKey !== undefined) return derivedKey;
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(JWT_SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const bytes = new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode('sbarbase event worker v1')));
+  derivedKey = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return derivedKey;
+}
+
+/** The claims of an unexpired HS256 token signed with this environment's JWT secret (or `secret`), or null. */
+async function jwtClaims(authorization: string | null, secret: string = JWT_SECRET): Promise<Record<string, unknown> | null> {
   const token = authorization?.match(/^Bearer\s+(\S+)$/i)?.[1];
   const parts = token?.split('.');
-  if (!token || parts?.length !== 3 || !JWT_SECRET) return null;
+  if (!token || parts?.length !== 3 || !secret || !JWT_SECRET) return null;
   try {
     const header = JSON.parse(atob(parts[0].replace(/-/g, '+').replace(/_/g, '/')));
     if (header.alg !== 'HS256') return null;
-    const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(JWT_SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
     const signature = new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(parts[0] + '.' + parts[1])));
     if (base64url(signature) !== parts[2]) return null;
     const claims = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
@@ -77,6 +91,33 @@ async function jwtClaims(authorization: string | null): Promise<Record<string, u
 }
 async function validJwt(authorization: string | null): Promise<boolean> {
   return (await jwtClaims(authorization)) !== null;
+}
+
+/** What the event worker has reported about each function (event/index.ts). Memory only: it starts empty with the container. */
+const usage = new Usage();
+
+/** `POST /_sb_events`: a batch from the event worker, signed as role sb_events with the derived key above; no function can. A batch that is
+ * refused with a 4xx is dropped by the worker, so the limit is generous (1 MiB) and the worker sends at most 256 KiB. */
+async function events(request: Request): Promise<Response> {
+  if (request.method !== 'POST') return json(405, 'Method not allowed');
+  const claims = await jwtClaims(request.headers.get('authorization'), await eventSecret());
+  if (!claims || claims.role !== 'sb_events') return json(401, 'Invalid JWT');
+  if (Number(request.headers.get('content-length')) > 1024 * 1024) return json(413, 'Too large');
+  try {
+    const body = JSON.parse((await request.text()).slice(0, 1024 * 1024));
+    usage.add(Array.isArray(body) ? body.slice(0, 500) : []);
+  } catch { return json(400, 'Invalid batch'); }
+  return new Response(null, { status: 204 });
+}
+
+/** `GET /_sb_stats/<name>`: one function's buckets and lines, for the control plane, which presents the service role token. */
+async function stats(request: Request, name: string): Promise<Response> {
+  if (request.method !== 'GET') return json(405, 'Method not allowed');
+  const claims = await jwtClaims(request.headers.get('authorization'));
+  if (!claims || claims.role !== 'service_role') return json(401, 'Invalid JWT');
+  if (!NAME.test(name)) return json(400, 'Invalid function');
+  const item = usage.of(name);
+  return Response.json(item ? { known: true, ...item } : { known: false, since: Date.now(), buckets: [], lines: [] });
 }
 
 /** `POST /_sb_boot/<name>/<version>`: starts a worker on a version folder that has been written and is not live yet, so a deploy
@@ -132,6 +173,9 @@ Deno.serve(async (request: Request) => {
   if (url.pathname.startsWith('/_sb/')) return await proxy(request, url);
   const staged = url.pathname.match(/^\/_sb_boot\/([^/]+)\/([^/]+)$/);
   if (staged) return await boot(request, staged[1]!, staged[2]!);
+  if (url.pathname === '/_sb_events') return await events(request);
+  const stat = url.pathname.match(/^\/_sb_stats\/([^/]+)$/);
+  if (stat) return await stats(request, stat[1]!);
   const name = url.pathname.split('/')[1] ?? '';
   if (!NAME.test(name)) return json(404, 'Function not found');
   const manifest = await readJson<{ functions?: Record<string, Entry> }>(`${FUNCTIONS}/functions.json`, {});

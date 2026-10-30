@@ -428,7 +428,8 @@ def functions_count():
 
 
 # How functions_start runs an environment's Edge Functions; functions_kept compares a running one with it.
-FUNCTIONS_COMMAND = ('start', '--main-service', '/home/deno/main', '-p', str(FUNCTIONS_PORT))
+# The event worker (lab/functions/event) tells the main service what each worker used and wrote (docs/engineering/EDGE-FUNCTIONS.md).
+FUNCTIONS_COMMAND = ('start', '--main-service', '/home/deno/main', '--event-worker', '/home/deno/event', '-p', str(FUNCTIONS_PORT))
 
 
 def launch_spec(component, reference, memory, cpus, tier, network, volumes=(), binds=(), command=(), hardening=()):
@@ -447,8 +448,8 @@ def launch_spec(component, reference, memory, cpus, tier, network, volumes=(), b
 
 # What a Functions container's user must be able to read, run inside it: find prints the first entry it cannot
 # read (a directory without the search bit makes its entries unreadable), and its own errors are captured too: any output is a failure.
-FUNCTIONS_READABLE = ('test -r /run/sbarbase/secrets.json && test -r /home/deno/main/index.ts && '
-                      'test -z "$(find /home/deno/functions /home/deno/main ! -readable -print -quit 2>&1)"')
+FUNCTIONS_READABLE = ('test -r /run/sbarbase/secrets.json && test -r /home/deno/main/index.ts && test -r /home/deno/event/index.ts && '
+                      'test -z "$(find /home/deno/functions /home/deno/main /home/deno/event ! -readable -print -quit 2>&1)"')
 FUNCTIONS_READABLE_SECONDS = 30
 
 # The keys functions get. Each carries the time it was made, so a running container's are compared
@@ -486,7 +487,8 @@ def hardening_applied(item, hardening):
 
 
 def functions_binds(e):
-    return [(lab.ROOT/'lab'/'functions'/'main', '/home/deno/main'), (functions_code(e), '/home/deno/functions'), (functions_private(e), '/run/sbarbase')]
+    return [(lab.ROOT/'lab'/'functions'/'main', '/home/deno/main'), (lab.ROOT/'lab'/'functions'/'event-worker', '/home/deno/event'),
+            (functions_code(e), '/home/deno/functions'), (functions_private(e), '/run/sbarbase')]
 
 
 def valid_service_token(token, secret, role, margin=30 * 24 * 3600):
@@ -2074,7 +2076,7 @@ GRANT CREATE ON DATABASE {e} TO {role};
                 if (str(source), target, False) not in mounts:
                     return False
             origin = (self.kept or {}).get('from')
-            return bool(origin) and subprocess.run(['git', 'diff', '--quiet', origin, 'HEAD', '--', 'lab/functions/main'],
+            return bool(origin) and subprocess.run(['git', 'diff', '--quiet', origin, 'HEAD', '--', 'lab/functions/main', 'lab/functions/event-worker'],
                                                    cwd=lab.ROOT, capture_output=True, timeout=30).returncode == 0
         except (KeyError, RuntimeError, ValueError, OSError, subprocess.SubprocessError, resource_policy.ResourcePolicyError):
             return False

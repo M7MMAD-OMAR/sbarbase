@@ -6,6 +6,7 @@ import {randomBytes} from 'node:crypto';
 import {Catalog} from './catalog';
 import {authenticate,reply,type ManagementIdentity} from './auth';
 import {settingsChange,type Boot,type BootCheck} from './functions-write';
+import {maskValues,usageView,type UsageSource} from './functions-worker';
 import {DEFAULT_SECRETS,functionArchive,functionSource,noteSecretTimes,redactCallPath,secretRows} from './functions-read';
 import {redact} from './observe';
 import {FUNCTION_RANGES,type FunctionRange,type RequestLog} from '../gateway/observe';
@@ -17,6 +18,8 @@ import {FUNCTION_RANGES,type FunctionRange,type RequestLog} from '../gateway/obs
  * GET    /environments/{id}/functions/{name}/download  the same files as a project shaped ZIP
  * GET    /environments/{id}/functions/{name}/metrics   calls, errors and response time (?range=15m|1h|3h|1d)
  * GET    /environments/{id}/functions/{name}/logs      the function's recent calls (?errors=1&q=&range=&limit=)
+ * GET    /environments/{id}/functions/{name}/usage     CPU time and memory per worker, from the runtime's event worker (?range=15m|1h|3h|1d)
+ * GET    /environments/{id}/functions/{name}/output    what this function wrote (?errors=1&q=&limit=), from the event worker
  * GET    /environments/{id}/function-secrets           secret names with a digest and when each was set, and the default secrets
  * PUT    /environments/{id}/functions              {"enabled": true|false}
  * PUT    /environments/{id}/functions/{name}       deploy: {"files": {"index.ts": "..."}, "shared"?: {...}, "verify_jwt"?: bool}
@@ -197,10 +200,10 @@ async function body(request:Request):Promise<unknown> {
 }
 
 export function functionsHandler(catalog:Catalog,identify:ManagementIdentity,codeRoot='.lab/upstream/functions',
- secretsRoot='.secrets/upstream/functions',log?:RequestLog,boot?:Boot) {
+ secretsRoot='.secrets/upstream/functions',log?:RequestLog,boot?:Boot,usage?:UsageSource) {
  return async(request:Request):Promise<Response>=>{
   const url=new URL(request.url);
-  const match=url.pathname.match(/^\/management\/v1\/environments\/([a-f0-9-]{36})\/(functions|function-secrets)(?:\/([^/]+)(?:\/(source|download|metrics|logs))?)?$/);
+  const match=url.pathname.match(/^\/management\/v1\/environments\/([a-f0-9-]{36})\/(functions|function-secrets)(?:\/([^/]+)(?:\/(source|download|metrics|logs|usage|output))?)?$/);
   if(!match||(match[2]==='function-secrets'&&match[3]))return reply(404,{message:'Unknown route'});
   const [,environment,kind,name,part]=match as unknown as [string,string,string,string|undefined,string|undefined];
   const allowed=kind==='function-secrets'?['GET','PUT']:part?['GET']:name?['PUT','PATCH','DELETE']:['GET','PUT'];
@@ -238,6 +241,22 @@ export function functionsHandler(catalog:Catalog,identify:ManagementIdentity,cod
      const archive=functionArchive(codeRoot,state.runtime,entry.version,name,entry.updated_at);
      return answer(new Response(new Uint8Array(archive),{status:200,headers:{'content-type':'application/zip','content-disposition':`attachment; filename="${name}.zip"`,
       'cache-control':'no-store','x-content-type-options':'nosniff'}}));
+    }
+    if(part==='usage'||part==='output'){
+     const range=url.searchParams.get('range')??'1h';
+     if(!Object.hasOwn(FUNCTION_RANGES,range))return reply(400,{message:'Choose a range: 15m, 1h, 3h or 1d'});
+     const limit=Number(url.searchParams.get('limit')??'100');
+     if(!Number.isInteger(limit)||limit<1||limit>200)return reply(400,{message:'Ask for 1 to 200 lines'});
+     // The runtime must be on and must have been started with the event worker; otherwise the page is told there is nothing to show.
+     const result=state.state==='on'&&usage?await usage(state.runtime,name):{state:'unavailable' as const};
+     if(result.state!=='ok')return answer(reply(200,{data:{available:false,reason:state.state==='on'?'unreachable':'off'}}));
+     if(part==='usage')return answer(reply(200,{data:{available:true,known:result.known,...usageView(result.buckets,range as FunctionRange,result.since)}}));
+     const needle=(url.searchParams.get('q')??'').slice(0,100).toLowerCase(),errors=url.searchParams.get('errors')==='1';
+     const since=Date.now()-FUNCTION_RANGES[range as FunctionRange].minutes*60_000;
+     const secretValues=Object.values(readSecrets(secretsRoot,state.runtime));
+     const lines=result.lines.filter(line=>line.at>=since&&(!errors||line.level==='Error')).map(line=>({at:line.at,level:line.level,msg:redact(maskValues(line.msg,secretValues))}))
+      .filter(line=>!needle||line.msg.toLowerCase().includes(needle)).slice(-limit).reverse();
+     return answer(reply(200,{data:{available:true,known:result.known,lines}}));
     }
     const range=url.searchParams.get('range')??'1h';
     if(!Object.hasOwn(FUNCTION_RANGES,range))return reply(400,{message:'Choose a range: 15m, 1h, 3h or 1d'});

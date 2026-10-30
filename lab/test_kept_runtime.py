@@ -684,7 +684,7 @@ class FunctionsTests(RuntimeFixture):
                 patch.object(runtime.subprocess, 'run', side_effect=lambda command, **k: calls.append(command) or SimpleNamespace(returncode=0)), \
                 patch.object(runtime.lab, 'docker', return_value=SimpleNamespace(stdout=json.dumps(self.image_env), returncode=0)):
             self.assertTrue(self.runtime.functions_kept(E, self.runtime.values['environments'][E], self.container(), self.network))
-        self.assertEqual(calls, [['git', 'diff', '--quiet', 'b' * 40, 'HEAD', '--', 'lab/functions/main']])
+        self.assertEqual(calls, [['git', 'diff', '--quiet', 'b' * 40, 'HEAD', '--', 'lab/functions/main', 'lab/functions/event-worker']])
 
     def test_a_key_with_another_header_is_not_one_of_ours(self):
         good = runtime.service_token('j' * 64, {'role': 'anon', 'iss': 'sbarbase'}, 10 ** 9)

@@ -1,0 +1,95 @@
+{
+ "date": "2026-10-30",
+ "what": "Live check of the event worker (lab/functions/event-worker/index.ts) and the main service routes /_sb_events and /_sb_stats/<name> (lab/functions/main/index.ts, usage.ts) in ONE throwaway container launched by run.sh in this folder with the production launch flags (pinned image, 384m with swap equal, 0.5 CPU, 256 pids, cap-drop ALL, no-new-privileges, read only root, 32m noexec tmpfs for /tmp and the Deno cache, unprivileged user) and `--event-worker /home/deno/event`. Three functions were called (talk logs a line and an error line, burn runs a 40 million iteration loop, boom throws in its handler), the container was left for 100 seconds so the runtime drops the idle workers, and /_sb_stats/<name> was read with the service role token as the control plane does. Removed afterwards. Run twice: this record is the second run, after the event worker started signing with a key derived from the JWT secret, cutting batches by size and dropping a refused batch.",
+ "calls_and_probes": [
+  {
+   "call": "talk",
+   "status": 200
+  },
+  {
+   "call": "talk",
+   "status": 200
+  },
+  {
+   "call": "burn",
+   "status": 200
+  },
+  {
+   "call": "boom",
+   "status": 500
+  },
+  {
+   "probe": "forge events with the service role token",
+   "status": 401,
+   "body": "{\"message\":\"Invalid JWT\"}"
+  },
+  {
+   "probe": "forge events with the anon token",
+   "status": 401,
+   "body": "{\"message\":\"Invalid JWT\"}"
+  },
+  {
+   "probe": "forge events with a token of role sb_events signed with the raw JWT secret (what Auth could be made to mint)",
+   "status": 401,
+   "body": "{\"message\":\"Invalid JWT\"}"
+  },
+  {
+   "probe": "forge events with no token",
+   "status": 401,
+   "body": "{\"message\":\"Invalid JWT\"}"
+  },
+  {
+   "probe": "read stats with no token",
+   "status": 401,
+   "body": "{\"message\":\"Invalid JWT\"}"
+  },
+  {
+   "probe": "read stats with the anon token",
+   "status": 401,
+   "body": "{\"message\":\"Invalid JWT\"}"
+  },
+  {
+   "probe": "stats of talk (service role)",
+   "status": 200,
+   "body": "{\"known\":true,\"since\":1793341150720,\"buckets\":[{\"minute\":29889019,\"boots\":1,\"bootMs\":22,\"workers\":0,\"cpuSum\":0,\"cpuMax\":0,\"memSum\":0,\"memMax\":0,\"heapSum\":0,\"externalSum\":0,\"errors\":2},{\"minute\":29889020,\"boots\":0,\"bootMs\":0,\"workers\":1,\"cpuSum\":9,\"cpuMax\":9,\"memSum\":10986143,\"memMax\":10986143,\"heapSum\":7954336,\"externalSum\":3031807,\"errors\":0}],\"lines\":[{\"at\":1793341149104,\"level\":\"Info\",\"msg\":\"hello from talk\\n\"},{\"at\":1793341149104,\"level\":\"Error\",\"msg\":\"error line from talk\\n\"},{\"at\":1793341149112,\"level\":\"Info\",\"msg\":\"hello from talk\\n\"},{\"at\":1793341149113,\"level\":\"Error\",\"msg\":\"error line from talk\\n\"}]}"
+  },
+  {
+   "probe": "stats of burn (service role)",
+   "status": 200,
+   "body": "{\"known\":true,\"since\":1793341150721,\"buckets\":[{\"minute\":29889019,\"boots\":1,\"bootMs\":23,\"workers\":0,\"cpuSum\":0,\"cpuMax\":0,\"memSum\":0,\"memMax\":0,\"heapSum\":0,\"externalSum\":0,\"errors\":0},{\"minute\":29889020,\"boots\":0,\"bootMs\":0,\"workers\":1,\"cpuSum\":58,\"cpuMax\":58,\"memSum\":10530207,\"memMax\":10530207,\"heapSum\":7498400,\"externalSum\":3031807,\"errors\":0}],\"lines\":[]}"
+  },
+  {
+   "probe": "stats of boom (service role)",
+   "status": 200,
+   "body": "{\"known\":true,\"since\":1793341150721,\"buckets\":[{\"minute\":29889019,\"boots\":1,\"bootMs\":61,\"workers\":0,\"cpuSum\":0,\"cpuMax\":0,\"memSum\":0,\"memMax\":0,\"heapSum\":0,\"externalSum\":0,\"errors\":1},{\"minute\":29889020,\"boots\":0,\"bootMs\":0,\"workers\":1,\"cpuSum\":10,\"cpuMax\":10,\"memSum\":10613977,\"memMax\":10613977,\"heapSum\":7582144,\"externalSum\":3031833,\"errors\":0}],\"lines\":[{\"at\":1793341149309,\"level\":\"Error\",\"msg\":\"Error: boom in handler\\n    at Object.handler (file:///var/tmp/sb-compile-edge-runtime/boom/index.ts:2:9)\\n    at mapped (ext:runtime/http.js:246:44)\\n    at respond (ext:runtime/http.js:357:14)\\n    at handleHttp (ext:runtime/http.js:162:9)\\n    at eventLoopTick (ext:core/01_core.js:175:7)\\n\"}]}"
+  },
+  {
+   "probe": "stats of nothing (service role)",
+   "status": 200,
+   "body": "{\"known\":false,\"since\":1793341249573,\"buckets\":[],\"lines\":[]}"
+  },
+  {
+   "probe": "stats with a bad name",
+   "status": 400,
+   "body": "{\"message\":\"Invalid function\"}"
+  },
+  {
+   "probe": "the control plane's own token cannot post events",
+   "status": 401,
+   "body": "{\"message\":\"Invalid JWT\"}"
+  }
+ ],
+ "reading": [
+  "The events arrive: each function has a bucket in the minute of its boot (boots 1 with its boot time, errors counted from the Error level log lines: 2 for talk, 1 for boom) and a bucket in the minute its worker was dropped (workers 1, cpuSum and memSum filled): burn used 59 ms of CPU against 10 and 12 ms for talk and boom, with about 10.5 MiB of memory at shutdown for each.",
+  "A function name that has not been seen answers known false with empty buckets and lines.",
+  "Nothing can post events but a token signed with the key derived from the environment's secret with role sb_events: the service role token, the anon token, no token, and a token of role sb_events signed with the raw JWT secret (what Auth, which signs with that secret, could be made to mint for a function that holds the service role key) are refused (401); the stats route refuses no token and the anon token (401). A bad name is 400.",
+  "The first events of the boot window (the worker boots before the main service listens) are retried by the event worker: boots were counted for all three functions.",
+  "Any function holding the service role key can read /_sb_stats/<name> for any function of its own environment (lines and numbers), as it can read the environment's data: the boundary is the environment."
+ ],
+ "not_established": [
+  "a worker that is still serving after hours reports nothing until it is dropped (measured in the spike: Shutdown comes about 75 seconds after the last call)",
+  "other Shutdown reasons (wall clock timeout, memory or CPU kill)",
+  "the memory cost of the event worker inside the 384 MiB container under load",
+  "the whole path through a running Sbarbase installation and its console"
+ ]
+}

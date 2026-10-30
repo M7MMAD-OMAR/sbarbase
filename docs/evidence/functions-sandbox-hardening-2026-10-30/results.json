@@ -1,7 +1,7 @@
 {
  "scope": "One host (one Fedora 44 workstation, Linux, Docker default bridge), edge-runtime pinned by lab/functions-image.lock.json (v1.77.4, public.ecr.aws/supabase/edge-runtime@sha256:ad45164b7548bf5820ed7be714789c17ac2865edce79a09cfb4c3756c3d365a8). One throwaway container, fnr-sbx-main, removed afterwards, started by run_main.sh in this directory: the real lab/functions/main/index.ts mounted read-only at /home/deno/main, the functions of ./functions at /home/deno/functions and ./private/secrets.json at /run/sbarbase, both read-only; docker flags --memory 384m --cpus 0.5 --pids-limit 256; published on 127.0.0.1:19100 only. SB_SELF_URL, SB_AUTH_URL, SB_REST_URL and SB_STORAGE_URL all point at the container itself (127.0.0.1:9000), where the functions things, health and bucket stand in for Auth, REST and Storage. Not a Sbarbase runtime: no gateway, no environment network, no cap-drop, read-only root or non root user. Not tested: a real supabase-js call against a real REST, npm: packages with native or postinstall needs, SB_SELF_URL as the container host name a real environment uses, Storage as the host listener at the network gateway, egress to the host or to private ranges (the host firewall, lab/functions_egress.py, is the boundary and is checked elsewhere), CPU and memory limits under load, behaviour after a worker is recycled. A worker is reused by service path, so the final_config run started on a freshly created container. jsr.io, registry.npmjs.org, unpkg.com and example.com were reached over the real internet. The 'variants' section was run earlier against previous revisions of the main service (git HEAD, and the final options with allow_read and allow_write []) and is not rerun; only the dimensions it names are relevant.",
  "date": "2026-10-30",
- "main_service_sha256_tested": "d5688134998743bd1549be345011f90ea523f7c0fc6bb84df582b7b95a1672f2",
+ "main_service_sha256_tested": "f75ea77c2ca669d323914257b2a2b175849f580c87d8946d663456a0a3c99a79",
  "options_source": "github.com/supabase/edge-runtime tag v1.77.4: ext/workers/lib.rs (UserWorkerCreateOptions, JsPermissionsOptions) and crates/fs/impl/tmp_fs.rs (TmpFsConfig: base, prefix, suffix, randomLen, quota)",
  "summary": "deny_net is defence in depth only: the literal spellings listed in the main service and many unlisted spellings of the same address are blocked; the bare decimal integer, the NAT64 form and host names are not. The boundary is allow_net [] plus the host firewall (lab/functions_egress.py). File isolation between functions and from the container comes from the runtime's virtual filesystem, not from the permissions object. The /tmp quota is per worker, not per container.",
  "findings": {
@@ -199,8 +199,8 @@
  },
  "variant_note": "read_write_unrestricted is a previous revision of the main service: the final options except allow_read: [] and allow_write: [] (a scratch copy, not committed, not the current file). before is git HEAD's lab/functions/main/index.ts.",
  "main_service_rerun": {
-  "date": "2026-10-30 (second run, after the boot route got a limit of two at a time and a 15 second worker lifetime)",
-  "previous_sha256": "72c62b8d1c1005a28afdc0af9da60e37a2b4c8d3908fe6be937ea5253ed8916d",
+  "date": "2026-10-30 (fourth run, after the event routes took a derived key)",
+  "previous_sha256": "214dd1ae706bdfbf9ef4409b87984fb2999f8579902ca84d708d66c06a9f37ea",
   "reason": "F2.1 added the reserved boot route /_sb_boot and split validJwt into jwtClaims; the call path and the worker options did not change",
   "rerun": "run_main.sh on the new main service, seven of the recorded probes (envs, probe, npmimp, extfetch, httpsimp, supa, rest) compared with final_config: all the same (the key list of envs aside, which is compared as a list of names only). The other recorded variants were not run again."
  }

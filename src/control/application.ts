@@ -16,6 +16,7 @@ import type {EnvironmentRoute} from '../gateway/handler';
 import {observedGateway,RequestLog} from '../gateway/observe';
 import {functionNames} from './functions-read';
 import {bootThrough} from './functions-write';
+import {usageThrough} from './functions-worker';
 import type {ContainerReader} from './observe';
 import {AccessTokenStore,tokenEpoch,type AccessToken} from './access-tokens';
 import {accessTokenHandler} from './access-token-http';
@@ -53,12 +54,14 @@ export function application(catalog:Catalog,keys:KeyStore,realm:ManagementRealm,
   const actor=await identify(request);return actor&&hasManagementAccess(actor,catalog.managementSecurity)?actor.actor:null;
  };
 // A deploy asks the environment's running Edge Functions to start the new version before it goes live (functions-write.ts).
- const functionsBoot=bootThrough(runtime=>{
+ const functionsWhere=(runtime:string)=>{
   const routing=catalog.runtimeRouting(runtime);
-  if(routing.maintenance)return 'maintenance';
+  if(routing.maintenance)return 'maintenance' as const;
   const route=routeWithPlacement(resolve(runtime),routing,resolveRuntimePlacement(runtime,routing));
   return {url:route?.functions?.url,token:route?.serviceToken};
- },transport);
+ };
+ const functionsBoot=bootThrough(functionsWhere,transport);
+ const functionsUsage=usageThrough(functionsWhere,transport);
  const control=controlHandler(catalog,keys,identity,runtime=>{
   try {
    const routing=catalog.runtimeRouting(runtime);
@@ -69,7 +72,7 @@ export function application(catalog:Catalog,keys:KeyStore,realm:ManagementRealm,
    if(!route||!route.enabled)throw new Error('Runtime routing unavailable');
    return [...(route.storage?['auth','rest','storage'] as const:['auth','rest'] as const),...(route.realtime?['realtime'] as const:[]),...(route.functions?['functions'] as const:[])];
   }catch(error){throw error instanceof PlacementUnavailable?error:new PlacementUnavailable();}
- },studioKey,requests,containers,accounts,direct,functionsBoot);
+ },studioKey,requests,containers,accounts,direct,functionsBoot,functionsUsage);
  // Each environment's answers are counted for its logs and metrics (src/gateway/observe.ts).
  const gateway=observedGateway(managedGateway(catalog,keys,resolve,transport),requests,runtime=>{
   try{

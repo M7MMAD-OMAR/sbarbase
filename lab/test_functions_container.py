@@ -18,7 +18,9 @@ NETWORK = runtime.functions_network(E)
 # or a planned upgrade restart would find every kept container drifted.
 AUTH_SPEC = '990f03a71972ab8e9a3c77d138a5df87'
 DB_SPEC = 'b1c22e8ed7822f0e490da87666ac6fe2'
-FUNCTIONS_SPEC_BEFORE = 'dc843ba8f798838899e5a15036e13a69'
+# The Functions label, as launch_spec makes it with the command that starts the event worker. It changed on 2026-10-30 (F3) on purpose: a
+# kept Functions container started with the earlier command is recreated at the next start, once. The label before: dc843ba8f798838899e5a15036e13a69.
+FUNCTIONS_SPEC_BEFORE = '2316ac043a7d3d739b22e273fb5b6eb8'
 LOCKED_DOWN = ('--user', '--cap-drop', '--security-opt', '--read-only', '--tmpfs')
 
 
@@ -352,14 +354,14 @@ class ReadableCheckTests(unittest.TestCase):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         root = Path(directory.name)
-        for relative in ('run/secrets.json', 'main/index.ts', 'functions/functions.json', 'functions/v1/hello/index.ts', 'functions/v1/_shared/lib/util.ts'):
+        for relative in ('run/secrets.json', 'main/index.ts', 'event/index.ts', 'functions/functions.json', 'functions/v1/hello/index.ts', 'functions/v1/_shared/lib/util.ts'):
             (root / relative).parent.mkdir(parents=True, exist_ok=True)
             (root / relative).write_text('x')
         return root
 
     def run_check(self, root):
         script = (runtime.FUNCTIONS_READABLE.replace('/run/sbarbase', str(root / 'run')).replace('/home/deno/functions', str(root / 'functions'))
-                  .replace('/home/deno/main', str(root / 'main')))
+                  .replace('/home/deno/main', str(root / 'main')).replace('/home/deno/event', str(root / 'event')))
         return subprocess.run(['sh', '-c', script], capture_output=True, timeout=30).returncode
 
     def test_the_script_passes_a_readable_tree_and_fails_on_any_unreadable_entry_at_any_depth(self):
@@ -367,7 +369,7 @@ class ReadableCheckTests(unittest.TestCase):
             self.skipTest('root reads everything')
         root = self.tree()
         self.assertEqual(self.run_check(root), 0)
-        for relative, directory in (('run/secrets.json', False), ('main/index.ts', False), ('functions/functions.json', False), ('functions/v1/hello/index.ts', False),
+        for relative, directory in (('run/secrets.json', False), ('main/index.ts', False), ('event/index.ts', False), ('functions/functions.json', False), ('functions/v1/hello/index.ts', False),
                                     ('functions/v1/_shared/lib/util.ts', False), ('functions/v1/_shared/lib', True), ('functions/v1/hello', True)):
             target = root / relative
             mode = target.stat().st_mode
@@ -382,7 +384,7 @@ class ReadableCheckTests(unittest.TestCase):
         if os.geteuid() == 0:
             self.skipTest('root reads everything')
         root = self.tree()
-        for relative in ('functions/v1', 'functions/v1/hello', 'functions/v1/_shared/lib', 'main'):
+        for relative in ('functions/v1', 'functions/v1/hello', 'functions/v1/_shared/lib', 'main', 'event'):
             target = root / relative
             mode = target.stat().st_mode
             target.chmod(0o600)
@@ -468,3 +470,25 @@ class NoLongDashTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class EventWorkerTests(unittest.TestCase):
+    """The runtime starts with an event worker, mounted read only from this repository (F3, lab/functions/event-worker)."""
+
+    def test_the_command_starts_the_event_worker_from_its_mount(self):
+        command = list(runtime.FUNCTIONS_COMMAND)
+        self.assertEqual(command[command.index('--event-worker') + 1], '/home/deno/event')
+        self.assertEqual(command[command.index('--main-service') + 1], '/home/deno/main')
+        self.assertEqual(command[:1], ['start'])
+
+    def test_the_event_worker_is_one_of_the_read_only_mounts(self):
+        binds = dict((target, source) for source, target in runtime.functions_binds(E))
+        self.assertEqual(Path(binds['/home/deno/event']), runtime.lab.ROOT / 'lab' / 'functions' / 'event-worker')
+        self.assertTrue((Path(binds['/home/deno/event']) / 'index.ts').is_file())
+        self.assertEqual(sorted(binds), ['/home/deno/event', '/home/deno/functions', '/home/deno/main', '/run/sbarbase'])
+        # Nothing of any other environment, and the event worker reads no secrets folder of its own.
+        self.assertNotIn('function-digests', str(binds))
+
+    def test_the_readable_check_covers_the_event_worker(self):
+        self.assertIn('/home/deno/event/index.ts', runtime.FUNCTIONS_READABLE)
+        self.assertIn('/home/deno/event ', runtime.FUNCTIONS_READABLE)
