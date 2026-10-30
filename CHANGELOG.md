@@ -14,6 +14,13 @@ The declared package version is 0.9.2. Historical 0.1.0 and 0.2.0 entries retain
 
 - **Purging a deleted environment is refused**, because nothing proves that only that environment wrote the shared PostgreSQL cluster and Storage objects; delete and restore are soft.
 
+## [0.10.1] - 2026-10-30
+
+### Fixed
+
+- **A refused phone or email template save no longer stays on disk, and template bodies follow what Auth runs.** When an apply fails, the phone settings and the email templates go back to the copies the running Auth was started with, so one bad save no longer fails every later apply. The internal template route serves the applied copy, so a pending or rolled back save cannot change the mail the running Auth sends. Template braces must open and close in order, and the templates notice reads the right mail file.
+- **Safer SMTP host and output masking.** A custom SMTP host that is this machine, link-local (the cloud metadata address included), a numeric form of those, or one of this installation's own containers is refused. A function's Output also hides the JSON escaped and base64 forms of its secrets (values of six characters or more).
+
 ## [0.10.0] - 2026-10-30
 
 ### Added
