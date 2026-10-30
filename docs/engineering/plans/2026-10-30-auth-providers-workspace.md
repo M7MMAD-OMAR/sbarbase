@@ -45,6 +45,27 @@ Each phase is a checkpoint (sbar-checkpoint): source change, tests bound to the 
 - **A5, SAML and third party.** Study first: `SAML_ENABLED` is an environment setting but SSO providers are stored through the Auth admin API, which the console does not call today. Decide by experiment; may stay out of scope. Third-party auth (external JWT issuers) the same.
 - **A6, acceptance.** Live isolation check with two environments through the real console and gateway, secret leak scan of API answers, logs, catalog and audit, rollback check (an invalid provider URL that starts but fails health, an Auth that does not start), measured Auth downtime per save, docs and evidence committed.
 
+## Owner feedback after v0.9.2 (scope and design rules)
+
+The owner installed v0.9.2, used the live console, and widened the scope. This section wins over the phase text above where they differ.
+
+**Scope.** Every Authentication area the Supabase cloud has moves from code and environment variables into the console, each strictly per environment: Sign In / Providers, Email (templates) and SMTP, Sessions, Rate limits, Multi-factor, URL Configuration, Attack Protection and Audit Logs. Mail and SMTP are explicitly wanted. Each area may take several steps. For each, fields, labels, grouping, defaults and validation follow the cloud and the public docs at least in part; the cloud observation pass (gate G0, owner signs in, observe only, never copy secrets) is a precondition of the visual match, not of the safety work. Audit Logs reads the environment's own `auth.audit_log_entries` through the environment's database, read only, and is a new phase (A7); MFA joins A2 as already planned; the Auth Hooks and SAML phases stay as written.
+
+**Do not break what works.** The existing Sign-in settings save and apply path (the `PUT .../sign-in` route, the pending revision, the supervisor recreate with rollback, the provider outbound access fixed in v0.9.2) stays as it is while screens are restyled. Restyling changes `ui/` only; any change to that path is an A0.5 or later phase with its own tests.
+
+**Design rules** (apply to the existing Sign-in settings and every new screen):
+
+1. **Provider brand icons** as local SVG files in the repo (Google, Microsoft, GitHub, Apple, Discord, Facebook, GitLab, LinkedIn, Slack, Spotify, Twitch, X, Zoom and the rest of the list), no hotlinking and no runtime CDN. Each icon records its source and licence or brand guideline in `ui/assets/providers/SOURCES.md`; an icon whose terms do not allow it is replaced by a neutral monogram, never used anyway. Shown in the provider list and in a custom add-provider picker (not the native select).
+2. **No border boxes.** Spacing, background tone steps and surface contrast instead of bordered cards. This changes the console's current style (`ui/style.css` uses borders for cards and rows; the A0 section added row separators). The new and changed screens use tone steps; a test fails on a new `border` rule inside the Authentication styles.
+3. **Closer to Studio's design system**: layout, spacing, typography, toggles and sections studied from the cloud and from `docs/design/supabase-reference`.
+4. **Page structure** by tabs or a left sub navigation (Sign In, Email, Sessions, Rate limits, MFA, URL configuration, Attack protection, Audit logs), short guidance and hints per section, a sticky save bar, and a per section state (applied, pending, failed) from the existing catalog state.
+
+**New phase U0, before A1.** The shell: sub navigation, section pages, sticky save bar, section state, tone based surfaces, the provider icon set and the custom picker, applied to the existing Sign-in settings form without touching its request code. Accepted only with rendered screenshots at desktop and phone widths in the real console and the owner's wording on the result, stored under `docs/evidence/`, plus bilingual docs.
+
+**Arabic and right to left.** The console is English only today (`lang="en"`, no translation layer; only the release notes use `dir="auto"`). U0 builds the layout with logical CSS properties so right to left works, and the visual check covers a right to left render. Arabic strings in the console need a translation layer that does not exist; whether to build it is the owner's decision and is not assumed here. Reader docs stay bilingual as always.
+
+**Every phase** ships bilingual docs (`X.md` and `X.ar.md`), CHANGELOG entries in both languages, evidence, and an independent EGM review before it is accepted.
+
 ## Review findings folded in
 
 An independent design review (EGM, read only, against the code) found these. Each is verified in the code it names and changes the plan as below. Where a phase text above disagrees, this section wins.
