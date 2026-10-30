@@ -41,9 +41,9 @@ through the outbound bridge does it for IPv4 too. A reverse-path check on the br
 packet whose source is not routed back through the bridge it arrived on, and the unspecified
 sources :: and 0.0.0.0/8 are dropped outright (a raw IPv6 datagram from :: would otherwise reach a
 host socket). It uses the same interface names and fallback as the link-local rule below. For
-plain IPv4 forgery the container also needs CAP_NET_RAW or CAP_NET_ADMIN (IP_TRANSPARENT), which the
-container hardening (cap-drop ALL, checkpoint `container`) removes; the checks here do not depend
-on that. Neither translation (ufw, firewalld) carries them.
+plain IPv4 forgery the container also needs CAP_NET_RAW or CAP_NET_ADMIN (IP_TRANSPARENT). The container
+hardening (cap-drop ALL) removes both, so a function cannot forge sources that way; the checks here do
+not depend on that. Neither translation (ufw, firewalld) carries them.
 
 Link-local IPv6 (fe80::/10). A container reaches the host's bridge address from its own fe80::
 address, which no subnet rule can match, and this holds on IPv4-only networks too. The one place
@@ -92,6 +92,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -100,7 +101,7 @@ from typing import NamedTuple
 
 try:
     import durable_runtime
-except ValueError as _exc:
+except ValueError:
     # durable_runtime reads this variable as an integer at import; its message would be a traceback here.
     if 'SBARBASE_FUNCTIONS_STORAGE_PORT' in os.environ:
         print(f'error: SBARBASE_FUNCTIONS_STORAGE_PORT={os.environ["SBARBASE_FUNCTIONS_STORAGE_PORT"]!r} is not an integer port', file=sys.stderr)
@@ -390,15 +391,21 @@ def ipam(item):
     return out
 
 
+def ipam_networks(item, name):
+    """(subnet, gateway or None) of a `docker network inspect` entry, strictly parsed: the discovery paths that
+    build rules from them refuse a malformed value, a scope id or a subnet wider than a bridge."""
+    for subnet_text, gateway_text in ipam(item):
+        subnet = parse_subnet(subnet_text, f'{name} subnet')
+        yield subnet, parse_gateway(gateway_text, subnet, f'{name} gateway') if gateway_text else None
+
+
 def discover_outbound():
     """(subnet, gateway or None, bridge interface or '') triples of the outbound network."""
     items = docker_json('network', 'inspect', OUTBOUND_NETWORK)
     if not items:
         raise DiscoveryError(f'network {OUTBOUND_NETWORK} does not exist; start the runtime first or pass --outbound-subnet')
-    found = []
-    for subnet_text, gateway_text in ipam(items[0]):
-        subnet = parse_subnet(subnet_text, f'{OUTBOUND_NETWORK} subnet')
-        found.append((subnet, parse_gateway(gateway_text, subnet, f'{OUTBOUND_NETWORK} gateway') if gateway_text else None, bridge_interface(items[0])))
+    interface = bridge_interface(items[0])
+    found = [(subnet, gateway, interface) for subnet, gateway in ipam_networks(items[0], OUTBOUND_NETWORK)]
     if not found:
         raise DiscoveryError(f'network {OUTBOUND_NETWORK} has no subnet')
     return found
@@ -411,9 +418,7 @@ def discover_functions():
     out = []
     for item in docker_json('network', 'inspect', *ids):
         name = item.get('Name') or ''
-        for subnet_text, gateway_text in ipam(item):
-            subnet = parse_subnet(subnet_text, f'{name} subnet')
-            gateway = parse_gateway(gateway_text, subnet, f'{name} gateway') if gateway_text else None
+        for subnet, gateway in ipam_networks(item, name):
             if subnet.version == 4 and gateway is None:
                 raise DiscoveryError(f'network {name} has no IPv4 gateway')
             out.append(FunctionNet(subnet, gateway, name, bridge_interface(item)))
@@ -427,6 +432,8 @@ def discover_bridges():
     subnets, gateways = [], []
     for item in docker_json('network', 'inspect', *ids) if ids else []:
         for subnet_text, gateway_text in ipam(item):
+            reject_scope(subnet_text, 'Docker bridge subnet')
+            reject_scope(gateway_text, 'Docker bridge gateway')
             try:
                 subnets.append(ipaddress.ip_network(subnet_text, strict=False))
                 if gateway_text:
@@ -608,14 +615,21 @@ def describe(a):
     return text(a.net) + (f':{a.port}/{a.proto}' if a.proto else '') + (' (host)' if a.host else '')
 
 
+def nft_set(items):
+    """One item bare, several as an nft anonymous set."""
+    return items[0] if len(items) == 1 else '{ ' + ', '.join(items) + ' }'
+
+
+def nft_iif(names):
+    return 'iifname ' + nft_set([f'"{n}"' for n in names])
+
+
 def nft_rule(rule):
     fam = 'ip' if rule.family == 4 else 'ip6'
-    parts = []
-    if rule.iif:
-        parts.append('iifname ' + (f'"{rule.iif[0]}"' if len(rule.iif) == 1 else '{ ' + ', '.join(f'"{n}"' for n in rule.iif) + ' }'))
+    parts = [nft_iif(rule.iif)] if rule.iif else []
     parts.append(f'{fam} saddr {text(rule.src)}')
     if rule.dst:
-        parts.append(f'{fam} daddr ' + (text(rule.dst[0]) if len(rule.dst) == 1 else '{ ' + ', '.join(text(n) for n in rule.dst) + ' }'))
+        parts.append(f'{fam} daddr ' + nft_set([text(n) for n in rule.dst]))
     if rule.proto == 'icmpv6':
         parts.append('ip6 hoplimit 255 icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert }')
     elif rule.proto:
@@ -635,7 +649,7 @@ def rpf_rules(plan):
     solicitation from :: to a solicited-node multicast address, hop limit 255) is let through. Then a reverse-path
     check: a source address that is not routed back through the bridge the packet arrived on is dropped. Link-local
     sources (neighbour discovery) are left to their own rules."""
-    iif = 'iifname ' + (f'"{plan.interfaces[0]}"' if len(plan.interfaces) == 1 else '{ ' + ', '.join(f'"{n}"' for n in plan.interfaces) + ' }')
+    iif = nft_iif(plan.interfaces)
     return [f'{iif} ip6 saddr :: ip6 hoplimit 255 icmpv6 type nd-neighbor-solicit accept comment "duplicate address detection"',
             f'{iif} ip6 saddr :: counter drop comment "unspecified source"',
             f'{iif} ip saddr 0.0.0.0/8 counter drop comment "unspecified source"',
@@ -654,7 +668,7 @@ def render_nft(plan):
         out += [f'\tchain {chain} {{', f'\t\ttype filter hook {chain} priority {PRIORITY}; policy accept;']
         out += ['\t\t' + nft_rule(r) for r in plan.rules if r.chain == chain]
         out.append('\t}')
-    out += [f'\tchain rpf {{', f'\t\ttype filter hook prerouting priority {PRIORITY}; policy accept;']
+    out += ['\tchain rpf {', f'\t\ttype filter hook prerouting priority {PRIORITY}; policy accept;']
     out += ['\t\t' + line for line in rpf_rules(plan)]
     out += ['\t}', '}']
     return '\n'.join(out) + '\n'
@@ -811,10 +825,11 @@ def check(plan):
         for chain in ('input', 'forward'):
             if not any(r.action == 'drop' and r.chain == chain and r.src == n for r in plan.rules):
                 problems.append(f'outbound subnet {n} has no {chain} drop')
-    if render_nft(plan).count('fib saddr . iif oif missing') != 2:
+    renderings = {fmt: render(plan) for fmt, render in RENDERERS.items()}
+    if renderings['nft'].count('fib saddr . iif oif missing') != 2:
         problems.append('nft: the reverse-path check is not present for both IPv4 and IPv6')
-    for fmt, render in RENDERERS.items():
-        body = '\n'.join(line for line in render(plan).splitlines() if not line.lstrip().startswith('#'))
+    for fmt, rendered in renderings.items():
+        body = '\n'.join(line for line in rendered.splitlines() if not line.lstrip().startswith('#'))
         body = FIB_RPF.sub('', LINK_LOCAL_INTERFACE.sub('', re.sub(r"comment '[^']*'|comment \"[^\"]*\"", '', body)))
         hit = INTERFACE_WORDS.search(body)
         if hit:
@@ -825,15 +840,14 @@ def check(plan):
 def nft_syntax_check(rendered):
     """(status, detail): ok, failed or skipped. `nft -c` needs netlink access, so it runs in a private
     user and network namespace (unshare -Urn); nothing on the host is touched."""
-    needed = ('nft', 'unshare')
-    paths = [next((Path(d)/n for d in os.environ.get('PATH', '').split(':') if (Path(d)/n).exists()), None) for n in needed]
-    if not all(paths):
+    nft, unshare = shutil.which('nft'), shutil.which('unshare')
+    if not (nft and unshare):
         return 'skipped', 'nft or unshare is not installed'
     try:
         with tempfile.TemporaryDirectory() as directory:
             for name, body in (('probe.nft', 'table inet probe_only { }\n'), ('plan.nft', rendered)):
                 (Path(directory)/name).write_text(body)
-                result = subprocess.run([str(paths[1]), '-Urn', str(paths[0]), '-c', '-f', str(Path(directory)/name)], capture_output=True, text=True, timeout=30)
+                result = subprocess.run([unshare, '-Urn', nft, '-c', '-f', str(Path(directory)/name)], capture_output=True, text=True, timeout=30)
                 if result.returncode and name == 'probe.nft':
                     return 'skipped', 'a private namespace is not available: ' + (result.stderr.strip() or 'unshare failed')
                 if result.returncode:
@@ -888,12 +902,11 @@ def write_file(path, body):
             handle.write(body)
         os.chmod(tmp, 0o644)
         os.replace(tmp, target)
-    except OSError as exc:
+    except BaseException as exc:
         Path(tmp).unlink(missing_ok=True)
+        if not isinstance(exc, OSError):
+            raise
         raise PlanError(f'cannot write {path}: {exc.strerror or exc}')
-    except BaseException:
-        Path(tmp).unlink(missing_ok=True)
-        raise
     return warnings
 
 
@@ -917,7 +930,7 @@ def run(argv, out=sys.stdout, err=sys.stderr):
             problems = check(plan)
             for problem in problems:
                 print('FAIL ' + problem, file=out)
-            status, detail = nft_syntax_check(render_nft(plan))
+            status, detail = nft_syntax_check(rendered if args.format == 'nft' else render_nft(plan))
             print(f'nft syntax check: {status}' + (f' ({detail})' if detail else ''), file=out)
             print(f'{len(plan.rules)} rules, {len(plan.outbound)} outbound and {len(plan.functions)} functions subnets, {len(plan.allow)} allow entries: ' + ('plan consistent' if not problems else f'{len(problems)} problem(s)'), file=out)
             return 1 if problems or status == 'failed' else 0

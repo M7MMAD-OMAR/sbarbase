@@ -220,8 +220,10 @@ function gatewayHandler(registry:RouteRegistry, transport:typeof fetch, verifyKe
     const retainRest=service==='rest'&&route.serviceConcurrency?.rest!==undefined;
     // Functions always have a cap (a long call must not take the share REST and Auth need); the
     // other services only when the installer published one, and Realtime's broadcast never.
-    const cap=service==='functions'?route.serviceConcurrency?.functions??FUNCTION_CONCURRENCY:service==='realtime'?undefined:route.serviceConcurrency?.[service];
-    const budgetFor=cap===undefined?undefined:{service,maximum:cap,drainOnCancel:retainRest,...(service==='functions'?{deadlineMs:FUNCTION_DEADLINE_MS}:{})};
+    const isFunctions=service==='functions';
+    const cap=isFunctions?route.serviceConcurrency?.functions??FUNCTION_CONCURRENCY:service==='realtime'?undefined:route.serviceConcurrency?.[service];
+    const deadlineMs=isFunctions?FUNCTION_DEADLINE_MS:undefined;
+    const budget=cap===undefined?undefined:{service,maximum:cap,drainOnCancel:retainRest,deadlineMs};
     // Upload cancellation still uses the real request below. Once dispatched,
     // REST must settle independently of a disconnected client.
     const admissionRequest=retainRest?{signal:new AbortController().signal}:request;
@@ -273,10 +275,10 @@ function gatewayHandler(registry:RouteRegistry, transport:typeof fetch, verifyKe
     if(request.signal.aborted)return error(408,'Request cancelled');
     try {
       return await transport(target,{method:request.method,headers,body,redirect:'manual',decompress:false,
-        signal:AbortSignal.any([signal,...(retainRest?[]:[request.signal]),AbortSignal.timeout(service==='functions'?FUNCTION_DEADLINE_MS:15_000)])});
+        signal:AbortSignal.any([signal,...(retainRest?[]:[request.signal]),AbortSignal.timeout(deadlineMs??15_000)])});
     } catch {
       return error(502,'Upstream unavailable');
     }
-    },budgetFor);
+    },budget);
   };
 }

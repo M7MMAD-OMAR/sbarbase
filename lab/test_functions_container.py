@@ -1,7 +1,6 @@
 """The Edge Functions container's lock down: the flags, who gets them, how the user is chosen, and what a kept container must carry.
 No Docker: the launch arguments are read from a patched docker call. The live measurements are in
 docs/evidence/functions-container-hardening-2026-10-30/results.json."""
-import json
 import os
 import subprocess
 import tempfile

@@ -29,8 +29,9 @@ const HOP = new Set(['host', 'connection', 'keep-alive', 'transfer-encoding', 't
 // is DENIED, not defaulted (without `allow_import` a jsr: import fails at boot), so every allow list is given. `[]`
 // for net, env and import means everything: npm:, jsr: and https: imports, outbound calls, SUPABASE_URL and the
 // worker's own variables. Egress is not limited here; its boundary is the host firewall (lab/functions_egress.py).
-// `deny_net` is defence in depth only. It takes literal addresses (a CIDR range makes worker creation fail), blocks
-// just the spellings listed, and a host name that resolves to a listed address passes it. 127.0.0.1 and the gateway
+// `deny_net` is defence in depth only. It takes literal addresses (a CIDR range makes worker creation fail). In the
+// measured table (deny_net_forms in the evidence) the listed spellings and many unlisted ones of the same address are
+// blocked; the bare decimal integer, the NAT64 form and every host name that resolves to it pass. 127.0.0.1 and the gateway
 // stay allowed: SUPABASE_URL is this service, and Storage is the listener at the gateway.
 // Files: isolation between functions and from the container comes from the runtime's virtual filesystem; limiting
 // `allow_read` and `allow_write` to /tmp is a second layer. The /tmp quota is per worker, not per container, so N

@@ -1,7 +1,8 @@
 """Host egress rules for Edge Functions: what the generator emits, in order, in every format.
 
-None of this needs Docker or root. The one syntax check against the real `nft` parser runs in a
-private namespace and is skipped where that is unavailable.
+None of this needs Docker or root. The classes that parse the rules with the real `nft` or send real
+packets through them do so inside a private user and network namespace (`unshare -Urn`), and are
+skipped where that is unavailable.
 """
 import contextlib
 import io
@@ -137,7 +138,7 @@ class StorageListenerTests(unittest.TestCase):
             self.assertEqual((r.chain, r.proto, r.port, r.action), ('input', 'tcp', fe.STORAGE_PORT, 'accept'))
         nft = fe.render_nft(plan())
         self.assertIn(f'ip saddr 172.30.4.0/24 ip daddr 172.30.4.1 tcp dport {fe.STORAGE_PORT} accept', nft)
-        self.assertNotIn(f'ip saddr 172.30.4.0/24 ip daddr 172.30.5.1', nft)
+        self.assertNotIn('ip saddr 172.30.4.0/24 ip daddr 172.30.5.1', nft)
         self.assertNotIn(f'udp dport {fe.STORAGE_PORT}', nft)
 
     def test_each_functions_network_is_dropped_for_every_other_host_address_after_its_accept(self):
@@ -531,6 +532,18 @@ class BridgeAndPortTests(unittest.TestCase):
             nets, gateways = fe.discover_bridges()
         self.assertEqual(nets, [NET('203.0.113.0/24'), NET('172.17.0.0/16')])
         self.assertEqual([str(g) for g in gateways], ['203.0.113.1', '172.17.0.1'])
+
+    def test_discovery_refuses_a_scope_id_in_a_bridge_subnet_or_gateway(self):
+        def fake(subnet, gateway):
+            def run(*args):
+                if args[:2] == ('network', 'ls'):
+                    return 'a\n'
+                return '[{"IPAM": {"Config": [{"Subnet": "%s", "Gateway": "%s"}]}}]' % (subnet, gateway)
+            return run
+        for subnet, gateway in (('fd00:9::/64', 'fe80::1%eth0'), ('fe80::%eth0/64', 'fe80::1')):
+            with patch.object(fe, 'docker', side_effect=fake(subnet, gateway)):
+                with self.assertRaisesRegex(fe.PlanError, 'scope id'):
+                    fe.discover_bridges()
 
     def test_ipv6_neighbour_discovery_is_accepted_before_the_drop_for_each_ipv6_source(self):
         p = plan(functions=[FN_A, fe.FunctionNet(NET('fd00:30::/64'))])
@@ -1192,7 +1205,7 @@ class PartialInterfaceTests(unittest.TestCase):
         # The outbound network by flag, the functions networks discovered: the outbound one has no name.
         with patch.object(fe, 'docker', side_effect=fake):
             p = fe.collect(fe.parser().parse_args(['plan', '--no-resolv-conf', '--outbound-subnet', '172.20.0.0/16']), io.StringIO())
-        self.assertEqual(p.interfaces, ('br-*', 'br-' + 'd' * 12)[:1])
+        self.assertEqual(p.interfaces, ('br-*',))
 
     def test_outbound_by_flag_with_discovered_function_networks_still_covers_the_outbound_bridge(self):
         # The outbound subnet is given by flag (no name); the functions network is discovered with a name that is

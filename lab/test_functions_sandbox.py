@@ -8,6 +8,7 @@ and on a permissions object that is incomplete or too wide. What the options do 
 docs/evidence/functions-sandbox-hardening-2026-10-30.
 """
 import hashlib
+import ipaddress
 import json
 import re
 import unittest
@@ -38,6 +39,8 @@ DEAD_OPTIONS = ('netAccessDisabled', 'importMapPath')
 REQUIRED_ALLOW = ('allow_net', 'allow_env', 'allow_read', 'allow_write', 'allow_import')
 MAX_TMP_QUOTA = 128 * 1024 * 1024
 # The spellings of the metadata address that deny_net is seen to block (the evidence's deny_net_forms).
+# Where Docker allocates bridge subnets and so gateway addresses, by default and in typical custom pools.
+BRIDGE_RANGES = tuple(ipaddress.ip_network(n) for n in ('10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'))
 METADATA_FORMS = ('169.254.169.254', '[::ffff:169.254.169.254]', '[fd00:ec2::254]')
 
 
@@ -219,7 +222,7 @@ class WorkerOptionsTest(unittest.TestCase):
             self.assertIn(key, given, f'a permissions object without {key} denies it')
 
     def test_permissions_have_no_key_beyond_the_five_allows_and_deny_net(self):
-        # allow_all, allow_run, allow_sys, allow_ffi, allow_hrtime or any unknown key would widen what a function can do.
+        # allow_all, allow_run, allow_sys, allow_ffi, allow_hrtime or an unknown key would widen what a function can do.
         extra = sorted(set(permissions()) - set(REQUIRED_ALLOW) - {'deny_net'})
         self.assertEqual(extra, [], 'PERMISSIONS may hold only the five allow lists and deny_net')
 
@@ -235,10 +238,13 @@ class WorkerOptionsTest(unittest.TestCase):
                 self.assertRegex(entry, r'^[0-9.]+$', f'{entry} is not a literal address')
 
     def test_loopback_and_the_gateway_are_not_denied(self):
-        # SUPABASE_URL is the main service on loopback, and Storage is the listener at the gateway.
-        entries = string_list(permissions()['deny_net'])
-        for entry in entries:
-            self.assertFalse(entry.startswith(('127.', '[::1', 'localhost')), f'{entry} would break SUPABASE_URL')
+        # SUPABASE_URL is the main service on loopback; Storage is the listener at the network gateway, an address
+        # in the ranges Docker hands out to bridges. No listed entry may fall in either.
+        for entry in string_list(permissions()['deny_net']):
+            address = ipaddress.ip_address(entry.strip('[]'))
+            self.assertFalse(address.is_loopback, f'{entry} would break SUPABASE_URL')
+            for network in BRIDGE_RANGES:
+                self.assertFalse(address in network, f'{entry} would break Storage at the gateway')
 
     def test_files_are_limited_to_tmp(self):
         given = permissions()
