@@ -1,9 +1,9 @@
 {
-  "version": "0.9.2",
+  "version": "0.10.0",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "Fixes OAuth sign-in on a real server: an environment with an enabled provider such as Google or GitHub now gets the outbound network its Auth needs to reach the provider, so sign-in no longer fails with a failed lookup of the provider's address.",
-    "ar": "يصلح تسجيل الدخول عبر OAuth على خادم حقيقي: صارت البيئة التي فعّلت مزوّدًا مثل Google أو GitHub تنال الشبكة الخارجية التي تحتاجها خدمة Auth للوصول إلى المزوّد، فلا يفشل الدخول ببحث فاشل عن عنوان المزوّد."
+    "en": "Adds an Authentication workspace and an Edge Functions workspace to the console, per environment: sign-in providers with logos, URL configuration, sessions, rate limits, attack protection, multi-factor, custom SMTP and email templates, phone, hooks, single sign-on and audit logs; and a function list, code editor with start-checked deploys, secrets, settings, logs and metrics, with a locked down runtime and per environment call limits.",
+    "ar": "يضيف إلى اللوحة مساحة للمصادقة ومساحة للدوال الطرفية لكل بيئة: مزوّدو الدخول بشعاراتهم، وإعداد الروابط، والجلسات، وحدود المعدل، والحماية من الهجمات، والتحقق الثنائي، وSMTP مخصص وقوالب البريد، والهاتف، والخطّافات، والدخول الموحّد، وسجل التدقيق؛ وقائمة الدوال ومحرر الشيفرة مع نشر يفحص الإقلاع، والأسرار، والإعدادات، والسجلات والمقاييس، مع بيئة تشغيل محصّنة وحدود نداءات لكل بيئة."
   },
   "migrations": []
 }
