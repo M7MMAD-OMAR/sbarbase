@@ -4,7 +4,7 @@ import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {readFileSync} from 'node:fs';
-import {Catalog,ENVIRONMENT_LIMIT} from '../src/control/catalog';
+import {Catalog,CATALOG_SCHEMA_VERSION,ENVIRONMENT_LIMIT} from '../src/control/catalog';
 import {managementHandler} from '../src/control/http';
 import {KeyStore} from '../src/control/keys';
 import {keyHandler} from '../src/control/key-http';
@@ -152,7 +152,7 @@ test('the catalog migrates an older file in place and refuses one written by a n
     legacy.close();
     const migrated=new Catalog(old);
     try {
-      expect(migrated.schemaVersion()).toBe(5);
+      expect(migrated.schemaVersion()).toBe(CATALOG_SCHEMA_VERSION);
       expect(migrated.listProjects('alice','o').map(project=>project.name)).toEqual(['Kept']);
       expect(()=>migrated.createProject('alice','o','Kept')).toThrow('Name already used');
     } finally {migrated.close();}
