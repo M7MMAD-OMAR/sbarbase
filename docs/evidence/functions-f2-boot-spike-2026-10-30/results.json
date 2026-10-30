@@ -1,0 +1,17 @@
+{
+ "date": "2026-10-30",
+ "question": "Does creating a user worker with EdgeRuntime.userWorkers.create report a function that cannot start, so a deploy can refuse it before the live version changes?",
+ "runtime": "public.ecr.aws/supabase/edge-runtime@sha256:ad45164b7548bf5820ed7be714789c17ac2865edce79a09cfb4c3756c3d365a8 (the pinned v1.77.4), one throwaway container from docs/evidence/functions-sandbox-hardening-2026-10-30/run_main.sh with a spike main service, removed afterwards; not the hardened launch (no read only root, no dropped capabilities), so whether the boot route works under the hardened container is still open",
+ "options": "memoryLimitMb 150, workerTimeoutMs 20000, forceCreate true, tmpFsConfig quota 64 MiB, the same permissions object as lab/functions/main/index.ts",
+ "results": {
+  "good (Deno.serve at top level)": {"create": "ok", "ms": 20},
+  "syntax error": {"create": "InvalidWorkerCreation", "message": "worker boot error: failed to bootstrap runtime: failed to create the graph: The module's source code could not be parsed: Unexpected eof at file:///home/deno/functions/v1/syntax/index.ts:2:1", "ms": 1},
+  "import of a file that does not exist": {"create": "InvalidWorkerCreation", "message": "failed to create the graph: Module not found \"file:///home/deno/functions/v1/nomodule/missing.ts\"", "ms": 3},
+  "no entry point in the folder": {"create": "InvalidWorkerCreation", "message": "failed to bootstrap runtime: could not find an appropriate entrypoint", "ms": 0},
+  "top level throw (throw new Error at load)": {"create": "ok", "note": "the error appears only in the container log ('runtime has escaped from the event loop unexpectedly'), so create does not catch it"},
+  "no Deno.serve call": {"create": "ok", "note": "found only at the first request"},
+  "worker.fetch of the created worker from the boot route": {"result": "error 'Cannot read properties of undefined (reading streamRid)': a request must be passed on from the original request object; the boot route does not need to send a request"}
+ },
+ "conclusion": "A create call catches what a deploy most often gets wrong: a syntax error, a missing or unreadable import, a missing entry point, a type of failure reported before any request. It does not catch a top level throw or a missing Deno.serve; the page must say so and the first call or the log shows those. Time is a few tens of milliseconds for a function whose imports are already cached; an import from the network needs the outbound network and can take seconds, so the boot check needs its own deadline.",
+ "not_established": ["the same calls inside the hardened container (read only root, tmpfs, dropped capabilities)", "an import of an https or npm module the first time (network and cache)", "whether a created worker with forceCreate true holds memory until workerTimeoutMs"]
+}

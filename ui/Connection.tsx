@@ -1,6 +1,6 @@
 import {DataApiSection} from './DataApi';
 import {useEffect,useState} from 'react';
-import {ArrowLeft,Copy,ExternalLink,Play,Square,Database,Shield,Layers,Activity,KeyRound,LayoutGrid} from 'lucide-react';
+import {ArrowLeft,Copy,ExternalLink,Play,Square,Database,Shield,Layers,Activity,KeyRound,LayoutGrid,Code2} from 'lucide-react';
 import {useData,type Api,type Organization,type Environment} from './api';
 import {mailDetails,mailState,type MailEntry} from './mail';
 import {ErrorMessage,Loading,Refresh} from './components';
@@ -8,7 +8,7 @@ import {SignInSection} from './SignIn';
 import {RealtimeSection} from './Realtime';
 import {ScheduledJobsSection} from './ScheduledJobs';
 import {MetricsSection,LogsSection} from './Observe';
-import {FunctionsSection} from './Functions';
+import {FunctionsWorkspace} from './FunctionsWorkspace';
 import {DatabaseSection} from './Database';
 import {SigningSection} from './Signing';
 import {shareError} from './settings-validation';
@@ -36,7 +36,7 @@ function ShareSection({path,request}:{path:string;request:Api}){
 export function Connection({environment,organization,request,onBack}:{environment:Environment;organization:Organization;request:Api;onBack:()=>void}){
  const path=`/environments/${environment.id}`,canWrite=organization.role!=='viewer';
  const [section,setSection]=useState('overview');
- const sections=[{id:'overview',label:'Overview',Icon:LayoutGrid},...(canWrite?[{id:'database',label:'Database connection',Icon:Database},{id:'authentication',label:'Sign-in settings',Icon:Shield},{id:'services',label:'Services',Icon:Layers}]:[]),{id:'usage',label:'Usage',Icon:Activity},{id:'keys',label:'API keys',Icon:KeyRound}];
+ const sections=[{id:'overview',label:'Overview',Icon:LayoutGrid},...(canWrite?[{id:'database',label:'Database connection',Icon:Database},{id:'authentication',label:'Sign-in settings',Icon:Shield},{id:'services',label:'Services',Icon:Layers},{id:'functions',label:'Edge Functions',Icon:Code2}]:[]),{id:'usage',label:'Usage',Icon:Activity},{id:'keys',label:'API keys',Icon:KeyRound}];
  const activeSection=sections.some(item=>item.id===section)?section:'overview';
  const info=useData<{apiPath:string;services:string[]}|undefined>(signal=>activeSection==='overview'?request(path+'/connection','GET',undefined,signal):Promise.resolve(undefined),[environment.id,request,activeSection]);
  const mail=useData<{data:MailAnswer}|undefined>(signal=>activeSection==='overview'?request(path+'/mail','GET',undefined,signal):Promise.resolve(undefined),[environment.id,request,activeSection]);
@@ -62,9 +62,8 @@ export function Connection({environment,organization,request,onBack}:{environmen
  {canWrite&&<SigningSection path={path} request={request}/>}
  </div>}{activeSection==='services'&&<div>
  {canWrite&&<RealtimeSection path={path} request={request}/>}
-  {canWrite&&<FunctionsSection path={path} request={request} environmentId={environment.id}/>}
   {canWrite&&<ScheduledJobsSection path={path} request={request}/>}
- </div>}{activeSection==='database'&&<div>
+ </div>}{activeSection==='functions'&&canWrite&&<FunctionsWorkspace path={path} request={request} environmentId={environment.id}/>}{activeSection==='database'&&<div>
  {canWrite&&<DatabaseSection path={path} request={request}/>}
  {canWrite&&<DataApiSection path={path} request={request}/>}
  </div>}{activeSection==='usage'&&<div>

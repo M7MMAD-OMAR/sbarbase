@@ -106,3 +106,7 @@ F1.1, F1.2, F1.3 (report to the owner), F2.1, F2.2, F2.3 (report), F3.1, F3.2 (r
 - Memory cost of the 24 hour counters at many environments (measured in F1.1 with a synthetic load; the cap is a ceiling, not a measurement).
 - Whether the hardened container boots a dry-boot route (F2.1 proves it, F0 only proved boot).
 - Behavior on the live v0.9.2 server: nothing here is deployed by this work.
+
+## Known minor items after the F1 reviews (to fold into F2.2)
+
+From the independent reviews of the console workspace; none blocks F1, each is small. Delete and deploy messages: show the server's message for a 409 (`Settings.tsx` shows the generic sentence), a failed key fetch in the Test panel reads as "no key", the pending poll stops after one failed poll, `opening` is not cleared when the person navigates elsewhere, only the name button opens a row although the whole row highlights, the URL cell truncates before the function name and has no title, and in right to left English units read "min 15" (a result of English strings in a mirrored page, not of the layout).

@@ -1,0 +1,31 @@
+{
+ "date": "2026-10-30",
+ "checkpoint": "F1.2 console Edge Functions workspace, read side",
+ "how_rendered": "The real components (ui/FunctionsWorkspace.tsx and ui/functions-workspace/) rendered by a throwaway Vite page with a stub request and a stub fetch for the Test panel (as the Authentication U0 captures were); not a running installation. Captured with headless Google Chrome at exact viewports (desktop 1360 by 896, phone 390 by 844, device scale 1). The page was removed after the captures. The server routes the components call are covered by tests/functions-read.test.ts against the real handler.",
+ "panes": "Right to left means dir=rtl on the page with English strings, as in U0: the console has no translation layer.",
+ "screenshots": {
+  "desktop-dark-list.png": "dark, 1360 by 896, list page with five functions, search, sort, refresh, runtime switch and Add function (the UI gate capture; compare reference-cloud-list.jpg)",
+  "desktop-dark-overview.png": "dark, function Overview: range switch, invocations chart with 5xx and 4xx, errors since the last deploy, performance",
+  "desktop-dark-logs.png": "dark, Logs tab: filter, range, Live switch, calls and environment wide output",
+  "desktop-dark-code.png": "dark, Code tab: file tree with ../_shared, read only viewer with line numbers and highlighting",
+  "desktop-light-settings.png": "light, Settings tab: configuration, invoke snippets with the placeholder key",
+  "desktop-dark-test.png": "dark, Test panel after a send: status, time, headers a browser may read, body",
+  "desktop-light-secrets.png": "light, Secrets page: add or replace, custom secrets with HMAC digests, defaults",
+  "desktop-rtl-add.png": "dark, right to left, Add function panel (code stays left to right)",
+  "phone-dark-overview.png": "dark, 390 wide, Overview",
+  "phone-dark-code.png": "dark, 390 wide, Code tab",
+  "phone-rtl-list.png": "dark, right to left, 390 wide, list as cards",
+  "phone-light-secrets.png": "light, 390 wide, Secrets",
+  "reference-cloud-list.jpg": "the Supabase cloud list page observed the same day at 1360 by 896 (dark), for comparison",
+  "desktop-dark-empty-failed.png": "dark, no functions and the runtime Not applied with its failure text and the empty message (no dashed box)",
+  "desktop-rtl-settings.png": "dark, right to left, Settings tab: tabs and the back arrow mirrored, code and addresses left to right"
+ },
+ "checks": {
+  "tests": "bun test tests/functions-workspace-ui.test.ts (8 tests: wording of times and sizes, search and sort, client examples, tokenizer, tree, chart geometry, no borders or inline styles or browser select or outside address in the sources, every button typed)",
+  "typecheck": "bun run typecheck:ui",
+  "build": "bun run build:ui"
+ },
+ "interaction_checked": "Keyboard on the sort list (ArrowDown opens, Enter picks, focus returns), secret save with an uppercased name and a multi line value, Test send, tabs, delete confirmation not exercised in the render (covered by the typed name rule in code)",
+ "not_exercised": "A live installation, the real download of a ZIP in a browser (the fetch and the ZIP are tested separately), the CSP in a served build (no inline style attribute exists in the sources; checked by test), Firefox and Safari (the masked secret field uses -webkit-text-security, which Firefox may ignore)",
+ "review_fixes": "After the independent review: the Test dialog is portalled with the page behind inert, Escape closes the open list first, focus returns to Test; the console's bordered Empty and ErrorMessage are replaced by Nothing and Problem (a test forbids importing them); a new deploy opens once listed; the select is a combobox with aria-activedescendant; the back arrow mirrors; inline code is isolated; the clock is 12 hour with Western digits; Retry on a failed first load; Download shows Preparing; a deploy over an existing name says it replaces; the log filter waits 300 ms; log rows have labels on a phone."
+}

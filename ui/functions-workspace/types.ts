@@ -1,0 +1,13 @@
+import type {FunctionRow} from './format';
+export type {FunctionRow};
+export type RuntimeState={desired:'on'|'off';state:'off'|'pending'|'on'|'failed';failure:string|null;functions:FunctionRow[];secrets:string[]};
+export type Range='15m'|'1h'|'3h'|'1d';
+export const RANGES:{id:Range;label:string}[]=[{id:'15m',label:'15 min'},{id:'1h',label:'1 hour'},{id:'3h',label:'3 hours'},{id:'1d',label:'1 day'}];
+export type Point={at:number;requests:number;clientErrors:number;serverErrors:number;averageMs:number|null;maxMs:number|null};
+export type Metrics={range:Range;countingSince:number;points:Point[];totals:{requests:number;clientErrors:number;serverErrors:number;averageMs:number|null;maxMs:number|null};
+ sinceDeploy:{requests:number;clientErrors:number;serverErrors:number;since:number;complete:boolean}};
+export type Call={at:number;method:string;path:string;status:number;ms:number};
+export type SourceFile={path:string;size:number;shared:boolean;content:string|null};
+export type SecretRow={name:string;digest:string;updated_at:number|null};
+export type DefaultSecret={name:string;description:string;provided:'yes'|'no'|'unknown';deprecated?:boolean};
+export type ApiKey={id:string;kind:'publishable'|'secret';name:string;revoked_at:number|null;token?:string|null};
