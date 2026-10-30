@@ -32,10 +32,10 @@ const conflicts:Record<string,string>={
  'Provisioning is active':'Wait until provisioning finishes.',
  'Environment services are still on':'Turn off Studio, Realtime, Edge Functions and database access for this environment first, and wait for changes in progress to finish.'};
 /** What a refused request carries beyond the sentence the console shows: the status and the server's own message
- * (our management API sends short, plain ones such as "Check the files: an index.ts"). Screens that can use the
+ * (our management API sends plain ones of at most 600 characters, such as "Check the files: an index.ts"). Screens that can use the
  * message, such as a deploy, read `serverMessage`; every other screen keeps showing `message`. */
 export class ApiError extends Error{constructor(message:string,readonly status:number,readonly serverMessage?:string){super(message);}}
-const serverMessage=(response:Response)=>response.clone().json().then(value=>{const text=(value as {message?:unknown}).message;return typeof text==='string'&&text.length<=300?text:undefined;}).catch(()=>undefined);
+const serverMessage=(response:Response)=>response.clone().json().then(value=>{const text=(value as {message?:unknown}).message;return typeof text==='string'&&text.length<=700?text:undefined;}).catch(()=>undefined);
 /** One request with the session handling every call shares: an expired token is refreshed and the request retried once,
  * and a refused refresh or a lost authenticator signs out. Returns the response whatever its status. */
 async function exchange(token:string,path:string,method:string,body:unknown,signal?:AbortSignal):Promise<Response> {

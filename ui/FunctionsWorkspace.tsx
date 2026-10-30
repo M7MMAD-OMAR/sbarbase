@@ -4,7 +4,9 @@ import {ApiError,auth,download,type Api} from './api';
 import {Loading} from './components';
 import {useLive} from './functions-workspace/live';
 import type {RuntimeState} from './functions-workspace/types';
-import {Problem,Tabs} from './functions-workspace/kit';
+import {Notice,Problem,Tabs} from './functions-workspace/kit';
+import {checkText} from './functions-workspace/deploy';
+import type {Deployed} from './functions-workspace/FileEditor';
 import {List} from './functions-workspace/List';
 import {AddFunction} from './functions-workspace/AddFunction';
 import {Overview} from './functions-workspace/Overview';
@@ -21,14 +23,16 @@ const TABS:{id:Tab;label:string}[]=[{id:'overview',label:'Overview'},{id:'logs',
 
 /** Edge Functions of one environment, laid out like the Supabase cloud's: Functions and Secrets, and for each function Overview, Logs,
  * Code and Settings with Test and Download. Every request goes to this environment's own routes. */
-export function FunctionsWorkspace({path,request,environmentId}:{path:string;request:Api;environmentId:string}){
+export function FunctionsWorkspace({path,request,environmentId,onDirtyChange}:{path:string;request:Api;environmentId:string;onDirtyChange?:(dirty:boolean)=>void}){
  const [page,setPage]=useState<Page>('functions'),[selected,setSelected]=useState<string>(),[tab,setTab]=useState<Tab>('overview'),[adding,setAdding]=useState(false);
  const [testing,setTesting]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[opening,setOpening]=useState<string>(),[saving,setSaving]=useState(false);
+ // Unsaved edits in an editor, and the move the person asked for that waits for their answer; the text of the last deploy.
+ const [dirty,setDirty]=useState(false),[ask,setAsk]=useState<()=>void>(),[notice,setNotice]=useState('');
  const origin=location.origin;
  const data=useLive<{data:RuntimeState}>(signal=>request(path+'/functions','GET',undefined,signal),[path,request]);
  const state=data.data?.data;
  // A change of the runtime takes a moment: ask again until it settles.
- useEffect(()=>{if(state?.state!=='pending')return;const timer=setTimeout(data.refresh,3000);return()=>clearTimeout(timer);},[state?.state,data.data]);
+ useEffect(()=>{if(state?.state!=='pending')return;const timer=setTimeout(data.refresh,3000);return()=>clearTimeout(timer);},[state?.state,data.data,data.error]);
  const fn=state?.functions.find(item=>item.name===selected);
  // A function that was deleted, or one deployed a moment ago and not in the list yet: leave the page, or open the new one once it is listed.
  useEffect(()=>{if(selected&&state&&!fn){setSelected(undefined);setTesting(false);}},[selected,state,fn]);
@@ -46,25 +50,34 @@ export function FunctionsWorkspace({path,request,environmentId}:{path:string;req
   finally{setSaving(false);}
  }
  const closeTest=useCallback(()=>setTesting(false),[]);
- const open=(name:string)=>{setSelected(name);setTab('overview');setAdding(false);};
+ const open=(name:string)=>{setSelected(name);setTab('overview');setAdding(false);setNotice('');};
+ // Every move that would drop edits asks first.
+ useEffect(()=>{onDirtyChange?.(dirty);return()=>onDirtyChange?.(false);},[dirty]);
+ const go=(action:()=>void)=>{const run=()=>{setOpening(undefined);action();};if(dirty)setAsk(()=>run);else run();};
+ const deployed=(result:Deployed)=>{setNotice(`Deployed ${result.name}. ${checkText(result.boot_check)}`);data.refresh();};
  return <section className="fw" aria-label="Edge Functions">
   <nav className="fw-nav" aria-label="Edge Functions"><p className="fw-nav-label">MANAGE</p>
-   <button type="button" className={page==='functions'?'active':''} aria-current={page==='functions'?'page':undefined} onClick={()=>{setPage('functions');setSelected(undefined);}}>Functions</button>
-   <button type="button" className={page==='secrets'?'active':''} aria-current={page==='secrets'?'page':undefined} onClick={()=>{setPage('secrets');setSelected(undefined);}}>Secrets</button></nav>
+   <button type="button" className={page==='functions'?'active':''} aria-current={page==='functions'?'page':undefined} onClick={()=>go(()=>{setPage('functions');setSelected(undefined);setNotice('');})}>Functions</button>
+   <button type="button" className={page==='secrets'?'active':''} aria-current={page==='secrets'?'page':undefined} onClick={()=>go(()=>{setPage('secrets');setSelected(undefined);setAdding(false);setNotice('');})}>Secrets</button></nav>
   <div className="fw-main">
    <Problem message={error||data.error} retry={!state&&data.error?data.refresh:undefined}/>
+   {ask&&<div className="fw-notice wait" role="alertdialog" aria-label="Unsaved changes"><span>You have changes that are not deployed. Leave and lose them?</span>
+    <span className="fw-actions"><button type="button" className="fw-danger-solid" onClick={()=>{const next=ask;setAsk(undefined);next();}}>Discard changes</button>
+     <button type="button" className="fw-ghost" autoFocus onClick={()=>setAsk(undefined)}>Keep editing</button></span></div>}
+   {notice&&!ask&&<Notice tone="info">{notice}</Notice>}
    {data.loading&&!state?<Loading/>:state&&(page==='secrets'?<Secrets path={path} request={request} onChanged={data.refresh}/>:fn?<>
-    <div className="fw-fn-head"><nav className="fw-crumb" aria-label="Breadcrumb"><button type="button" onClick={()=>setSelected(undefined)}><ArrowLeft aria-hidden="true"/>Edge Functions</button><span aria-hidden="true">/</span><span aria-current="page">{fn.name}</span></nav>
+    <div className="fw-fn-head"><nav className="fw-crumb" aria-label="Breadcrumb"><button type="button" onClick={()=>go(()=>{setSelected(undefined);setNotice('');})}><ArrowLeft aria-hidden="true"/>Edge Functions</button><span aria-hidden="true">/</span><span aria-current="page">{fn.name}</span></nav>
      <div className="fw-head-tools"><button type="button" className="fw-ghost" disabled={saving} onClick={()=>void save()}><DownloadIcon aria-hidden="true"/>{saving?'Preparing…':'Download'}</button>
       <button type="button" className="fw-ghost" aria-haspopup="dialog" onClick={()=>setTesting(true)}><Send aria-hidden="true"/>Test</button></div></div>
-    <Tabs label="Function" prefix="fn" tabs={TABS} value={tab} onChange={setTab}/>
+    <Tabs label="Function" prefix="fn" tabs={TABS} value={tab} onChange={value=>go(()=>{setTab(value);setNotice('');})}/>
     <div role="tabpanel" id={`fn-panel-${tab}`} aria-labelledby={`fn-tab-${tab}`} key={fn.name+tab}>
      {tab==='overview'?<Overview fn={fn} path={path} request={request} origin={origin} openLogs={()=>setTab('logs')}/>
-      :tab==='logs'?<Logs fn={fn} path={path} request={request}/>:tab==='code'?<Code fn={fn} path={path} request={request}/>
-      :<Settings fn={fn} path={path} request={request} origin={origin} environmentId={environmentId} onDeleted={()=>{setSelected(undefined);data.refresh();}}/>}</div>
+      :tab==='logs'?<Logs fn={fn} path={path} request={request}/>:tab==='code'?<Code fn={fn} path={path} request={request} existingNames={state.functions.map(item=>item.name)} onDeployed={deployed} onDirty={setDirty}/>
+      :<Settings fn={fn} path={path} request={request} origin={origin} environmentId={environmentId} onDeleted={()=>{setSelected(undefined);data.refresh();}} onChanged={data.refresh}/>}</div>
     {testing&&<TestPanel fn={fn} path={path} request={request} origin={origin} onClose={closeTest}/>}</>
-   :<List state={state} origin={origin} busy={busy} adding={adding} onOpen={open} onRefresh={data.refresh} onAdd={()=>setAdding(!adding)}
+   :<List state={state} origin={origin} busy={busy} adding={adding} onOpen={name=>go(()=>open(name))} onRefresh={data.refresh} onAdd={()=>go(()=>{setAdding(!adding);setNotice('');})}
      onSwitch={on=>void act(()=>request(path+'/functions','PUT',{enabled:on}))}
-     panel={adding?<AddFunction path={path} request={request} environmentId={environmentId} origin={origin} onClose={()=>setAdding(false)} existing={state.functions.map(item=>item.name)} onDeployed={name=>{setAdding(false);setOpening(name);data.refresh();}}/>:undefined}/>)}
+     panel={adding?<AddFunction path={path} request={request} environmentId={environmentId} origin={origin} existing={state.functions.map(item=>item.name)} onDirty={setDirty} guard={go}
+      onClose={()=>go(()=>setAdding(false))} onDeployed={result=>{setAdding(false);setOpening(result.name);deployed(result);}}/>:undefined}/>)}
   </div></section>;
 }

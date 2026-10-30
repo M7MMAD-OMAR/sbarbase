@@ -102,8 +102,8 @@ test('every control the workspace renders is a button, link or field with an acc
   const text=readFileSync(file,'utf8');
   // An icon only button carries an aria-label (its text is the icon).
   for(const match of text.matchAll(/<button\b[^>]*className="fw-icon"[^>]*>/g))expect(match[0],file).toMatch(/aria-label=/);
-  // No button submits a form by accident: each one says type="button".
-  expect((text.match(/<button\b/g)??[]).length,file).toBe((text.match(/type="button"/g)??[]).length);
+  // No button submits a form by accident: each one says type="button", or type="submit" inside a form it belongs to.
+  expect((text.match(/<button\b/g)??[]).length,file).toBe((text.match(/type="(?:button|submit)"/g)??[]).length);
  }
 });
 

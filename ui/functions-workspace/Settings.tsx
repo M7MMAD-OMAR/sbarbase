@@ -1,4 +1,4 @@
-import {useState} from 'react';
+import {useEffect,useState} from 'react';
 import {Eye,EyeOff,Trash2} from 'lucide-react';
 import {ApiError,type Api} from '../api';
 
@@ -7,8 +7,11 @@ import {LANGUAGES,snippet,type Language} from './snippets';
 import {Chip,ConfirmByName,CopyButton,Tabs,Problem} from './kit';
 
 /** The pieces of Settings that need no server: how the function is called, and how to work on it locally. */
-export function Settings({fn,path,request,origin,environmentId,onDeleted}:{fn:FunctionRow;path:string;request:Api;origin:string;environmentId:string;onDeleted:()=>void}){
+export function Settings({fn,path,request,origin,environmentId,onDeleted,onChanged}:{fn:FunctionRow;path:string;request:Api;origin:string;environmentId:string;onDeleted:()=>void;onChanged:()=>void}){
  const [language,setLanguage]=useState<Language>('curl'),[key,setKey]=useState<string>(),[keyError,setKeyError]=useState(''),[confirm,setConfirm]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const [verify,setVerify]=useState(fn.verify_jwt),[saving,setSaving]=useState(false),[saved,setSaved]=useState(''),[saveError,setSaveError]=useState('');
+
+ useEffect(()=>setVerify(fn.verify_jwt),[fn.verify_jwt]);
  const text=snippet(language,{origin,path:fn.path,name:fn.name,key});
  const command=`SBARBASE_EMAIL=you@example.com bun lab/functions-deploy.ts ${origin} ${environmentId} supabase/functions`;
  async function reveal(){
@@ -20,17 +23,24 @@ export function Settings({fn,path,request,origin,environmentId,onDeleted}:{fn:Fu
    if(found?.token)setKey(found.token);else setKeyError('This environment has no publishable key that can be shown. Create one under API keys.');
   }catch(reason){setKeyError((reason as Error).message);}
  }
+ async function saveVerify(){
+  setSaving(true);setSaveError('');setSaved('');
+  try{await request(`${path}/functions/${fn.name}`,'PATCH',{verify_jwt:verify});setSaved(verify?'Verify JWT is on. It applies to the next call.':'Verify JWT is off. It applies to the next call.');onChanged();}
+  catch(reason){setSaveError(reason instanceof ApiError&&reason.serverMessage?reason.serverMessage:(reason as Error).message);}
+  finally{setSaving(false);}
+ }
  async function remove(){
   setBusy(true);setError('');
   try{await request(`${path}/functions/${fn.name}`,'DELETE');onDeleted();}
-  catch(reason){setError(reason instanceof ApiError?reason.message:'Unable to delete the function.');setBusy(false);}
+  catch(reason){setError(reason instanceof ApiError&&reason.serverMessage?reason.serverMessage:reason instanceof ApiError?reason.message:'Unable to delete the function.');setBusy(false);}
  }
  return <div className="fw-stack narrow">
   <section className="fw-card"><h3>Function configuration</h3>
    <div className="fw-field"><div className="fw-text"><span className="fw-label">Name</span><p className="fw-hint">Your slug and endpoint URL stay the same.</p></div><code className="fw-value">{fn.name}</code></div>
-   <div className="fw-field"><div className="fw-text"><span className="fw-label">Verify JWT</span><p className="fw-hint">The function refuses a call without a valid token in the <code>Authorization</code> header. The publishable key satisfies it. Turn it off for webhooks and check tokens in your own code.</p></div>
-    <Chip tone={fn.verify_jwt?'ok':'muted'}>{fn.verify_jwt?'On':'Off'}</Chip></div>
-   <p className="fw-hint">It is set when you deploy, with <code>verify_jwt</code> in <code>config.toml</code> or the checkbox in Add function.</p></section>
+   <div className="fw-field"><div className="fw-text"><span className="fw-label" id="verify-label">Verify JWT</span><p className="fw-hint">The function refuses a call without a valid token in the <code>Authorization</code> header. The publishable key satisfies it. Turn it off for webhooks and check tokens in your own code.</p></div>
+    <button type="button" role="switch" aria-checked={verify} aria-labelledby="verify-label" className="fw-switch" onClick={()=>{setVerify(!verify);setSaved('');}}><span/></button></div>
+   <Problem message={saveError}/>
+   <div className="fw-card-foot"><span className="fw-hint" role="status">{saved}</span><button type="button" className="fw-primary" disabled={saving||verify===fn.verify_jwt} onClick={()=>void saveVerify()}>Save changes</button></div></section>
   <section className="fw-card"><div className="fw-card-head"><h3>Invoke function</h3>
    <button type="button" className="fw-ghost" onClick={()=>void reveal()}>{key?<EyeOff aria-hidden="true"/>:<Eye aria-hidden="true"/>}{key?'Hide publishable key':'Show publishable key'}</button></div>
    <Tabs label="Client" prefix="invoke" tabs={LANGUAGES} value={language} onChange={setLanguage}/>

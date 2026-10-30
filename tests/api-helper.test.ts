@@ -24,9 +24,15 @@ test('a refusal keeps the console sentence and carries the server message and st
  }
 });
 
+test('a runtime message of 600 characters is kept, and one that is not plain text of at most 700 is dropped',async()=>{
+ const {api}=await load();
+ const long=await withFetch([refused(422,'y'.repeat(600))],()=>api('t')('/x').then(()=>null,reason=>reason));
+ expect(long.serverMessage).toBe('y'.repeat(600));expect(long.status).toBe(422);
+});
+
 test('a server message that is not short plain text is dropped, and a missing one is undefined',async()=>{
  const {api}=await load();
- for(const message of ['x'.repeat(301),{nested:true},42,undefined]){
+ for(const message of ['x'.repeat(701),{nested:true},42,undefined]){
   const error=await withFetch([refused(400,message)],()=>api('t')('/x').then(()=>null,reason=>reason));
   expect(error.serverMessage).toBeUndefined();
   expect(error.message).toBe('Check the entered values and try again.');

@@ -66,7 +66,7 @@ export function TestPanel({fn,path,request,origin,onClose}:{fn:FunctionRow;path:
     <div className="fw-formrow"><label className="fw-label" htmlFor="test-body">Request body</label><textarea id="test-body" rows={4} spellCheck={false} value={body} disabled={method==='GET'} onChange={event=>setBody(event.target.value)}/></div>
     <Pairs label="Headers" pairs={headers} onChange={setHeaders} placeholder={['Header name','Header value']} add="Add header"/>
     <Pairs label="Query parameters" pairs={query} onChange={setQuery} placeholder={['Parameter name','Parameter value']} add="Add parameter"/>
-    <label className="fw-check"><input type="checkbox" checked={useKey} onChange={event=>setUseKey(event.target.checked)}/>Send the publishable key{!key&&!keys.loading&&useKey&&<span className="fw-hint"> (this environment has none that can be shown)</span>}</label>
+    <label className="fw-check"><input type="checkbox" checked={useKey} onChange={event=>setUseKey(event.target.checked)}/>Send the publishable key{!key&&!keys.loading&&useKey&&<span className="fw-hint"> ({keys.error?'the keys could not be read':'this environment has none that can be shown'})</span>}</label>
     {!useKey&&<p className="fw-hint">Without a key only a function with Verify JWT turned off can answer, as for a webhook.</p>}
     <div className="fw-result" aria-live="polite">{busy?<p className="fw-empty">Sending…</p>:!outcome?<p className="fw-empty"><Send aria-hidden="true"/>Send your first test request</p>:'error' in outcome?<Notice tone="bad">{outcome.error}</Notice>
      :<><p className={'fw-status '+(outcome.status>=500?'bad':outcome.status>=400?'warn':'ok')}><strong>{outcome.status}</strong> {outcome.statusText} · {milliseconds(outcome.ms)}</p>

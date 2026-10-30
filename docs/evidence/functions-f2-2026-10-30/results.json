@@ -1,0 +1,25 @@
+{
+ "date": "2026-10-30",
+ "checkpoint": "F2.2 editor, Verify JWT switch, secrets rows and paste, templates",
+ "how_rendered": "The real components rendered by a throwaway Vite page with a stub request (a deploy answer, a refused deploy with the runtime's message, a Verify JWT change), captured with headless Google Chrome at exact viewports (desktop 1360 wide, phone 390 wide, device scale 1). The page was removed after the captures. In some captures the active tab shows the previous tab: the capture is taken while a colour transition is still running, not a defect (the DOM and aria-current are right). Right to left means dir=rtl with English strings.",
+ "screenshots": {
+  "editor-changed.png": "dark, Code tab, editor after an edit: Changed chip, dot in the tree, Deploy updates enabled",
+  "editor-light.png": "light, Code tab, no changes",
+  "new-function.png": "dark, Add function in the editor: template choice, name, Verify JWT, file tree and editor",
+  "deploy-refused.png": "dark, a deploy the runtime could not start: its message, the editor keeps the changes",
+  "deploy-passed.png": "dark, a deployed update with the start check sentence above the tabs, the editor reset to the deployed text",
+  "secrets-paste.png": "dark, three rows made by pasting NAME=value lines, values masked, a multi line value",
+  "settings.png": "dark, Settings with the Verify JWT switch and Save changes",
+  "phone-editor.png": "dark, 390 wide, editor with the tree above it",
+  "rtl-editor.png": "dark, right to left, code and file names stay left to right"
+ },
+ "checks": {
+  "tests": "bun test tests/functions-editor-ui.test.ts tests/functions-workspace-ui.test.ts: tab and enter editing, .env parsing, file names, the deploy request, templates accepted by the server's own check, the wording of the start check, sources free of borders, inline styles and browser selects",
+  "typecheck": "bun run typecheck:ui",
+  "build": "bun run build:ui"
+ },
+ "interaction_checked_in_the_pane": "Escape closes an open list before the dialog (F1 review fixes), typing and Deploy updates against stubs, paste of a multi row .env text into a name field",
+ "not_exercised": "the editor with the real server (the routes are tested against the real handler and the boot route against the hardened container), a very large file in the editor, IME input, mobile soft keyboard, Firefox and Safari",
+ "review_fixes": "After the first independent review of the editor (five major findings): the textarea shares one grid cell with the highlighted layer so it never scrolls on its own and the caret is scrolled into view by the editor (checked in a real browser with a 1200 pixel line); Tab and Enter go through insertText so undo keeps working (checked: Ctrl+Z undoes across an Enter); the discard dialog no longer clears the guard; the way and template choices in Add function go through the same guard; the client keeps runtime messages up to 700 characters. Also: IME and modifier keys are left alone, a file name that is a folder of another file is refused, the function name is trimmed once, pasted secret values are no longer copied into the page text (checked), skipped lines and a 100 pair cap are said, focus goes to the first pasted row, the Settings switch follows a refresh, the delete message shows the server's, the pending poll re-arms after a failed poll. Third review: a Shift+Tab that changes nothing no longer touches the text or the undo history (checked), key releases other than navigation keys no longer move the scroll, the editor is read only while a deploy runs, only changed lines are redrawn when typing, the caret stays put when a secret name is upper cased, and leaving the section from the environment menu asks.",
+ "known_limits": "Leaving the Edge Functions section through the console's own menu or the Environments back button asks about unsaved edits (a browser confirm). The breadcrumb in the console's top bar, the sidebar and the organization choice do not: only the page unload asks there."
+}

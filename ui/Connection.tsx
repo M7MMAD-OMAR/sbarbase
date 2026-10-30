@@ -35,7 +35,9 @@ function ShareSection({path,request}:{path:string;request:Api}){
 }
 export function Connection({environment,organization,request,onBack}:{environment:Environment;organization:Organization;request:Api;onBack:()=>void}){
  const path=`/environments/${environment.id}`,canWrite=organization.role!=='viewer';
- const [section,setSection]=useState('overview');
+ const [section,setSection]=useState('overview'),[functionsDirty,setFunctionsDirty]=useState(false);
+ // Edits in the Edge Functions editor are not saved until they are deployed: leaving its section asks first.
+ const leave=()=>!functionsDirty||window.confirm('You have Edge Functions changes that are not deployed. Leave and lose them?');
  const sections=[{id:'overview',label:'Overview',Icon:LayoutGrid},...(canWrite?[{id:'database',label:'Database connection',Icon:Database},{id:'authentication',label:'Sign-in settings',Icon:Shield},{id:'services',label:'Services',Icon:Layers},{id:'functions',label:'Edge Functions',Icon:Code2}]:[]),{id:'usage',label:'Usage',Icon:Activity},{id:'keys',label:'API keys',Icon:KeyRound}];
  const activeSection=sections.some(item=>item.id===section)?section:'overview';
  const info=useData<{apiPath:string;services:string[]}|undefined>(signal=>activeSection==='overview'?request(path+'/connection','GET',undefined,signal):Promise.resolve(undefined),[environment.id,request,activeSection]);
@@ -48,7 +50,7 @@ export function Connection({environment,organization,request,onBack}:{environmen
   `/usr/bin/python3 lab/durable_runtime.py mail ${runtime}`].join('\n'):'';
  const [copied,setCopied]=useState('');
  async function copy(text:string){try{await navigator.clipboard.writeText(text);setCopied('Copied to clipboard.');}catch{setCopied('Copy unavailable. Select and copy the value manually.');}}
- return <><button className="back" onClick={onBack}><ArrowLeft aria-hidden="true"/>Environments</button><div className="page-heading"><div><h1>{environment.name}</h1><p className="muted">Open Supabase Studio or connect your application. Advanced settings are available below.</p></div></div><nav className="environment-nav" aria-label="Environment sections">{sections.map(({id,label,Icon})=><button key={id} className={activeSection===id?'selected':''} aria-current={activeSection===id?'page':undefined} onClick={()=>setSection(id)}><Icon aria-hidden="true"/>{label}</button>)}</nav>
+ return <><button className="back" onClick={()=>{if(leave())onBack();}}><ArrowLeft aria-hidden="true"/>Environments</button><div className="page-heading"><div><h1>{environment.name}</h1><p className="muted">Open Supabase Studio or connect your application. Advanced settings are available below.</p></div></div><nav className="environment-nav" aria-label="Environment sections">{sections.map(({id,label,Icon})=><button key={id} className={activeSection===id?'selected':''} aria-current={activeSection===id?'page':undefined} onClick={()=>{if(id===activeSection||leave())setSection(id);}}><Icon aria-hidden="true"/>{label}</button>)}</nav>
  {canWrite&&(activeSection==='overview'||activeSection==='database')&&<StudioSection path={path} request={request} compact={activeSection==='overview'} environmentName={environment.name}/>}
  {activeSection==='overview'&&<div className="environment-overview">
  <ErrorMessage message={info.error}/>{info.error&&<Refresh onClick={info.refresh}/>} {info.loading?<Loading/>:info.data&&<section className="details"><h2>Connection</h2><label htmlFor="project-url">Project URL</label><div className="form-row"><input id="project-url" readOnly value={location.origin+info.data.apiPath}/><button onClick={()=>copy(location.origin+info.data!.apiPath)}><Copy aria-hidden="true"/>Copy URL</button></div><p className="small muted" role="status">{copied}</p><p className="small muted">Available services: {info.data.services.join(', ')}</p></section>}
@@ -63,7 +65,7 @@ export function Connection({environment,organization,request,onBack}:{environmen
  </div>}{activeSection==='services'&&<div>
  {canWrite&&<RealtimeSection path={path} request={request}/>}
   {canWrite&&<ScheduledJobsSection path={path} request={request}/>}
- </div>}{activeSection==='functions'&&canWrite&&<FunctionsWorkspace path={path} request={request} environmentId={environment.id}/>}{activeSection==='database'&&<div>
+ </div>}{activeSection==='functions'&&canWrite&&<FunctionsWorkspace path={path} request={request} environmentId={environment.id} onDirtyChange={setFunctionsDirty}/>}{activeSection==='database'&&<div>
  {canWrite&&<DatabaseSection path={path} request={request}/>}
  {canWrite&&<DataApiSection path={path} request={request}/>}
  </div>}{activeSection==='usage'&&<div>

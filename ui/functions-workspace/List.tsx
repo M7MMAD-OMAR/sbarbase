@@ -26,7 +26,7 @@ export function List({state,origin,busy,onOpen,onRefresh,onAdd,onSwitch,adding,p
    <span className="fw-hint" role="status">Viewing {rows.length} function{rows.length===1?'':'s'}{rows.length!==state.functions.length?` of ${state.functions.length}`:' in total'}</span></div>
   {rows.length?<div className="fw-rows functions" role="table" aria-label="Functions">
    <div className="fw-row head" role="row"><span role="columnheader">NAME</span><span role="columnheader">URL</span><span role="columnheader">CREATED</span><span role="columnheader">UPDATED</span><span role="columnheader">DEPLOYMENTS</span></div>
-   {rows.map(row=><div className="fw-row link" role="row" key={row.name}>
+   {rows.map(row=><div className="fw-row link" role="row" key={row.name} onClick={event=>{if(!(event.target as HTMLElement).closest('button'))onOpen(row.name);}}>
     <span role="cell"><button type="button" className="fw-name" onClick={()=>onOpen(row.name)}>{row.name}</button></span>
     <span role="cell" className="fw-urlcell"><code>{origin+row.path}</code><CopyButton quiet text={origin+row.path} label={`Copy the URL of ${row.name}`}/></span>
     <span role="cell" data-label="Created">{ago(row.created_at)}</span><span role="cell" data-label="Updated">{ago(row.updated_at)}</span><span role="cell" data-label="Deployments">{row.deployments}</span></div>)}</div>
