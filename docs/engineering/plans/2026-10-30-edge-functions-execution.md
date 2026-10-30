@@ -1,6 +1,6 @@
 # Edge Functions workspace: execution plan for F1, F2 and F3
 
-Status: plan, 2026-10-30. It turns the study ([edge-functions-workspace](2026-10-30-edge-functions-workspace.md)) into checkpoints. F0 (container, gateway counting and cap, sandbox options, egress rule generator) is committed. Labels: VERIFIED means read in code or in the owner's cloud project; INFERRED means reasoned, not run. Not a production readiness claim.
+Status: F1, F2 and F3 built and committed on 2026-10-30 (commits f158fb4 to f7b2ede and the fix after them), each part with independent reviews and live checks in the hardened container; not deployed, not run on a live installation. The Studio proxy fix stays deferred. Deviations from the text below: the editor is a textarea over a highlighted copy (no CodeMirror), the event worker folder is `lab/functions/event-worker`, and the checkpoint engine plan was revised twice (F1 closed by commit, then F2) because later work touched files of earlier scopes. It turns the study ([edge-functions-workspace](2026-10-30-edge-functions-workspace.md)) into checkpoints. F0 (container, gateway counting and cap, sandbox options, egress rule generator) is committed. Labels: VERIFIED means read in code or in the owner's cloud project; INFERRED means reasoned, not run. Not a production readiness claim.
 
 The cloud layout this follows was observed read only on 2026-10-30: [observation.md](../../evidence/functions-cloud-observation-2026-10-30/observation.md).
 
