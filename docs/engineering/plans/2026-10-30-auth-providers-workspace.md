@@ -102,6 +102,18 @@ Accepted and committed with independent reviews: A0 (read side), A0.5 (safe savi
 
 **Still true for A4 to A7:** Phone and SMS need the SMS secrets and the SMS rate limit; hooks need the egress review; SAML is a study first; Audit Logs reads `auth.audit_log_entries` read only and adds the cloud's "write audit logs to the database" switch.
 
+## Status after A3c and what blocks the rest (2026-10-30)
+
+Accepted and committed with independent reviews: A0, A0.5, U0, A1, A2, A3a (custom SMTP), A3c (Confirm email and the mail limits). Not done, with what each needs found by reading the code:
+
+- **A3b, email templates.** The pinned Auth fetches a template from a URL at send time. The console must serve each environment's saved bodies on a route only that environment's Auth can reach: an unguessable per environment path on a loopback listener the runtime network can address (the Studio internal route in `lab/studio.py` is the pattern), size capped, no cross environment read. Until it exists the Templates tab offers nothing it cannot deliver.
+- **A4, Phone and SMS, Auth Hooks.** SMS provider secrets follow the SMTP route's pattern (file, mask, apply with rollback); the SMS rate limit joins the mail owned limits. Hooks call out, so Auth egress needs the default deny design (review finding 8) before they ship; the name of each hook variable must be confirmed in the pinned binary first (none of the hook names was found by the static check).
+- **A5, SAML.** `SAML_ENABLED` is an environment setting but SSO providers live in the Auth admin API, which the console does not call. Study first, by experiment.
+- **A6, acceptance.** The live two environment isolation check through the real console and gateway, the secret leak scan across API answers, logs, catalog, audit and the private env files, measured Auth downtime per save, the live probe that every variable name takes effect (so far only checked statically or not at all), and the default deny egress for Auth.
+- **A7, Audit Logs.** The cloud page is the switch "Write audit logs to the database" and a viewer. The binary has a `DisablePostgres` audit field (default false); its full variable name is unconfirmed. The viewer reads `auth.audit_log_entries`, and the only existing read path (`developerSql`) needs the environment's database access turned on, so the viewer would work only then; an Auth log based viewer is the alternative. Decide with the owner before building.
+
+None of the accepted phases was run against a live Auth with stub providers. That live pass is the first thing A6 does, and it decides which of the variable names added in A1, A2 and A3 are real.
+
 ## Security gates
 
 1. **No secret outside file and container.** A test greps every API answer, log line, audit row and catalog column of a saved environment for the secrets used in the test.
