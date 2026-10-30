@@ -4,6 +4,7 @@ import os
 import stat
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 import resource_policy
@@ -56,9 +57,11 @@ class SampleTests(unittest.TestCase):
         self.addCleanup(self.directory.cleanup)
         self.calls = []
         self.clock = Clock()
+        self.wall = 1234.5
+        self.cache = lambda: {'totalBytes': 466_000_000, 'reclaimableBytes': 400_000_000}
 
     def stats(self, run):
-        return service_stats.ServiceStats(run=run, clock=self.clock, wall=lambda: 1234.5, state=self.directory.name, threaded=False)
+        return service_stats.ServiceStats(run=run, clock=self.clock, wall=lambda: self.wall, state=self.directory.name, threaded=False, size=lambda: self.cache())
 
     def test_writes_a_private_file_with_no_secrets_and_the_time(self):
         def run(*args):
@@ -71,9 +74,67 @@ class SampleTests(unittest.TestCase):
         self.assertEqual(document['capturedAt'], 1234500)
         self.assertIn(f'{E}-realtime', document['containers'])
         self.assertEqual(stat.S_IMODE(os.stat(path).st_mode), 0o600)
-        self.assertNotIn('environment', json.dumps(document).lower())
+        # Names and numbers only: every value below the container names is a number, so no variable, key, address or log can be in the file.
+        def leaves(value):
+            return [leaf for item in value.values() for leaf in (leaves(item) if isinstance(item, dict) else [item])]
+        self.assertTrue(all(isinstance(leaf, (int, float)) for leaf in leaves({key: document[key] for key in ('containers', 'costs', 'thresholds', 'buildCache')})))
+        self.assertEqual(set(document), {'version', 'capturedAt', 'containers', 'costs', 'thresholds', 'buildCache', 'filesystems'})
         self.assertEqual(self.calls[0][0], 'stats')
         self.assertIn('--no-stream', self.calls[0])
+
+    def test_the_thresholds_are_the_ones_the_supervisor_enforces_and_the_build_cache_size_is_read_every_ten_minutes(self):
+        import host_watch
+        import resource_admission
+        reads = []
+        self.cache = lambda: reads.append(1) or {'totalBytes': 466_000_000, 'reclaimableBytes': 400_000_000}
+        watcher = self.stats(lambda *args: LISTING)
+        watcher.sample()
+        document = json.loads((Path(self.directory.name) / 'service-stats.json').read_text())
+        self.assertEqual(document['thresholds']['memoryReserveBytes'], resource_admission.MEMORY_RESERVE)
+        self.assertEqual(document['thresholds']['newEnvironmentMemoryBytes'], resource_admission.NEW_ENVIRONMENT_MEMORY)
+        self.assertEqual((document['thresholds']['diskWarningBytes'], document['thresholds']['diskWarningShare']), host_watch.DISK_WARNING)
+        self.assertEqual((document['thresholds']['diskCriticalBytes'], document['thresholds']['diskCriticalShare']), host_watch.DISK_CRITICAL)
+        self.assertEqual(document['buildCache'], {'totalBytes': 466_000_000, 'reclaimableBytes': 400_000_000, 'at': 1234500})
+        self.wall += 599
+        watcher.sample()
+        self.assertEqual(len(reads), 1)
+        self.wall += 2
+        watcher.sample()
+        self.assertEqual(len(reads), 2)
+
+    def test_an_unreadable_build_cache_keeps_the_last_known_size_and_never_writes_a_zero(self):
+        watcher = self.stats(lambda *args: LISTING)
+        watcher.sample()
+        self.cache = lambda: None
+        self.wall += 700
+        watcher.sample()
+        document = json.loads((Path(self.directory.name) / 'service-stats.json').read_text())
+        self.assertEqual(document['buildCache']['totalBytes'], 466_000_000)
+        fresh = self.stats(lambda *args: LISTING)
+        fresh.sample()
+        self.assertEqual(json.loads((Path(self.directory.name) / 'service-stats.json').read_text()).get('buildCache', {}).get('totalBytes'), None)
+
+    def test_the_filesystems_sbarbase_writes_to_are_reported_once_each(self):
+        from collections import namedtuple
+        usage = namedtuple('Usage', 'total used free')
+        other = tempfile.TemporaryDirectory()
+        self.addCleanup(other.cleanup)
+        # Docker's data root on another filesystem is listed; on the same one it is not listed twice.
+        sizes = {str(service_stats.ROOT): usage(100, 20, 80), other.name: usage(200, 150, 50)}
+        with unittest.mock.patch.object(service_stats.os, 'stat') as stat_call:
+            stat_call.side_effect = lambda path: type('S', (), {'st_dev': 7 if str(path) == str(service_stats.ROOT) else 9})()
+            found = service_stats.filesystems(run=lambda *args: other.name + '\n', usage=lambda path: sizes[str(path)])
+            same = service_stats.filesystems(run=lambda *args: str(service_stats.ROOT) + '\n', usage=lambda path: sizes[str(path)])
+        self.assertEqual(found, {'checkout': {'availableBytes': 80, 'totalBytes': 100}, 'docker': {'availableBytes': 50, 'totalBytes': 200}})
+        self.assertEqual(same, {'checkout': {'availableBytes': 80, 'totalBytes': 100}})
+
+    def test_an_unreadable_filesystem_or_a_docker_that_does_not_answer_is_left_out_not_zero(self):
+        def broken(*args):
+            raise RuntimeError('docker failed')
+
+        def refuse(path):
+            raise OSError('no such disk')
+        self.assertEqual(service_stats.filesystems(run=broken, usage=refuse), {})
 
     def test_a_failed_sample_keeps_the_previous_file(self):
         watcher = self.stats(lambda *args: LISTING)
@@ -87,7 +148,7 @@ class SampleTests(unittest.TestCase):
         self.assertEqual(path.read_text(), before)
 
     def test_once_a_minute(self):
-        watcher = self.stats(lambda *args: self.calls.append(args) or LISTING)
+        watcher = self.stats(lambda *args: (self.calls.append(args) if args[0] == 'stats' else None) or LISTING)
         watcher.step()
         watcher.step()
         self.clock.now += 30

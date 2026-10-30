@@ -138,7 +138,7 @@ function credentialShape(value:string):boolean {
 export {ENVIRONMENT_LIMIT};
 
 /** Bumped with each step of Catalog.migrate(). */
-export const CATALOG_SCHEMA_VERSION=8;
+export const CATALOG_SCHEMA_VERSION=9;
 /** What PostgREST serves for an environment with no saved Data API settings (lab/data_api.py). */
 export const DATA_API_DEFAULT={schemas:['public'],extraSearchPath:['public'],maxRows:null as number|null};
 
@@ -154,6 +154,8 @@ export type DataApiState=DataApiSettings&{runtime:string;state:'default'|'pendin
 /** What lab/data_api.py serves when none of the exposed schemas exists: an empty platform schema. */
 export const DATA_API_EMPTY='sbarbase_empty';
 export type RealtimeState={runtime:string;desired:'on'|'off';state:'off'|'pending'|'on'|'failed';failure:string|null;updatedAt:number|null};
+export type HostActionKind='build_cache_clear';
+export type HostActionState={state:'pending'|'running'|'done'|'failed';requestedAt:number;finishedAt:number|null;reclaimedBytes:number|null;failure:string|null};
 export type InstallationServices={unusedDays:number;
  /** One switch that makes every On demand service behave as On, without touching anyone's saved choice. */
  killSwitch:boolean;
@@ -272,6 +274,11 @@ export class Catalog {
         runtime TEXT NOT NULL, service TEXT NOT NULL CHECK(service IN ('realtime','functions')),
         mode TEXT NOT NULL CHECK(mode IN ('off','on','on_demand')), idle_minutes INTEGER,
         actor TEXT NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY(runtime,service));
+      -- An operator's request for a host side action that the supervisor applies (lab/build_cache.py): one row per kind of action, replaced by the next request.
+      CREATE TABLE IF NOT EXISTS host_actions(
+        action TEXT PRIMARY KEY CHECK(action IN ('build_cache_clear')),
+        state TEXT NOT NULL CHECK(state IN ('pending','running','done','failed')),
+        actor TEXT NOT NULL, requested_at INTEGER NOT NULL, finished_at INTEGER, reclaimed_bytes INTEGER, failure TEXT);
       CREATE TABLE IF NOT EXISTS invitations(
         id TEXT PRIMARY KEY, organization TEXT NOT NULL REFERENCES organizations(id),
         email TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('owner','admin','viewer')),
@@ -404,6 +411,7 @@ export class Catalog {
       // Version 6: the service_activity table (when each optional service was last used), created by the schema above.
       // Version 7: installation_services (installation wide settings of the optional services) and service_hints (when an unused service was last reported), created by the schema above.
       // Version 8: service_modes (Off, On or On demand, and the quiet period, per environment and service), created by the schema above.
+      // Version 9: host_actions (an operator's request for a host side action the supervisor applies: clearing Docker's build cache), created by the schema above.
       this.db.exec(`PRAGMA user_version=${CATALOG_SCHEMA_VERSION}`);
     }).immediate();
     this.allowTelegramDeliveries();
@@ -1382,6 +1390,26 @@ export class Catalog {
       out.push({runtime:row.runtime,service,idleMinutes:this.serviceMode(row.runtime,service).idleMinutes});
     }
     return out;
+  }
+  /** The last request to clear Docker's build cache, or null. */
+  hostAction(action:HostActionKind):HostActionState|null {
+    const row=this.db.query<{state:string;actor:string;requested_at:number;finished_at:number|null;reclaimed_bytes:number|null;failure:string|null},[string]>(
+      'SELECT state,actor,requested_at,finished_at,reclaimed_bytes,failure FROM host_actions WHERE action=?').get(action);
+    return row?{state:row.state as HostActionState['state'],requestedAt:row.requested_at,finishedAt:row.finished_at,reclaimedBytes:row.reclaimed_bytes,failure:row.failure}:null;
+  }
+  /** An installation operator asks the supervisor to clear Docker's build cache (and nothing else: lab/build_cache.py runs one prune). One at a time. */
+  requestHostAction(actor:string,action:HostActionKind):HostActionState {
+    return this.db.transaction(()=>{
+      if(!this.installationOperator(actor))throw new Error('Forbidden');
+      if(action!=='build_cache_clear')throw new Error('Invalid host action');
+      const current=this.hostAction(action);
+      // A request the supervisor never finished (it died mid run) stops blocking after half an hour.
+      if(current&&(current.state==='pending'||current.state==='running')&&Date.now()-current.requestedAt<30*60_000)throw new Error('Host action in progress');
+      this.db.query(`INSERT INTO host_actions(action,state,actor,requested_at,finished_at,reclaimed_bytes,failure) VALUES (?,'pending',?,?,NULL,NULL,NULL)
+        ON CONFLICT(action) DO UPDATE SET state='pending',actor=excluded.actor,requested_at=excluded.requested_at,finished_at=NULL,reclaimed_bytes=NULL,failure=NULL`).run(action,actor,Date.now());
+      this.record(actor,'host.build_cache_clear_requested','installation',{});
+      return this.hostAction(action)!;
+    }).immediate();
   }
   /** Every runtime that is ready (not deleted, not being restored). */
   readyRuntimes():string[] {

@@ -102,6 +102,28 @@ The old body `{"enabled": true}` or `{"enabled": false}` still works for every c
 
 *Demo data.*
 
+## Room on this server, and the build cache
+
+Operators see, on **Server**, under **Room on this server**, what a new environment or service can still get, against the limits the supervisor itself enforces (the page reads them from the supervisor once a minute; it never keeps its own copy): memory is **Too low** where a new environment would be refused (less than the 2 GiB the server keeps in reserve plus the environment's own 512 MiB, so about 2.5 GiB must be available), **Getting low** when there is room for only one more environment, and each disk Sbarbase writes to (the one it is installed on, and Docker's when that is another one, where the build cache lives) is a warning below 5 GiB or 10% free and critical below 2 GiB or 5%, the same lines that raise the operator notice. Realtime and Edge Functions pass their own check of memory and database connections as well, which the page does not predict. A sample older than 15 minutes shows **Not known yet**, never a stale verdict. The page also says plainly whether the host has swap: with none, a container that passes its memory ceiling is stopped, not slowed down, and Sbarbase's own containers have swap switched off either way.
+
+**Docker build cache.** The page shows the size of Docker's build cache (read every ten minutes, with when) and a button, **Clear build cache**, which asks the supervisor to run one `docker builder prune --force`. That is the only thing it can remove: images, containers and volumes are never touched, and the way back of an update needs the images, so they stay. The button asks first, says how much it can free at most (the prune removes the cache nothing uses, and the figure is Docker's own estimate), and afterwards says how much it freed, or that it failed and that nothing else was touched. `GET /management/v1/server/capacity` and `POST /management/v1/server/build-cache` are for installation operators only; the request is an audit event with the actor.
+
+![Room on this server: memory and disk against the limits, the swap line, and Docker's build cache with the button that clears only that.](images/services/server-capacity.webp)
+
+*Demo data.*
+
+![The same section when memory and disk are getting low, in the dark theme.](images/services/server-capacity-low.webp)
+
+*Demo data.*
+
+![The button asks first, and says only the build cache is removed.](images/services/clear-build-cache.webp)
+
+*Demo data.*
+
+![The section at phone width.](images/services/server-capacity-phone.webp)
+
+*Demo data.*
+
 ## Hints for services nobody uses
 
 When Realtime or Edge Functions has been on for 7 days with no use, its row says so under its name, to every member (only owners and admins get the button): "No connection for 11 days, 183 MiB. Turn it off?", with a button that asks the same way the switch does. The clock starts at the later of the last use and the time you turned it on, so a service you switched on yesterday is never called unused. Nothing is ever turned off by a hint.
@@ -122,6 +144,7 @@ The supervisor reads the containers' memory once a minute and writes one small p
 - The wake limit, the hold and the kill switch are per installation and per process of the console; the numbers shown are what the gateway enforces.
 - The wake, sleep and counts of open connections are kept by the console process that serves requests; during a handover each process counts its own.
 - Not measured: a real server, a loaded host, and many environments waking together (they start one at a time).
+- A deploy checks that a new version starts only while Edge Functions are running (`boot_check` says `skipped` otherwise): for an On demand environment that is asleep, the first call after the deploy is the first run of the new version.
 - The memory and last-used figures come from this server's own counters. A restart of the console starts the in-memory part again; the last-used time itself is kept in the catalog.
 
 The page reads the same right to left and on a phone.

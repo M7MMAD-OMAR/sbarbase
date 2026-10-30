@@ -40,14 +40,19 @@ WATCHED = re.compile(r'sbarbase-durable-(db|storage|management-auth|e_[a-f0-9]{2
 GIB = 2**30
 
 
+# A filesystem is critical below these (either one), and a warning below these: the console's Server page shows the same numbers.
+DISK_CRITICAL = (2 * GIB, .05)
+DISK_WARNING = (5 * GIB, .10)
+
+
 def disk_level(available, total):
     """'critical', 'warning' or None for one filesystem."""
     if total <= 0:
         return None
     share = available / total
-    if available < 2 * GIB or share < .05:
+    if available < DISK_CRITICAL[0] or share < DISK_CRITICAL[1]:
         return 'critical'
-    if available < 5 * GIB or share < .10:
+    if available < DISK_WARNING[0] or share < DISK_WARNING[1]:
         return 'warning'
     return None
 

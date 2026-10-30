@@ -33,8 +33,12 @@ The days are `installation_services.unused_days`, default 7, floor 1, ceiling 36
 
 **Audit.** Every request is an event with its actor and reason (`user`, `wake`, `idle`, `kill_switch`, `default`), every supervisor outcome `*.applied` or `*.apply_failed` (`capacity` for a refusal for room) with its seconds, every mode change `*.mode_changed`, a called off stop `*.sleep_cancelled`.
 
+## S4: hygiene the review found
+
+Disk and memory on the Server page with the supervisor's own thresholds (`lab/service_stats.py` writes `thresholds` from `resource_admission` and `host_watch`, `readStats` accepts them only in their exact shape, `src/control/capacity.ts` turns them into `ok`, `warning`, `critical` or `unknown`; a sample older than 15 minutes is `unknown`). A build cache clear is a request row (`host_actions`, catalog schema 9, one per kind, a request nobody finished stops blocking after half an hour) that `lab/dev.py schedule_host_actions` applies by running `lab/build_cache.py clear`: one `docker builder prune --force` and nothing else (a test pins the argument list and that the file contains no image, volume or system removal), the size read before from `docker system df` every ten minutes, the outcome and what it freed written back and audited as `system:supervisor`. Operators only, one at a time, never while an update drains the supervisor. `docs/engineering/RESOURCE-POLICY.md` 5.1 states that the real server has no swap and what the ceilings mean.
+
 ### Not established
 
-
+The build cache size was read live from this workstation's Docker (`lab/build_cache.py size`, 2.6 GB with 2.6 GB reclaimable); the prune itself was run only against fakes, since it would delete this workstation's cache. The console against a live installation (the renders use stubs; the route is tested against the real handler and catalog). The first real server run of On demand, and of the Server page's thresholds, is not done.
 
 The console against a live installation (the renders use stubs; the route is tested against the real handler and catalog). Realtime sockets and Functions calls are counted per console process; two processes during a handover each count their own.

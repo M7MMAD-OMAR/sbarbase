@@ -50,6 +50,8 @@ STUDIO_RESTORE_MS = 8 * 60 * 60 * 1000
 UPDATES_EVERY = datetime.timedelta(seconds=15)
 # The console changes lab/realtime.py applies, each with its own catalog table (toggle_requests).
 TOGGLES = ('realtime', 'functions', 'database', 'signing', 'cron')
+# Host side actions an operator asks for in the console (lab/build_cache.py): one at a time.
+HOST_ACTIONS = {'build_cache_clear': ['/usr/bin/python3', 'lab/build_cache.py', 'clear']}
 
 
 def notify_installation(kind, catalog=None):
@@ -461,7 +463,7 @@ class Supervisor:
         """Nothing is in flight that moving the checkout could interrupt: the worker stopped, no
         Studio, sign-in, Data API, toggle or backup child runs, and no operation record (a provisioning
         receipt, an HBA journal or migration) waits to be settled."""
-        if self.worker is not None or self.backup is not None or self.sign_in or self.studios:
+        if self.worker is not None or self.backup is not None or self.sign_in or self.studios or self.host_action is not None:
             return False
         if self.data_api or self.toggles or self.scheduler is not None or self.rolling is not None:
             return False
@@ -738,6 +740,51 @@ class Supervisor:
                 self.toggles_after.pop(key, None)
                 self.toggles[key] = self.spawn(['/usr/bin/python3', 'lab/realtime.py', 'apply', runtime, '--service', service])
 
+    host_action = None
+    host_action_after = 0.0
+
+    def host_action_request(self):
+        """The host side action the console asked for that is waiting, or None."""
+        path = STATE/'control.sqlite'
+        if not path.exists():
+            return None
+        try:
+            with closing(sqlite3.connect(f'file:{path}?mode=ro', uri=True, timeout=2)) as database, database:
+                row = database.execute("SELECT action FROM host_actions WHERE state='pending' ORDER BY requested_at LIMIT 1").fetchone()
+        except sqlite3.Error:
+            return None
+        return row[0] if row and row[0] in HOST_ACTIONS else None
+
+    def reset_host_actions(self):
+        """A host side action that was running when the supervisor stopped has no child any more: its row is failed, in words, so the console does not show it
+        as running for ever and the operator can ask again."""
+        path = STATE/'control.sqlite'
+        if not path.exists():
+            return
+        try:
+            with closing(sqlite3.connect(path, timeout=5)) as database, database:
+                database.execute("UPDATE host_actions SET state='failed', finished_at=?, failure='The supervisor stopped before it finished. Nothing else was touched.' "
+                                 "WHERE state='running'", (int(time.time() * 1000),))
+        except sqlite3.Error:
+            pass
+
+    def schedule_host_actions(self):
+        """Run the host side action an installation operator asked for in the console (today: clear Docker's build cache), one child at a time, and not
+        while an update drains the supervisor. The child records its own outcome; it never starts or stops a container."""
+        if self.host_action is not None:
+            status = child_status(self.host_action)
+            if status is None:
+                return
+            terminate_group(self.host_action, grace=0)
+            self.host_action = None
+            # A child that failed may have left its row pending: it is asked again after half a minute, not every beat.
+            self.host_action_after = time.monotonic() + (30 if status else 0)
+        if self.paused() or time.monotonic() < self.host_action_after:
+            return
+        action = self.host_action_request()
+        if action:
+            self.host_action = self.spawn(HOST_ACTIONS[action])
+
     def schedule_scheduler(self):
         """Keep the scheduler running, except while an update drains the supervisor: it is stopped then (it
         records the runs it ends), so idle() can say yes, and started again once the drain is over. One that
@@ -808,6 +855,7 @@ class Supervisor:
     def run(self):
         try:
             self.reset_studios()
+            self.reset_host_actions()
             self.settle_updates()
             self.publish_current()
             # A drain left by the process before (an update that moved the checkout, or a crash)
@@ -841,6 +889,7 @@ class Supervisor:
                 self.schedule_sign_in()
                 self.schedule_data_api()
                 self.schedule_toggles()
+                self.schedule_host_actions()
                 self.schedule_scheduler()
                 try:
                     self.schedule_rolling()
@@ -874,6 +923,8 @@ class Supervisor:
                 terminate_group(process)
             for process in self.toggles.values():
                 terminate_group(process)
+            if self.host_action:
+                terminate_group(self.host_action)
             if self.rolling:
                 # Stopped in the middle of a swap, the next start or roll repairs it (rolling.repair).
                 terminate_group(self.rolling)

@@ -812,6 +812,10 @@ allocation inside one shared PostgreSQL engine. `docs/engineering/NOISY-NEIGHBOR
 generator on the same machine is not a capacity measurement; that stays true
 after this change.
 
+## 5.1 Swap, the ceilings and what the console shows (2026-10-30)
+
+A container ceiling (`--memory`) with `--memory-swap` equal to it means the container is stopped when it passes the ceiling, never slowed by swap, and the supervisor sets it for every Sbarbase container (section 1). It does not describe the host: the owner's real server has no swap at all (observed read only on 2026-10-30, see the plan; every host reads its own swap, which the console's Server page shows), so the host's own processes have the same property, and a host with swap would let those, not Sbarbase's containers, swap. The ceilings add up to more than the host holds on purpose (a placement is admitted against `MEMORY_RESERVE`, 2 GiB, plus 512 MiB for a new environment, `lab/resource_admission.py`); what keeps a host from running out is that refusal, not the ceilings. The console's **Server** page shows memory and disk against exactly these numbers and the disk warning lines of `lab/host_watch.py` (`DISK_WARNING`, `DISK_CRITICAL`), which `lab/service_stats.py` writes next to the memory figures once a minute, so the page never keeps its own copy; it also states whether the host has swap, and offers one cleanup, Docker's build cache (`lab/build_cache.py`, a single `docker builder prune --force`, never an image). See [OPTIONAL-SERVICES](OPTIONAL-SERVICES.md) S4.
+
 ## 6. The honest limits
 
 ### 6.1 What one shared engine can never guarantee

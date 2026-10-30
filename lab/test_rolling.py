@@ -1053,7 +1053,7 @@ class SupervisorLoopTests(Fixture):
         supervisor = dev.Supervisor.__new__(dev.Supervisor)
         for name in ('reset_studios', 'settle_updates', 'publish_current', 'start_worker', 'descriptor', 'check',
                      'schedule_backup', 'schedule_studios', 'schedule_sign_in', 'schedule_data_api', 'schedule_toggles',
-                     'schedule_scheduler', 'schedule_updates', 'schedule_rolling'):
+                     'schedule_scheduler', 'schedule_updates', 'schedule_rolling', 'schedule_host_actions'):
             setattr(supervisor, name, Mock())
         supervisor.spawn = Mock(return_value='server')
         supervisor.drain_marker = Mock()

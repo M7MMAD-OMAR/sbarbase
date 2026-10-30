@@ -2,7 +2,7 @@
 
 # Edge Functions
 
-Edge Functions run your own Deno code next to an environment, called with `supabase.functions.invoke()` at `<address>/functions/v1/<name>`, as on Supabase. Each environment has its own runtime, the original upstream edge-runtime, and it starts with the first deploy.
+Edge Functions run your own Deno code next to an environment, called with `supabase.functions.invoke()` at `<address>/functions/v1/<name>`, as on Supabase. Each environment has its own runtime, the original upstream edge-runtime, and it starts with the first deploy, or, when the environment saved it as On demand (the default for a new environment), with the first call.
 
 ## Modes: Off, On, On demand
 

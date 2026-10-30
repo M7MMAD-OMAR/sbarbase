@@ -9,6 +9,7 @@ import {readJsonCached} from '../http/cached-json';
 import {join} from 'node:path';
 import {UPDATES_DIRECTORY,UpdateRefusal,requestUpdate,saveSettings,serverZone,updatesView,validateSettings,type UpdateRequestKind} from './updates';
 import {createServerHealthReader} from './server-health';
+import {capacityHandler} from './capacity';
 import {TelegramNotifications,TelegramRefusal} from './telegram-notifications';
 
 /** Runtime state directory, the same tree the runtime writes the catalog in. */
@@ -121,6 +122,7 @@ function refusal(error:unknown):Response {
 export function managementHandler(catalog:Catalog,identify:ManagementIdentity,mailDirectory=MAIL_STATE_DIRECTORY,keys?:KeyStore,
   updatesDirectory=UPDATES_DIRECTORY,checkout='.') {
   const serverHealth=createServerHealthReader();
+  const capacity=capacityHandler(catalog,identify,{health:serverHealth});
   const telegramSetup=new TelegramNotifications({checkout});
   return async(request:Request):Promise<Response>=>{
     const path=new URL(request.url).pathname;
@@ -164,6 +166,7 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
         return refusal(error);
       }
     }
+    if(path==='/management/v1/server/capacity'||path==='/management/v1/server/build-cache')return capacity(request);
     if(path==='/management/v1/server') {
       if(request.method!=='GET')return reply(405,{message:'Method not allowed'});
       const actor=await authenticate(identify,request);

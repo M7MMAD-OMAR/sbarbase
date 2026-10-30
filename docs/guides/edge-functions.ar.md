@@ -2,7 +2,7 @@
 
 # Edge Functions
 
-تشغّل Edge Functions كود Deno الخاص بك بجانب البيئة، وتُستدعى عبر `supabase.functions.invoke()` على `<address>/functions/v1/<name>`، كما في Supabase. لكل بيئة بيئة تشغيل خاصة بها، هي edge-runtime الأصلي، وتبدأ مع أول نشر.
+تشغّل Edge Functions كود Deno الخاص بك بجانب البيئة، وتُستدعى عبر `supabase.functions.invoke()` على `<address>/functions/v1/<name>`، كما في Supabase. لكل بيئة بيئة تشغيل خاصة بها، هي edge-runtime الأصلي، وتبدأ مع أول نشر، أو مع أول استدعاء حين تحفظها البيئة على On demand (وهو الافتراضي للبيئة الجديدة).
 
 ## الأوضاع: Off وOn وOn demand
 

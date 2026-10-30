@@ -37,7 +37,12 @@ export type ServicesAnswer={runtime:string;services:ServiceView[];canChange:bool
  killSwitch:boolean;limits:{wakesPerHour:number;holdSeconds:number;idleFloorMinutes:number};
  stats:{capturedAt:number|null;stale:boolean};
  capacity:{availableBytes:number|null;totalBytes:number|null}};
-export type Stats={capturedAt:number;containers:Record<string,{memoryBytes:number;limitBytes:number}>;costs:{realtime:number|null;functions:number|null}};
+export type Stats={capturedAt:number;containers:Record<string,{memoryBytes:number;limitBytes:number}>;costs:{realtime:number|null;functions:number|null};
+ /** What the supervisor enforces (lab/service_stats.py thresholds): memory and disk reserves, and where a disk is a warning or critical. */
+ thresholds?:{memoryReserveBytes:number;newEnvironmentMemoryBytes:number;diskReserveBytes:number;newEnvironmentDiskBytes:number;diskWarningBytes:number;diskWarningShare:number;diskCriticalBytes:number;diskCriticalShare:number};
+ buildCache?:{totalBytes:number;reclaimableBytes:number;at:number};
+ /** Free and total bytes of the filesystems Sbarbase writes to (lab/service_stats.py filesystems): the checkout and, when it is another one, Docker's data root. */
+ filesystems?:Partial<Record<'checkout'|'docker',{availableBytes:number;totalBytes:number}>>};
 
 export const STATS_FILE='.lab/upstream/service-stats.json';
 const MAX_STATS_BYTES=256*1024,STALE_MS=3*60_000;
@@ -56,7 +61,18 @@ export function readStats(path:string=STATS_FILE):Stats|undefined {
    containers[name]={memoryBytes:entry.memoryBytes,limitBytes:entry.limitBytes};
   }
   const costs=(value.costs??{}) as {realtime?:unknown;functions?:unknown};
-  return {capturedAt:value.capturedAt,containers,costs:{realtime:count(costs.realtime)?costs.realtime:null,functions:count(costs.functions)?costs.functions:null}};
+  const extra=value as {thresholds?:Record<string,unknown>;buildCache?:Record<string,unknown>};
+  const keys=['memoryReserveBytes','newEnvironmentMemoryBytes','diskReserveBytes','newEnvironmentDiskBytes','diskWarningBytes','diskCriticalBytes'] as const;
+  const shares=['diskWarningShare','diskCriticalShare'] as const;
+  const t=extra.thresholds;
+  const thresholds=t&&keys.every(key=>count(t[key]))&&shares.every(key=>typeof t[key]==='number'&&(t[key] as number)>=0&&(t[key] as number)<=1)?t as unknown as NonNullable<Stats['thresholds']>:undefined;
+  const c=extra.buildCache;
+  const buildCache=c&&count(c.totalBytes)&&count(c.reclaimableBytes)&&count(c.at)?{totalBytes:c.totalBytes,reclaimableBytes:c.reclaimableBytes,at:c.at}:undefined;
+  const f=(extra as {filesystems?:Record<string,{availableBytes?:unknown;totalBytes?:unknown}>}).filesystems;
+  const filesystems:NonNullable<Stats['filesystems']>={};
+  for(const key of ['checkout','docker'] as const){const item=f?.[key];if(item&&count(item.availableBytes)&&count(item.totalBytes)&&item.totalBytes>0&&item.availableBytes<=item.totalBytes)filesystems[key]={availableBytes:item.availableBytes,totalBytes:item.totalBytes};}
+  return {capturedAt:value.capturedAt,containers,costs:{realtime:count(costs.realtime)?costs.realtime:null,functions:count(costs.functions)?costs.functions:null},
+   ...(thresholds?{thresholds:Object.fromEntries([...keys,...shares].map(key=>[key,t![key]])) as NonNullable<Stats['thresholds']>}:{}),...(buildCache?{buildCache}:{}),...(Object.keys(filesystems).length?{filesystems}:{})};
  }catch{return undefined;}
 }
 
