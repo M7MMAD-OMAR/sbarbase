@@ -22,6 +22,8 @@ The owner wants every Authentication setting of an environment (providers such a
 - Owners and admins only (`environmentProject(... ['owner','admin'])`). The GET answer carries `secret_set`, never the secret.
 - Gaps: no phone, email-provider, web3 or SAML switches; no email templates; no attack protection (captcha), password rules, MFA settings, hooks; rate limits only for email, otp and verify; the secrets of mail and sign-in are separate files with separate forms; the UI is one long form, not the cloud's page set.
 
+Update 2026-10-30 (later): the owner signed in and the observation pass was done, read only: [observation.md](../../evidence/auth-cloud-observation-2026-10-30/observation.md). It records the menu, the sections and fields of each page, the provider drawer, and the plan only gaps. It supersedes the statement above that the layout rests on the Studio bundle alone; gate G0 is closed for the pages it lists. The cloud's provider detail is a right side drawer with Docs, Cancel and Save, a Reveal button on secrets and a copyable callback URL; U0 follows that.
+
 ## Principles
 
 - **One owner per key.** A registry maps each platform config key to its `GOTRUE_` variable, type, limits, secrecy, default, the page it appears on, and which file owns it (`auth.json` or `mail.json`). A key has exactly one owner, so two forms can never fight over a variable. The registry is a JSON file read by TypeScript and Python; a parity test fails when either side differs.
