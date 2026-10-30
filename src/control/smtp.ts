@@ -21,7 +21,9 @@ const MAX_BYTES=8192;
 export class SmtpError extends Error {}
 
 export type SmtpFields={admin_email:string;sender_name:string;host:string;port:number;user:string};
-export type SmtpView=SmtpFields&{enabled:boolean;password_set:boolean};
+/** Confirmation and mail limits, as the cloud's Confirm email switch and Rate Limits page show them; null when the file holds a form the console does not edit. */
+export type MailLimits={confirm_email:boolean;rate_limit_email_sent:number|null;rate_limit_otp:number;rate_limit_verify:number;min_interval_seconds:number|null};
+export type SmtpView=SmtpFields&MailLimits&{enabled:boolean;password_set:boolean};
 
 function file(directory:string,runtime:string) {
  if(!/^e_[a-f0-9]{24}$/.test(runtime))throw new Error('Invalid runtime');
@@ -39,9 +41,16 @@ export function readMail(directory:string,runtime:string):Record<string,unknown>
  return parsed as Record<string,unknown>;
 }
 
+const LIMIT_DEFAULTS={rate_limit_email_sent:defaults.rate_limit_email_sent,rate_limit_otp:defaults.rate_limit_otp,rate_limit_verify:defaults.rate_limit_verify,min_interval_seconds:60};
+const wholeSeconds=(value:unknown)=>{const match=typeof value==='string'?value.match(/^(\d+)s$/):null;return match?Number(match[1]):null;};
+
 export function smtpView(mail:Record<string,unknown>|null):SmtpView {
- if(!mail)return {enabled:false,admin_email:'',sender_name:'',host:'',port:587,user:'',password_set:false};
- return {enabled:true,admin_email:String(mail.admin_email??''),sender_name:String(mail.sender_name??''),host:String(mail.host??''),
+ if(!mail)return {enabled:false,admin_email:'',sender_name:'',host:'',port:587,user:'',password_set:false,confirm_email:true,...LIMIT_DEFAULTS};
+ // A file written from the host stores the limit as a string ("30"); a form like "30/1h" is shown as unset, never as a wrong number.
+ const sent=mail.rate_limit_email_sent;
+ return {confirm_email:mail.autoconfirm!==true,rate_limit_email_sent:typeof sent==='number'?sent:typeof sent==='string'&&/^\d+$/.test(sent)?Number(sent):null,
+  rate_limit_otp:Number(mail.rate_limit_otp??LIMIT_DEFAULTS.rate_limit_otp),rate_limit_verify:Number(mail.rate_limit_verify??LIMIT_DEFAULTS.rate_limit_verify),
+  min_interval_seconds:wholeSeconds(mail.max_frequency),enabled:true,admin_email:String(mail.admin_email??''),sender_name:String(mail.sender_name??''),host:String(mail.host??''),
   port:Number(mail.port??587),user:String(mail.user??''),password_set:typeof mail.pass==='string'&&mail.pass!==''};
 }
 
@@ -56,7 +65,7 @@ const plain=(value:unknown,field:string,allowEmpty:boolean)=>{
 export function mailFromInput(input:unknown,current:Record<string,unknown>|null):Record<string,unknown> {
  if(!input||typeof input!=='object'||Array.isArray(input))throw new SmtpError('settings');
  const value=input as Record<string,unknown>;
- for(const key of Object.keys(value))if(!['enabled','admin_email','sender_name','host','port','user','password','base_revision'].includes(key))throw new SmtpError('settings');
+ for(const key of Object.keys(value))if(!['enabled','admin_email','sender_name','host','port','user','password','base_revision','confirm_email','rate_limit_email_sent','rate_limit_otp','rate_limit_verify','min_interval_seconds'].includes(key))throw new SmtpError('settings');
  const admin=plain(value.admin_email,'admin_email',false),host=plain(value.host,'host',false);
  if(!ADDRESS.test(admin))throw new SmtpError('admin_email');
  if(!HOST.test(host))throw new SmtpError('host');
@@ -70,7 +79,15 @@ export function mailFromInput(input:unknown,current:Record<string,unknown>|null)
  const pass=given||(typeof current?.pass==='string'?current.pass:'');
  if(!pass)throw new SmtpError('password');
  const {about:_about,...base}=defaults as Record<string,unknown>;
- const mail={...base,...(current??{}),host,port,user,pass,admin_email:admin,sender_name:name};
+ const mail:Record<string,unknown>={...base,...(current??{}),host,port,user,pass,admin_email:admin,sender_name:name};
+ // The cloud's Confirm email switch is the opposite of autoconfirm; the limits are whole numbers; an omitted one keeps the file's value.
+ if(value.confirm_email!==undefined){if(typeof value.confirm_email!=='boolean')throw new SmtpError('confirm_email');mail.autoconfirm=!value.confirm_email;}
+ const count=(field:string,min:number,max:number)=>{const given=value[field];if(given===undefined)return;
+  if(typeof given!=='number'||!Number.isInteger(given)||given<min||given>max)throw new SmtpError(field);return given;};
+ const sent=count('rate_limit_email_sent',1,1000000);if(sent!==undefined)mail.rate_limit_email_sent=sent;
+ const otp=count('rate_limit_otp',1,1000000);if(otp!==undefined)mail.rate_limit_otp=otp;
+ const verify=count('rate_limit_verify',1,1000000);if(verify!==undefined)mail.rate_limit_verify=verify;
+ const gap=count('min_interval_seconds',1,86400);if(gap!==undefined)mail.max_frequency=`${gap}s`;
  // The loader refuses a larger file, which would stop this environment's Auth from starting.
  if(Buffer.byteLength(JSON.stringify(mail))>MAX_BYTES)throw new SmtpError('settings');
  return mail;
@@ -97,8 +114,10 @@ function writeMail(directory:string,runtime:string,mail:Record<string,unknown>) 
 export function changedSmtpKeys(before:Record<string,unknown>|null,after:Record<string,unknown>|null):string[] {
  if(!before&&!after)return [];
  if(!before||!after)return ['SMTP_HOST','SMTP_PORT','SMTP_USER','SMTP_PASS','SMTP_ADMIN_EMAIL','SMTP_SENDER_NAME'];
- return [['host','SMTP_HOST'],['port','SMTP_PORT'],['user','SMTP_USER'],['pass','SMTP_PASS'],['admin_email','SMTP_ADMIN_EMAIL'],['sender_name','SMTP_SENDER_NAME']]
-  .filter(([key])=>before[key!]!==after[key!]).map(([,name])=>name!);
+ return [['host','SMTP_HOST'],['port','SMTP_PORT'],['user','SMTP_USER'],['pass','SMTP_PASS'],['admin_email','SMTP_ADMIN_EMAIL'],['sender_name','SMTP_SENDER_NAME'],
+  ['autoconfirm','MAILER_AUTOCONFIRM'],['rate_limit_email_sent','RATE_LIMIT_EMAIL_SENT'],['rate_limit_otp','RATE_LIMIT_OTP'],['rate_limit_verify','RATE_LIMIT_VERIFY'],['max_frequency','SMTP_MAX_FREQUENCY']]
+  // The limits are compared as text: the host writes "30", the console writes 30, and that is not a change.
+ .filter(([key])=>String(before[key!])!==String(after[key!])).map(([,name])=>name!);
 }
 
 /** GET and PUT `/environments/{id}/smtp`, for owners and admins of a ready environment. */

@@ -3,7 +3,7 @@ import {mkdtempSync,readFileSync,statSync,existsSync,writeFileSync as write,chmo
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {Catalog} from '../src/control/catalog';
-import {smtpHandler,mailFromInput,changedSmtpKeys,SmtpError,readMail} from '../src/control/smtp';
+import {smtpHandler,mailFromInput,changedSmtpKeys,SmtpError,readMail,smtpView} from '../src/control/smtp';
 import {readSettings,settingsFromInput} from '../src/control/sign-in';
 
 const cloud={enabled:true,admin_email:'noreply@example.com',sender_name:'Example',host:'smtp.example.com',port:587,user:'apikey',password:'THE-SMTP-SECRET'};
@@ -49,6 +49,30 @@ test('a failed apply restores the prior mail file, the first copy is kept across
   expect(readFileSync(join(mail,runtime+'-mail.prior'),'utf8')).toBe('none');
   expect((await put({enabled:'false'})).status).toBe(400);
  } finally {catalog.close();}
+});
+
+test('Confirm email is the opposite of autoconfirm and the mail limits are bounded whole numbers',()=>{
+ const on=mailFromInput({...cloud,confirm_email:false,rate_limit_email_sent:100,rate_limit_otp:20,rate_limit_verify:40,min_interval_seconds:30},null);
+ expect(on).toMatchObject({autoconfirm:true,rate_limit_email_sent:100,rate_limit_otp:20,rate_limit_verify:40,max_frequency:'30s'});
+ const view=smtpView(on);
+ expect(view).toMatchObject({confirm_email:false,rate_limit_email_sent:100,min_interval_seconds:30});
+ expect(smtpView(null)).toMatchObject({confirm_email:true,rate_limit_email_sent:30,min_interval_seconds:60});
+ // Omitted: kept. A file the console does not shape (a duration like 1h30m) shows no interval.
+ expect(mailFromInput(cloud,on).autoconfirm).toBe(true);
+ expect(smtpView({...on,max_frequency:'1h30m'}).min_interval_seconds).toBeNull();
+ for(const change of [{confirm_email:'no'},{rate_limit_email_sent:0},{rate_limit_otp:1.5},{rate_limit_verify:2_000_000},{min_interval_seconds:0},{min_interval_seconds:90_000}])
+  expect(()=>mailFromInput({...cloud,...change},null)).toThrow(SmtpError);
+ expect(changedSmtpKeys(mailFromInput(cloud,null),on)).toEqual(['MAILER_AUTOCONFIRM','RATE_LIMIT_EMAIL_SENT','RATE_LIMIT_OTP','RATE_LIMIT_VERIFY','SMTP_MAX_FREQUENCY']);
+});
+
+test('a limit the host wrote as text shows as the number, a form with a duration shows as unset, and writing the same number is no change',()=>{
+ const host={...mailFromInput(cloud,null),rate_limit_email_sent:'100'};
+ expect(smtpView(host).rate_limit_email_sent).toBe(100);
+ expect(smtpView({...host,rate_limit_email_sent:'30/1h'}).rate_limit_email_sent).toBeNull();
+ const same=mailFromInput({...cloud,rate_limit_email_sent:100},host);
+ expect(changedSmtpKeys(host,same)).toEqual([]);
+ // First enabling with no Confirm email field: confirmation stays required.
+ expect(mailFromInput(cloud,null).autoconfirm).toBe(false);
 });
 
 test('the audit names what changed and never a value',()=>{

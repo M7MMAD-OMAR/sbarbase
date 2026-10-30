@@ -90,3 +90,5 @@
 .aw-nav button:not(.active):hover{background:var(--hover)}
 
 .aw-inline{margin-block-start:8px}
+
+.aw-group+.aw-field{margin-block-start:20px}

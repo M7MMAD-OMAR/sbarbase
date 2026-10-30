@@ -1,0 +1,26 @@
+{
+ "date": "2026-10-30",
+ "checkpoint": "A3c Confirm email and the mail limits",
+ "base_commit": "59d3b40c122c8971ac152f87d1f799261784e6b9",
+ "working_blobs": {
+  "src/control/smtp.ts": "67fdf93167616dbde7b659265cbc56b3de673364",
+  "ui/SmtpPanel.tsx": "61f74cc70a40cbb52c55f23a629643d15bbdc84c",
+  "ui/auth-workspace.css": "8e92982e3778ebb7f17ce8fce39140d37e566659",
+  "lab/test_smtp_console.py": "647d485553c212f4b81da9ca6dfd7792647b7438",
+  "tests/smtp.test.ts": "301abfdadc6ae36f39be329f18d7d410d571ad1e",
+  "docs/guides/sign-in.md": "8ea396cedaf44eccbc59f66f406e80fe9f6ebb1f",
+  "docs/guides/sign-in.ar.md": "18c2206746a807e523619b53ef7ffa0a67968b22"
+ },
+ "screenshots": [
+  "dark-confirmation-and-limits.jpg"
+ ],
+ "review": "Independent read only review found 6 defects; fixed: a limit the host wrote as text shows as the number (a duration form shows as unset, never a wrong placeholder), limit fields are validated on the first Save click, a visible warning when Confirm email is off (addresses unchecked, hourly limit not applied), docs no longer contradict the page, the audit no longer reports 30 versus \"30\" as a change, tests for string rates and the console values reaching the Auth variables.",
+ "checks": {
+  "bun test smtp auth-workspace-ui": "12 pass",
+  "python unittest smtp_console docs mail_config (lab/)": "92 OK",
+  "tsc ui (my files)": "ok; other errors belong to the Edge Functions workspace in progress"
+ },
+ "not_verified": [
+  "Live apply with a stub SMTP receiver"
+ ]
+}

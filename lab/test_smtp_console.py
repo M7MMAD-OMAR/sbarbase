@@ -26,6 +26,24 @@ class ConsoleMailFileTests(unittest.TestCase):
             with self.assertRaises(mail_config.InvalidMailConfiguration, msg=str(change)):
                 mail_config.validate({**DEFAULTS, **CLOUD, **change})
 
+    def test_the_confirmation_and_limit_values_the_console_writes_are_valid_here(self):
+        config = mail_config.validate({**DEFAULTS, **CLOUD, 'autoconfirm': True, 'rate_limit_email_sent': 100, 'rate_limit_otp': 20,
+                                       'rate_limit_verify': 40, 'max_frequency': '30s'})
+        self.assertTrue(config['autoconfirm'])
+        self.assertEqual(config['max_frequency'], '30s')
+        # The console is stricter than the file format for the email limit (it refuses 0).
+        for change in ({'rate_limit_otp': 0}, {'max_frequency': '0s'}, {'max_frequency': '30'}):
+            with self.assertRaises(mail_config.InvalidMailConfiguration, msg=str(change)):
+                mail_config.validate({**DEFAULTS, **CLOUD, **change})
+
+    def test_the_console_values_reach_auth_under_the_right_variables(self):
+        import run as lab
+        mail = mail_config.validate({**DEFAULTS, **CLOUD, 'autoconfirm': True, 'rate_limit_email_sent': 100, 'max_frequency': '30s'})
+        config = lab.auth_configuration('e_' + 'a' * 24, {'auth': 'a', 'jwt': 'j'}, 'db', mail)
+        self.assertEqual((config['GOTRUE_RATE_LIMIT_EMAIL_SENT'], config['GOTRUE_SMTP_MAX_FREQUENCY'], config['GOTRUE_MAILER_AUTOCONFIRM']),
+                         ('100', '30s', 'true'))
+        self.assertEqual(config['GOTRUE_SMTP_HOST'], 'smtp.example.com')
+
     def test_a_file_the_console_wrote_loads_with_the_loader_rules(self):
         import os, tempfile
         with tempfile.TemporaryDirectory() as directory:
