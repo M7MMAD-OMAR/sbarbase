@@ -3,7 +3,7 @@ import {RefreshCw,ScrollText} from 'lucide-react';
 import type {Api} from '../api';
 
 import {useLive} from './live';
-import {RANGES,type FunctionRow,type Metrics,type Range} from './types';
+import {RANGES,cpuTime,mebibytes,share,usageNote,type FunctionRow,type Metrics,type Range,type Usage} from './types';
 import {Segmented,CopyButton,Notice,Problem} from './kit';
 import {ago,milliseconds,percent,clock} from './format';
 import {bars,line} from './chart';
@@ -25,13 +25,23 @@ function Timing({metrics}:{metrics:Metrics}){
   {peaks.map((points,index)=><polyline key={'p'+index} className="line faint" points={points}/>)}
   {averages.map((points,index)=><polyline key={'a'+index} className="line" points={points}/>)}</svg>;
 }
+/** One bar for the average of each step, with the largest behind it: a worker reports when it ends, so most steps are empty and a line would show nothing. */
+function Series({label,caption,at,format,average,peak}:{label:string;caption:string;at:number[];format:(value:number|null)=>string;average:(number|null)[];peak:(number|null)[]}){
+ const top=Math.max(1,...peak.map(value=>value??0),...average.map(value=>value??0));
+ const back=bars(peak.map(value=>value??0),W,H,0.2,top),front=bars(average.map(value=>value??0),W,H,0.2,top);
+ return <><p className="fw-hint">{caption}</p><svg className="fw-chart" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label={label}>
+  {back.map((bar,index)=>bar.height>0&&<rect key={'p'+index} className="bar faint" x={bar.x} y={bar.y} width={bar.width} height={bar.height}><title>{`${clock(at[index]!)}: largest ${format(peak[index]!)}`}</title></rect>)}
+  {front.map((bar,index)=>bar.height>0&&<rect key={'a'+index} className="bar" x={bar.x} y={bar.y} width={bar.width} height={bar.height}><title>{`${clock(at[index]!)}: average ${format(average[index]!)}`}</title></rect>)}</svg></>;
+}
 function Stat({label,value,tone}:{label:string;value:string;tone?:'bad'|'warn'}){return <div className="fw-stat"><span className={'fw-stat-label '+(tone??'')}>{label}</span><strong>{value}</strong></div>;}
 
-/** The numbers the gateway counted for one function: calls, 5xx and 4xx rates, response time. CPU time and memory need the runtime's
- * event worker and are not collected yet. */
+/** The numbers the gateway counted for one function: calls, 5xx and 4xx rates, response time. CPU time and memory come from the runtime's
+ * event worker (the Usage section), per worker lifetime. */
 export function Overview({fn,path,request,origin,openLogs}:{fn:FunctionRow;path:string;request:Api;origin:string;openLogs:()=>void}){
  const [range,setRange]=useState<Range>('1h');
  const data=useLive<{data:Metrics}>(signal=>request(`${path}/functions/${fn.name}/metrics?range=${range}`,'GET',undefined,signal),[path,fn.name,range,fn.updated_at],30000);
+ const usage=useLive<{data:Usage}>(signal=>request(`${path}/functions/${fn.name}/usage?range=${range}`,'GET',undefined,signal),[path,fn.name,range,fn.updated_at],30000);
+ const used=usage.data?.data;
  const metrics=data.data?.data;
  const url=origin+fn.path;
  const since=metrics?.sinceDeploy,errors=since?since.clientErrors+since.serverErrors:0;
@@ -52,7 +62,14 @@ export function Overview({fn,path,request,origin,openLogs}:{fn:FunctionRow;path:
    <Stat label="AVERAGE RESPONSE TIME" value={milliseconds(metrics?.totals.averageMs??null)}/><Stat label="MAX RESPONSE TIME" value={milliseconds(metrics?.totals.maxMs??null)}/></div>
    {metrics&&<Timing metrics={metrics}/>}
    <p className="fw-hint">Time until the function starts answering, as the gateway sees it. A streamed answer takes longer than the number shows.</p></section>
-  <section className="fw-card" aria-label="Usage"><h3>Usage</h3><Notice tone="info">CPU time and memory per function are not collected yet. They come from the runtime's event worker, planned for a later release.</Notice></section>
+  <section className="fw-card" aria-label="Usage" aria-busy={usage.loading}><h3>Usage</h3><Problem message={usage.error} retry={usage.refresh}/>
+   {used&&usageNote(used)?<Notice tone="info">{usageNote(used)}</Notice>:used&&used.available?<>
+    <div className="fw-stats"><Stat label="AVERAGE CPU TIME" value={cpuTime(used.totals.averageCpuMs)}/><Stat label="MAX CPU TIME" value={cpuTime(used.totals.maxCpuMs)}/>
+     <Stat label="AVERAGE MEMORY USAGE" value={mebibytes(used.totals.averageMemory)}/><Stat label="HEAP" value={share(used.totals.heapPercent)}/><Stat label="EXTERNAL" value={share(used.totals.externalPercent)}/></div>
+    <Series at={used.points.map(point=>point.at)} format={cpuTime} label="CPU time per worker over the range" caption="CPU time of the workers that ended in each step: the average, and the largest behind it" average={used.points.map(point=>point.averageCpuMs)} peak={used.points.map(point=>point.maxCpuMs)}/>
+    <Series at={used.points.map(point=>point.at)} format={mebibytes} label="Memory per worker over the range" caption="Memory of the workers that ended in each step: the average, and the largest behind it" average={used.points.map(point=>point.averageMemory)} peak={used.points.map(point=>point.maxMemory)}/>
+    <p className="fw-hint">{used.totals.workers} worker{used.totals.workers===1?'':'s'} ended in this range, {used.totals.boots} started{used.totals.averageBootMs!==null?`, in ${used.totals.averageBootMs} ms on average`:''}. Each number is for one worker's whole life, not one call, and memory is what the worker held when it ended. Counted since {ago(used.since)}, when the runtime first reported this function.</p></>:null}
+  </section>
   {metrics&&<p className="fw-hint">Counted by this server since {ago(metrics.countingSince)}. Counting starts again when Sbarbase restarts. Calls you send from the Test panel are counted too.</p>}
  </div>;
 }

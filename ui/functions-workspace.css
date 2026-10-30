@@ -253,3 +253,4 @@ div.fw-notice{display:flex;align-items:center;justify-content:space-between;gap:
 .fw-secretrow{display:grid;gap:12px;padding-block-end:8px}
 div.fw-notice>span:first-child{white-space:pre-wrap;overflow-wrap:anywhere}
 .fw-ed-probe{position:absolute;visibility:hidden;pointer-events:none;white-space:pre}
+.fw-chart .bar.faint{fill:var(--subtle);opacity:.45}

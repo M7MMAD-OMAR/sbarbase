@@ -1,0 +1,15 @@
+{
+ "date": "2026-10-30",
+ "checkpoint": "F3.2 Usage in Overview and per function output in Logs",
+ "how_rendered": "The real components rendered by a throwaway Vite page with a stub request (the usage and output answers the server gives), captured with headless Google Chrome at exact viewports (desktop 1360 wide, phone 390 wide, device scale 1). The server routes are tested against the real handler (tests/functions-worker.test.ts) and the event worker against the hardened container (docs/evidence/functions-f3-event-check-2026-10-30). Not a live installation.",
+ "screenshots": {
+  "usage.png": "dark, Overview with Usage: average and max CPU time, average memory, heap and external share, and the two bar charts (average in front, the largest behind)",
+  "usage-none.png": "dark, Usage when no worker has ended in the range: the sentence says why and when numbers come",
+  "usage-down.png": "light, Usage when the runtime did not answer or has no event worker yet",
+  "output.png": "dark, Logs: calls, and the output of this function with level and redacted message",
+  "output-fallback.png": "light, Logs when the runtime is off: the environment's whole output with the reason",
+  "usage-phone.png": "dark, 390 wide",
+  "usage-rtl.png": "dark, right to left"
+ },
+ "not_exercised": "a live installation, a running console against the real event worker, Firefox and Safari"
+}
