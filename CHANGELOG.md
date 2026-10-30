@@ -6,9 +6,15 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-The declared package version is 0.9.1. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
+The declared package version is 0.9.2. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
 
 ## [Unreleased]
+
+### Still open
+
+- **Purging a deleted environment is refused**, because nothing proves that only that environment wrote the shared PostgreSQL cluster and Storage objects; delete and restore are soft.
+
+## [0.9.2] - 2026-10-30
 
 ### Added
 
@@ -17,15 +23,13 @@ The declared package version is 0.9.1. Historical 0.1.0 and 0.2.0 entries retain
 
 ### Fixed
 
+- **Google, GitHub and the other OAuth providers could not sign anyone in on a real server.** Auth fetches the provider's discovery document and token endpoint itself, but an environment's Auth stayed on the `--internal` network unless the environment had a mail configuration, so `authorize?provider=google` answered 400 with a failed lookup of `accounts.google.com` while the console showed the provider as applied (found on a real Google sign-in, issue 22). An environment now joins the outbound network while it has a mail configuration or at least one enabled provider, from every path that creates or recreates its Auth (start, mail, sign-in settings, the rolling replacement); removing the mail file no longer cuts off an environment whose provider is still enabled. Proven by unit tests on those paths and a mutation check; a real provider sign-in through the fixed server is still unmeasured.
+
 - **No environment's Auth could reach a mail relay outside the host.** Every environment ran on a network created `--internal`, so its Auth resolved no public name and opened no public connection: measured on a real installation, `getent hosts smtp.resend.com` failed and `nc -z smtp.resend.com 587` reported BLOCKED from `sbarbase-durable-net`, while the same probe on `sbarbase-durable-outbound` reported REACHABLE. A mail configuration could therefore be written, validated and applied, and the first message would still have failed. An environment now joins the outbound network while, and only while, it has a mail configuration, from every path that creates or recreates that Auth (start, mail, auth, the rolling replacement), and leaves it again when the file is removed. An environment without mail keeps the internal-only posture, and the management realm never joins it. Proven by unit tests and by the two measurements above; a real message through a real relay from a real server is still unmeasured.
 
 ### Changed
 
 - **The console's Email section shows how to turn mail on.** For an environment with no configuration it renders the two host commands with that environment's runtime id, and one line saying why there is no form: the SMTP password never crosses the management API. The mail answer carries the runtime id for that, and a configured environment shows the sign-in mail body it applies.
-
-### Still open
-
-- **Purging a deleted environment is refused**, because nothing proves that only that environment wrote the shared PostgreSQL cluster and Storage objects; delete and restore are soft.
 
 ## [0.9.1] - 2026-10-26
 
