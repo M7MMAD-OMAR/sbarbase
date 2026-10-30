@@ -53,10 +53,13 @@ private modes=new Map<string,{at:number;onDemand:boolean}>();
  async ensure(runtime:string,service:OnDemandService):Promise<Outcome> {
   let mode;
   try{mode=this.catalog.serviceMode(runtime,service).mode;this.modes.set(this.key(runtime,service),{at:this.now,onDemand:mode==='on_demand'});}catch{return {ok:false,status:503,message:'Service state unavailable',retryAfter:RETRY_AFTER_SECONDS};}
+  // A mode that changed within the two seconds the gateway kept its answer: On and running is served as it always was; only Off is refused.
+  if(mode==='on'&&this.catalog.serviceRow(runtime,service).state==='on'&&this.running(runtime,service))return up;
   if(mode!=='on_demand')return {ok:false,status:404,message:'Service is off for this environment'};
   let row=this.catalog.serviceRow(runtime,service);
   // The sleeper asked for a stop that the supervisor has not applied yet: call it off instead of waiting for a stop and a start.
-  if(row.state==='pending'&&row.desired==='off'&&this.running(runtime,service)&&this.catalog.cancelSleep(runtime,service))row=this.catalog.serviceRow(runtime,service);
+  // Edge Functions only: a stop of Realtime that the supervisor has begun cannot be called off without a request meeting a container that is gone.
+  if(service==='functions'&&row.state==='pending'&&row.desired==='off'&&this.running(runtime,service)&&this.catalog.cancelSleep(runtime,service))row=this.catalog.serviceRow(runtime,service);
   if(row.state==='on'&&this.running(runtime,service)){this.activity.touch(runtime,service);return up;}
   const key=this.key(runtime,service);
   const count=(this.held.get(runtime)??0)+1;
@@ -92,7 +95,7 @@ private modes=new Map<string,{at:number;onDemand:boolean}>();
   while(this.now<deadline){
    let row;
    try{row=this.catalog.serviceRow(runtime,service);}catch{return retry('Service state unavailable');}
-   if(row.state==='on'&&this.running(runtime,service))return up;
+   if(row.state==='on'&&this.running(runtime,service)){this.activity.touch(runtime,service);return up;}
    if(row.state==='pending'){await this.pause(poll);continue;}
    if(requested&&row.state==='failed')return {ok:false,status:503,message:'Could not wake: '+(row.failure??'the service did not start')+' The environment keeps working without it.',retryAfter:30};
    if(requested&&row.state==='off'&&row.desired==='off')return retry('The service could not be started. Retry shortly.');
@@ -122,6 +125,8 @@ private modes=new Map<string,{at:number;onDemand:boolean}>();
    let row;
    try{row=this.catalog.serviceRow(target.runtime,target.service);}catch{continue;}
    if(row.state==='pending'){pending=true;continue;}
+   // A service that came on less than its quiet period ago is not put to sleep, however old its last use is: a wake that finished after the hold
+   // (the request got 503 and will retry) is served by it.
    // A start that failed (usually for lack of room) is tried again only after ten minutes, not every sweep: each try is an audit row and a supervisor run.
    if(killed&&row.state==='failed'&&now-(row.updatedAt??0)<RETRY_FAILED_MS)continue;
    const running=row.state==='on'&&this.running(target.runtime,target.service);
@@ -129,7 +134,7 @@ private modes=new Map<string,{at:number;onDemand:boolean}>();
     if(killed){
      // The kill switch means On: what sleeps is woken, one at a time on the installation, and nothing is put to sleep.
      if(!running&&!pending&&this.catalog.requestServiceChange(target.runtime,target.service,true,'system:kill-switch','kill_switch')==='requested'){pending=true;out.woke++;}
-    }else if(sleepDue&&running&&this.activity.quietFor(target.runtime,target.service,target.idleMinutes*60_000)
+    }else if(sleepDue&&running&&now-(row.updatedAt??0)>=target.idleMinutes*60_000&&this.activity.quietFor(target.runtime,target.service,target.idleMinutes*60_000)
       &&this.catalog.requestServiceChange(target.runtime,target.service,false,'system:idle','idle')==='requested')out.slept++;
    }catch{}
   }

@@ -26,19 +26,19 @@ function ready(extra=0) {
 }
 const table=(service:OnDemandService)=>service==='realtime'?'realtime_settings':'functions_settings';
 const setState=(catalog:Catalog,runtime:string,service:OnDemandService,desired:'on'|'off',state:string,failure:string|null=null)=>
- catalog.db.query(`INSERT INTO ${table(service)}(runtime,desired,state,failure,actor,updated_at) VALUES (?,?,?,?,'test',1) ON CONFLICT(runtime) DO UPDATE SET desired=excluded.desired,state=excluded.state,failure=excluded.failure`).run(runtime,desired,state,failure);
+ catalog.db.query(`INSERT INTO ${table(service)}(runtime,desired,state,failure,actor,updated_at) VALUES (?,?,?,?,'test',1) ON CONFLICT(runtime) DO UPDATE SET desired=excluded.desired,state=excluded.state,failure=excluded.failure,updated_at=excluded.updated_at`).run(runtime,desired,state,failure);
 const row=(catalog:Catalog,runtime:string,service:OnDemandService)=>catalog.db.query<{desired:string;state:string;actor:string;failure:string|null},[string]>(`SELECT desired,state,actor,failure FROM ${table(service)} WHERE runtime=?`).get(runtime);
 const events=(catalog:Catalog,action:string)=>catalog.db.query<{actor:string;detail:string},[string]>('SELECT actor,detail FROM audit_events WHERE action=? ORDER BY rowid').all(action).map(item=>({actor:item.actor,...JSON.parse(item.detail)}));
 
 /** A supervisor that does what lab/realtime.py does: applies each pending row when asked to tick, and the service is then running or not. */
-function supervisor(catalog:Catalog,running:Set<string>,options:{fail?:string;ticksToStart?:number}={}) {
+function supervisor(catalog:Catalog,running:Set<string>,options:{fail?:string;ticksToStart?:number;now?:()=>number}={}) {
  let ticks=0;const applied:string[]=[];
  return async()=>{
   for(const [service,table_] of [['realtime','realtime_settings'],['functions','functions_settings']] as const){
    for(const item of catalog.db.query<{runtime:string;desired:string},[]>(`SELECT runtime,desired FROM ${table_} WHERE state='pending'`).all()){
     if(item.desired==='on'&&options.ticksToStart&&++ticks<options.ticksToStart)continue;
     if(item.desired==='on'&&options.fail){catalog.db.query(`UPDATE ${table_} SET state='failed',failure=? WHERE runtime=?`).run(options.fail,item.runtime);continue;}
-    catalog.db.query(`UPDATE ${table_} SET state=?,failure=NULL WHERE runtime=?`).run(item.desired,item.runtime);
+    catalog.db.query(`UPDATE ${table_} SET state=?,failure=NULL,updated_at=? WHERE runtime=?`).run(item.desired,(options.now??Date.now)(),item.runtime);
     applied.push(`${service}:${item.desired}`);
     if(item.desired==='on')running.add(item.runtime+'|'+service);else running.delete(item.runtime+'|'+service);
    }
@@ -282,17 +282,17 @@ test('one wake at a time on the installation: a second service waits for the fir
  }finally{h.catalog.close();}
 });
 
-test('a request that arrives before the supervisor has applied the sleeper\'s stop calls the stop off and the service keeps running',async()=>{
+test('a request that arrives before the supervisor has applied the sleeper\'s stop of Edge Functions calls the stop off and the service keeps running',async()=>{
  const h=harness();
  try{
-  h.catalog.setServiceMode('alice',h.environment,'realtime','on_demand');
-  setState(h.catalog,h.runtime,'realtime','on','on');h.running.add(h.runtime+'|realtime');
-  expect(h.catalog.requestServiceChange(h.runtime,'realtime',false,'system:idle','idle')).toBe('requested');
-  expect(await h.onDemand.ensure(h.runtime,'realtime')).toEqual({ok:true});
-  expect(row(h.catalog,h.runtime,'realtime')).toMatchObject({desired:'on',state:'on'});
-  expect(events(h.catalog,'realtime.sleep_cancelled')).toHaveLength(1);
-  expect(events(h.catalog,'realtime.wake_requested')).toHaveLength(0);          // no stop, no start, no wake spent from the hour's budget
-  expect(h.running.has(h.runtime+'|realtime')).toBe(true);
+  h.catalog.setServiceMode('alice',h.environment,'functions','on_demand');
+  setState(h.catalog,h.runtime,'functions','on','on');h.running.add(h.runtime+'|functions');
+  expect(h.catalog.requestServiceChange(h.runtime,'functions',false,'system:idle','idle')).toBe('requested');
+  expect(await h.onDemand.ensure(h.runtime,'functions')).toEqual({ok:true});
+  expect(row(h.catalog,h.runtime,'functions')).toMatchObject({desired:'on',state:'on'});
+  expect(events(h.catalog,'functions.sleep_cancelled')).toHaveLength(1);
+  expect(events(h.catalog,'functions.wake_requested')).toHaveLength(0);          // no stop, no start, no wake spent from the hour's budget
+  expect(h.running.has(h.runtime+'|functions')).toBe(true);
  }finally{h.catalog.close();}
 });
 
@@ -718,4 +718,45 @@ test('turning Edge Functions off waits for the calls that are running, and the g
   await handler(new Request(path,{method:'PUT',headers:{authorization:'alice','content-type':'application/json'},body:JSON.stringify({enabled:true})}));
   expect(Date.now()-quick).toBeLessThan(200);
  }finally{g.close();}
+});
+
+test('a stop of Realtime is never called off by a request: the supervisor may be mid stop, so the request waits for it and wakes',async()=>{
+ const h=harness();
+ try{
+  h.catalog.setServiceMode('alice',h.environment,'realtime','on_demand');
+  setState(h.catalog,h.runtime,'realtime','on','on');h.running.add(h.runtime+'|realtime');
+  expect(h.catalog.requestServiceChange(h.runtime,'realtime',false,'system:idle','idle')).toBe('requested');
+  expect(await h.onDemand.ensure(h.runtime,'realtime')).toEqual({ok:true});
+  expect(events(h.catalog,'realtime.sleep_cancelled')).toHaveLength(0);
+  expect(events(h.catalog,'realtime.wake_requested')).toHaveLength(1);
+ }finally{h.catalog.close();}
+});
+
+test('a mode changed to On within the two seconds the gateway kept its answer is served, not refused as off',async()=>{
+ const h=harness();
+ try{
+  h.catalog.setServiceMode('alice',h.environment,'functions','on_demand');
+  expect(h.onDemand.isOnDemand(h.runtime,'functions')).toBe(true);                   // cached
+  setState(h.catalog,h.runtime,'functions','on','on');h.running.add(h.runtime+'|functions');
+  h.catalog.setServiceMode('alice',h.environment,'functions','on');
+  expect(h.onDemand.isOnDemand(h.runtime,'functions')).toBe(true);                   // still the cached answer
+  expect(await h.onDemand.ensure(h.runtime,'functions')).toEqual({ok:true});         // and the call is served
+  h.running.delete(h.runtime+'|functions');
+  h.catalog.db.query("UPDATE functions_settings SET state='off',desired='off'").run();
+  expect(await h.onDemand.ensure(h.runtime,'functions')).toMatchObject({ok:false,status:404});
+ }finally{h.catalog.close();}
+});
+
+test('a service that came on less than its quiet period ago is not put to sleep, so a wake that finished after the hold is served by the retry',()=>{
+ let now=10*60*MIN;
+ const h=harness({now:()=>now});
+ try{
+  h.catalog.setServiceMode('alice',h.environment,'functions','on_demand',5);
+  now+=600*MIN;                                                                         // the last use is hours old
+  setState(h.catalog,h.runtime,'functions','on','on');h.running.add(h.runtime+'|functions');
+  h.catalog.db.query("UPDATE functions_settings SET updated_at=?").run(now-2*MIN);     // the supervisor finished the start two minutes ago
+  expect(h.onDemand.sweep(now)).toEqual({slept:0,woke:0});
+  now+=4*MIN;                                                                           // past its quiet period since coming on
+  expect(h.onDemand.sweep(now)).toEqual({slept:1,woke:0});
+ }finally{h.catalog.close();}
 });
