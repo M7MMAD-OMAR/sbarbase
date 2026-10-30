@@ -10,7 +10,7 @@ import type {SignInSettings} from './sign-in';
 type CoreEntry={key:string;page:string;label:string;type:'url'|'list'|'bool'|'seconds';from:string;invert?:boolean;default:unknown;null_text?:string;owner:string};
 type ProviderField={suffix:string;type:'bool'|'text'|'secret'|'url'|'callback';from?:string;default?:unknown;only?:string;secret?:boolean;computed?:boolean};
 type ProviderEntry={label:string;url:'none'|'optional'|'required'};
-type Registry={version:number;pages:{id:string;label:string}[];core:CoreEntry[];provider_fields:ProviderField[];providers:Record<string,ProviderEntry>};
+type Registry={version:number;pages:{id:string;label:string}[];core:CoreEntry[];provider_fields:ProviderField[];providers:Record<string,ProviderEntry>;nonce_providers:string[]};
 export const REGISTRY=registryFile as unknown as Registry;
 
 /** `invert`: the value is the platform key's own (DISABLE_SIGNUP), the label asks the positive question, so the console shows the opposite.
@@ -49,6 +49,7 @@ function providerFields(name:string,settings:SignInSettings|null,callback:string
  const fields:ConfigField[]=[];
  for(const field of REGISTRY.provider_fields) {
   if(field.only==='url'&&meta.url==='none')continue;
+  if(field.only==='nonce'&&!REGISTRY.nonce_providers.includes(name))continue;
   const key=prefix+field.suffix,label=field.suffix.toLowerCase().replace(/_/g,' ');
   if(field.type==='callback'){fields.push({key,label,type:'callback',value:callback,from_default:false});continue;}
   if(field.secret){fields.push({key,label,type:'secret',secret_set:!!saved?.secret,from_default:!saved,...(inactive?{inactive:true}:{})});continue;}

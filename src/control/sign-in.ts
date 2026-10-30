@@ -20,22 +20,22 @@ export const PROVIDER_URL:Record<string,boolean>={azure:false,gitlab:false,keycl
 const MAX_REDIRECTS=50;
 const SECRETS_DIRECTORY='.secrets/upstream';
 
-type Provider={enabled:boolean;client_id:string;secret:string;url:string};
+type Provider={enabled:boolean;client_id:string;secret:string;url:string;skip_nonce_check:boolean;email_optional:boolean};
 /** The three session lifetimes Auth applies: the access token lifetime, the longest a person
  * may stay signed in, and the idle time before a sign out. A null member sets no variable,
  * so that session does not expire. The ranges mirror lab/auth_settings.py `validate`. */
 export type SignInSession={access_token_seconds:number|null;timebox_seconds:number|null;inactivity_seconds:number|null};
-export type SignInSettings={version?:number;revision:number;site_url:string;redirect_urls:string[];signup:boolean;anonymous:boolean;
+export type SignInSettings={version?:number;revision:number;site_url:string;redirect_urls:string[];signup:boolean;anonymous:boolean;manual_linking:boolean;
  session:SignInSession;providers:Record<string,Provider>};
-export type SignInView=Omit<SignInSettings,'providers'|'revision'>&{providers:Record<string,{enabled:boolean;client_id:string;
- secret_set:boolean;url:string}>};
+export type SignInView=Omit<SignInSettings,'providers'|'revision'|'version'>&{providers:Record<string,{enabled:boolean;client_id:string;
+ secret_set:boolean;url:string;skip_nonce_check:boolean;email_optional:boolean}>};
 const NO_CAP:SignInSession={access_token_seconds:null,timebox_seconds:null,inactivity_seconds:null};
 const SESSION_RANGE:Record<keyof SignInSession,[number,number]>={access_token_seconds:[60,86400],
  timebox_seconds:[3600,315360000],inactivity_seconds:[300,315360000]};
 const SESSION_KEYS=Object.keys(SESSION_RANGE) as (keyof SignInSession)[];
 
 /** The file format this version reads and writes (lab/auth_settings.py VERSION). */
-const FILE_VERSION=1;
+const FILE_VERSION=2;
 
 export class SettingsError extends Error {}
 
@@ -75,17 +75,21 @@ function sessionFromInput(value:unknown,current:SignInSession|null):SignInSessio
 
 /** The settings to save, from the console's input and what is saved now. An empty secret
  * keeps the saved one, so the console never needs to hold it. */
+/** The providers the nonce check applies to (lab/auth_settings.py NONCE_PROVIDERS). */
+const NONCE_PROVIDERS=['apple','google'];
+
 export function settingsFromInput(input:unknown,current:SignInSettings|null):SignInSettings {
  if(!input||typeof input!=='object'||Array.isArray(input))throw new SettingsError('settings');
  const value=input as Record<string,unknown>;
- const allowed=new Set(['site_url','redirect_urls','signup','anonymous','session','providers','base_revision']);
+ const allowed=new Set(['site_url','redirect_urls','signup','anonymous','session','providers','manual_linking','base_revision']);
  if(Object.keys(value).some(key=>!allowed.has(key)))throw new SettingsError('settings');
  const site_url=webAddress(value.site_url,'site_url');
  const redirects=value.redirect_urls??[];
  if(!Array.isArray(redirects)||redirects.length>MAX_REDIRECTS)throw new SettingsError('redirect_urls');
- const signup=value.signup??true,anonymous=value.anonymous??false;
+ const signup=value.signup??true,anonymous=value.anonymous??false,linking=value.manual_linking??current?.manual_linking??false;
  if(typeof signup!=='boolean')throw new SettingsError('signup');
  if(typeof anonymous!=='boolean')throw new SettingsError('anonymous');
+ if(typeof linking!=='boolean')throw new SettingsError('manual_linking');
  const given=value.providers??{};
  if(!given||typeof given!=='object'||Array.isArray(given))throw new SettingsError('providers');
  const providers:Record<string,Provider>={};
@@ -93,17 +97,23 @@ export function settingsFromInput(input:unknown,current:SignInSettings|null):Sig
   if(!(PROVIDERS as readonly string[]).includes(name))throw new SettingsError('providers');
   if(!raw||typeof raw!=='object'||Array.isArray(raw))throw new SettingsError(name);
   const entry=raw as Record<string,unknown>;
-  if(Object.keys(entry).some(key=>!['enabled','client_id','secret','url'].includes(key)))throw new SettingsError(name);
+  if(Object.keys(entry).some(key=>!['enabled','client_id','secret','url','skip_nonce_check','email_optional'].includes(key)))throw new SettingsError(name);
   const enabled:unknown=entry.enabled??false,client:unknown=entry.client_id??'',url:unknown=entry.url??'',given:unknown=entry.secret??'';
+  const nonce:unknown=entry.skip_nonce_check??current?.providers?.[name]?.skip_nonce_check??false,optional:unknown=entry.email_optional??current?.providers?.[name]?.email_optional??false;
+  if(typeof nonce!=='boolean'||typeof optional!=='boolean')throw new SettingsError(name);
   if(typeof enabled!=='boolean'||typeof client!=='string'||typeof given!=='string'||typeof url!=='string')throw new SettingsError(name);
   const secret=given||(current?.providers[name]?.secret??'');
-  if(client.length>512||secret.length>4096||/\s/.test(client+secret))throw new SettingsError(name);
+  // Google takes a list of client IDs: spaces around the commas are tidied, an empty entry is not allowed.
+  const ids=name==='google'&&client?client.split(',').map(part=>part.trim()).join(','):client;
+  if(name==='google'&&ids&&ids.split(',').includes(''))throw new SettingsError(name);
+  if(ids.length>(name==='google'?2048:512)||secret.length>4096||/\s/.test(ids+secret))throw new SettingsError(name);
+  if(nonce===true&&!NONCE_PROVIDERS.includes(name))throw new SettingsError(name);
   if(enabled&&(!client||!secret))throw new SettingsError(name);
   if(url){if(!(name in PROVIDER_URL))throw new SettingsError(name);webAddress(url,name);}
   else if(enabled&&PROVIDER_URL[name])throw new SettingsError(name);
-  providers[name]={enabled,client_id:client,secret,url};
+  providers[name]={enabled,client_id:ids,secret,url,skip_nonce_check:nonce,email_optional:optional};
  }
- return {version:FILE_VERSION,revision:(current?.revision??0)+1,site_url,redirect_urls:redirects.map(redirectAddress),signup,anonymous,
+ return {version:FILE_VERSION,revision:(current?.revision??0)+1,site_url,redirect_urls:redirects.map(redirectAddress),signup,anonymous,manual_linking:linking,
   session:sessionFromInput(value.session,current?.session??null),providers};
 }
 
@@ -111,9 +121,34 @@ export function view(settings:SignInSettings|null):SignInView|null {
  if(!settings)return null;
  const providers:SignInView['providers']={};
  for(const [name,entry] of Object.entries(settings.providers))
-  providers[name]={enabled:entry.enabled,client_id:entry.client_id,secret_set:!!entry.secret,url:entry.url};
- return {site_url:settings.site_url,redirect_urls:settings.redirect_urls,signup:settings.signup,anonymous:settings.anonymous,
+  providers[name]={enabled:entry.enabled,client_id:entry.client_id,secret_set:!!entry.secret,url:entry.url,
+   skip_nonce_check:!!entry.skip_nonce_check,email_optional:!!entry.email_optional};
+ return {site_url:settings.site_url,redirect_urls:settings.redirect_urls,signup:settings.signup,anonymous:settings.anonymous,manual_linking:!!settings.manual_linking,
   session:settings.session,providers};
+}
+
+/** The platform key names of what a save changes, never a value: the audit event lists these. A secret that
+ * differs from the saved one shows as its key. The list is capped so the event always fits. */
+export function changedKeys(before:SignInSettings|null,after:SignInSettings):string[] {
+ const keys:string[]=[];
+ const differs=(left:unknown,right:unknown)=>JSON.stringify(left)!==JSON.stringify(right);
+ if(before?.site_url!==after.site_url)keys.push('SITE_URL');
+ if(differs(before?.redirect_urls??[],after.redirect_urls))keys.push('URI_ALLOW_LIST');
+ if((before?.signup??true)!==after.signup)keys.push('DISABLE_SIGNUP');
+ if((before?.anonymous??false)!==after.anonymous)keys.push('EXTERNAL_ANONYMOUS_USERS_ENABLED');
+ if((before?.manual_linking??false)!==after.manual_linking)keys.push('SECURITY_MANUAL_LINKING_ENABLED');
+ const was=before?.session??NO_CAP;
+ if(was.access_token_seconds!==after.session.access_token_seconds)keys.push('JWT_EXP');
+ if(was.timebox_seconds!==after.session.timebox_seconds)keys.push('SESSIONS_TIMEBOX');
+ if(was.inactivity_seconds!==after.session.inactivity_seconds)keys.push('SESSIONS_INACTIVITY_TIMEOUT');
+ for(const name of new Set([...Object.keys(before?.providers??{}),...Object.keys(after.providers)])) {
+  const old=before?.providers?.[name],next=after.providers[name],prefix='EXTERNAL_'+name.toUpperCase()+'_';
+  const pairs:[string,unknown,unknown][]=[['ENABLED',old?.enabled??false,next?.enabled??false],['CLIENT_ID',old?.client_id??'',next?.client_id??''],
+   ['SECRET',old?.secret??'',next?.secret??''],['URL',old?.url??'',next?.url??''],['SKIP_NONCE_CHECK',old?.skip_nonce_check??false,next?.skip_nonce_check??false],
+   ['EMAIL_OPTIONAL',old?.email_optional??false,next?.email_optional??false]];
+  for(const [suffix,left,right] of pairs)if(left!==right)keys.push(prefix+suffix);
+ }
+ return keys.length>60?[...keys.slice(0,60),'AND_MORE']:keys;
 }
 
 /** The installation's public address, as lab/auth_settings.py `public_url` reads it. */
@@ -141,19 +176,32 @@ export function readSettings(directory:string,runtime:string):SignInSettings|nul
  if(saved.version!==undefined&&saved.version>FILE_VERSION)throw new SettingsError('file');
  const session=saved.session&&typeof saved.session==='object'?saved.session:NO_CAP;
  // A file may lack `providers`, which the Python validator reads as none.
- return {...saved,providers:saved.providers??{},session:{...NO_CAP,...session}};
+ // Files from before manual linking and the provider switches have none of them: all off, as Auth's own default.
+ const providers=Object.fromEntries(Object.entries(saved.providers??{}).map(([name,entry])=>[name,{...entry,skip_nonce_check:entry.skip_nonce_check??false,email_optional:entry.email_optional??false}]));
+ return {...saved,manual_linking:saved.manual_linking??false,providers,session:{...NO_CAP,...session}};
+}
+
+/** As lab/auth_settings.py `file_form`: the version 1 shape while no switch added with version 2 is on. */
+function fileForm(settings:SignInSettings):Record<string,unknown> {
+ const plain=!settings.manual_linking&&!Object.values(settings.providers).some(entry=>entry.skip_nonce_check||entry.email_optional);
+ if(!plain)return {...settings,version:FILE_VERSION};
+ const {manual_linking:_linking,...rest}=settings;
+ return {...rest,version:1,providers:Object.fromEntries(Object.entries(settings.providers).map(([name,{skip_nonce_check:_nonce,email_optional:_optional,...entry}])=>[name,entry]))};
 }
 
 function writeSettings(directory:string,runtime:string,settings:SignInSettings) {
  mkdirSync(directory,{recursive:true,mode:0o700});
  const path=file(directory,runtime),pending=path+'.pending';
- writeFileSync(pending,JSON.stringify(settings),{mode:0o600});
+ writeFileSync(pending,JSON.stringify(fileForm(settings)),{mode:0o600});
  renameSync(pending,path);
 }
 
 /** GET and PUT `/environments/{id}/sign-in`, and GET `/environments/{id}/auth-config` (the read only
  * Authentication configuration, src/control/auth-config.ts), for owners and admins of a ready environment. */
-export function signInHandler(catalog:Catalog,identify:ManagementIdentity,directory=SECRETS_DIRECTORY) {
+/** The shortest time between two saves of one environment: each save restarts its Auth under the installation's operation lock. */
+export const SAVE_INTERVAL_MS=10_000;
+
+export function signInHandler(catalog:Catalog,identify:ManagementIdentity,directory=SECRETS_DIRECTORY,saveInterval=SAVE_INTERVAL_MS) {
  return async(request:Request):Promise<Response>=>{
   const match=new URL(request.url).pathname.match(/^\/management\/v1\/environments\/([a-f0-9-]{36})\/(sign-in|auth-config)$/);
   if(!match)return reply(404,{message:'Unknown route'});
@@ -175,9 +223,13 @@ export function signInHandler(catalog:Catalog,identify:ManagementIdentity,direct
    // A save made from an older page would overwrite a newer one it never saw.
    const base=input&&typeof input==='object'?(input as Record<string,unknown>).base_revision:undefined;
    if(base!==undefined&&base!==null&&base!==state.revision)return reply(409,{message:'These settings changed since you opened them. Reload and try again.'});
-   const settings=settingsFromInput(input,readSettings(directory,state.runtime));
+   const before=readSettings(directory,state.runtime);
+   // A clock that stepped back gives a negative wait: it never locks a save out.
+   const waited=state.updatedAt===null?Infinity:Date.now()-state.updatedAt;
+   if(waited>=0&&waited<saveInterval){const busy=reply(429,{message:'Wait a few seconds before saving again.'});busy.headers.set('retry-after',String(Math.ceil((saveInterval-waited)/1000)));return busy;}
+   const settings=settingsFromInput(input,before);
    writeSettings(directory,state.runtime,settings);
-   const saved=catalog.requestSignIn(actor,environment,settings.revision);
+   const saved=catalog.requestSignIn(actor,environment,settings.revision,changedKeys(before,settings));
    return answer(reply(202,{data:{...saved,callback_url,settings:view(settings)}}));
   } catch(error) {
    if(error instanceof SettingsError&&error.message==='file')return reply(409,{message:'The saved settings file cannot be read on the server (a link, wrong permissions, or a newer version). Fix it on the host.'});

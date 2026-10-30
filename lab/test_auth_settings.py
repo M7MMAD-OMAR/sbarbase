@@ -304,7 +304,7 @@ class ApplyTests(unittest.TestCase):
             durable_runtime.load_settings(E)
         self.assertNotIn('nope', str(raised.exception))
         # A file from a newer version is refused the same way, never half read.
-        (auth_settings.DIRECTORY / f'{E}-auth.json').write_text(json.dumps({**VALID, 'version': 2}))
+        (auth_settings.DIRECTORY / f'{E}-auth.json').write_text(json.dumps({**VALID, 'version': 3}))
         with self.assertRaises(RuntimeError):
             durable_runtime.load_settings(E)
 
@@ -341,6 +341,54 @@ class OwnerSetTests(unittest.TestCase):
             variable = 'GOTRUE_' + entry['key']
             self.assertTrue(auth_settings.owned(variable), variable)
             self.assertFalse(durable_runtime.is_mail_key(variable), variable)
+
+
+class NewSwitchTests(unittest.TestCase):
+    def test_a_switch_that_is_off_adds_nothing_so_an_older_environment_keeps_its_variables(self):
+        settings = auth_settings.validate(VALID)
+        config = auth_settings.configuration(E, settings)
+        self.assertNotIn('GOTRUE_SECURITY_MANUAL_LINKING_ENABLED', config)
+        self.assertFalse([k for k in config if k.endswith(('_SKIP_NONCE_CHECK', '_EMAIL_OPTIONAL'))])
+
+    def test_manual_linking_and_the_provider_switches_reach_auth_when_on(self):
+        settings = auth_settings.validate({**VALID, 'manual_linking': True, 'providers': {
+            'google': {'enabled': True, 'client_id': 'g', 'secret': 's', 'url': '', 'skip_nonce_check': True, 'email_optional': True}}})
+        config = auth_settings.configuration(E, settings)
+        self.assertEqual(config['GOTRUE_SECURITY_MANUAL_LINKING_ENABLED'], 'true')
+        self.assertEqual(config['GOTRUE_EXTERNAL_GOOGLE_SKIP_NONCE_CHECK'], 'true')
+        self.assertEqual(config['GOTRUE_EXTERNAL_GOOGLE_EMAIL_OPTIONAL'], 'true')
+        self.assertTrue(auth_settings.owned('GOTRUE_SECURITY_MANUAL_LINKING_ENABLED'))
+
+    def test_a_version_one_file_without_them_still_loads_with_all_off(self):
+        settings = auth_settings.validate({**VALID, 'version': 1})
+        self.assertFalse(settings['manual_linking'])
+        self.assertFalse(settings['providers']['github']['skip_nonce_check'])
+
+    def test_a_non_boolean_switch_is_refused(self):
+        for change in ({'manual_linking': 'yes'}, {'providers': {'github': {'enabled': False, 'skip_nonce_check': 1}}}):
+            with self.assertRaises(auth_settings.SettingsError):
+                auth_settings.validate({**VALID, **change})
+
+
+class CompatibilityTests(unittest.TestCase):
+    def test_the_file_keeps_the_version_one_shape_until_a_new_switch_is_on(self):
+        plain = auth_settings.file_form(auth_settings.validate(VALID))
+        self.assertEqual(plain['version'], 1)
+        self.assertNotIn('manual_linking', plain)
+        self.assertFalse(any('skip_nonce_check' in entry or 'email_optional' in entry for entry in plain['providers'].values()))
+        self.assertEqual(auth_settings.validate(plain)['providers']['github']['client_id'], 'Iv1.abc')
+        on = auth_settings.file_form(auth_settings.validate({**VALID, 'manual_linking': True}))
+        self.assertEqual((on['version'], on['manual_linking']), (2, True))
+
+    def test_google_takes_a_tidy_list_of_client_ids_and_the_nonce_switch_is_for_apple_and_google(self):
+        google = {'enabled': True, 'client_id': 'a.apps.example, b.apps.example', 'secret': 's', 'url': ''}
+        self.assertEqual(auth_settings.validate({**VALID, 'providers': {'google': google}})['providers']['google']['client_id'],
+                         'a.apps.example,b.apps.example')
+        for bad in ('a,,b', 'a,', 'a b'):
+            with self.assertRaises(auth_settings.SettingsError):
+                auth_settings.validate({**VALID, 'providers': {'google': {**google, 'client_id': bad}}})
+        with self.assertRaises(auth_settings.SettingsError):
+            auth_settings.validate({**VALID, 'providers': {'github': {'enabled': True, 'client_id': 'a', 'secret': 's', 'skip_nonce_check': True}}})
 
 
 class StartTests(unittest.TestCase):

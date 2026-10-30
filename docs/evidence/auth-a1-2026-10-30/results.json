@@ -1,0 +1,34 @@
+{
+ "date": "2026-10-30",
+ "checkpoint": "A1 Sign In page keys, spaced saves, audit of changed names",
+ "base_commit": "8a32a431abfca05b2c2451db187f9d55151ef484",
+ "working_blobs": {
+  "lab/auth_settings.py": "e038a14fe2851d232e8c7c0d07945b7777030424",
+  "lab/test_auth_settings.py": "aff896c2275a9cd78adf757d77c72f9e52dbc149",
+  "lab/test_auth_config_registry.py": "3d39415d85913edaa95f8ca7a8db6678c05ba646",
+  "src/control/sign-in.ts": "7aafd0e9ea45d640d1175defa89209fa7140b507",
+  "src/control/auth-config.ts": "eda77a6f2b54425fa086948e675c24cf845bb5aa",
+  "src/control/auth-config-registry.json": "a2ba15e12f8b1acf34fb119389c5303a01dcadff",
+  "src/control/catalog.ts": "e8daceacfbdf34705afbe96221fcb69a6e373b96",
+  "tests/sign-in.test.ts": "2dcfe7c806f3d8ee6b122c1efbca8a06aff068eb",
+  "tests/auth-config.test.ts": "5a479d34edc05f642cf770584ad6dca72ad13939",
+  "ui/SignIn.tsx": "37c5ddce7c136ce7b5e73104db3fdc4380f6c215",
+  "docs/guides/sign-in.md": "a6dbcac3a55178f8274b1cd7fde700492e871a63",
+  "docs/guides/sign-in.ar.md": "19d71ce660f3bb9ee59a6edd7ba6021eb511d02b"
+ },
+ "key_verification": {
+  "SECURITY_MANUAL_LINKING_ENABLED": "STATIC: the pinned Auth binary (gotrue v2.197.0) carries the config field json:\"manual_linking_enabled\" split_words default false next to SecurityConfiguration, and an API guard requireManualLinkingEnabled. Behavior not probed.",
+  "EXTERNAL_<P>_SKIP_NONCE_CHECK and EXTERNAL_<P>_EMAIL_OPTIONAL": "NAME ONLY: taken from the pinned Studio bundle schema (EXTERNAL_AZURE_EMAIL_OPTIONAL appears there). The binary holds the words as other structures; no behavior probe. Treat as unverified until a live probe."
+ },
+ "checks": {
+  "bun test sign-in auth-config auth-workspace-ui": "19 pass",
+  "python unittest (lab/) docs, auth_settings, registry, mail_config, rolling, signing": "all OK",
+  "tsc control and ui": "ok"
+ },
+ "not_verified": [
+  "A live Auth with these variables (behavior of manual linking, nonce check, email optional)",
+  "Email provider switch, Phone, Web3 and Confirm email: deferred to A3 and A4 because they overlap mail.json or need an SMS provider",
+  "Network egress default deny (plan review finding 8) is still open: A6 live check"
+ ],
+ "review": "Independent read only review of A1: upgrade path clean; 8 items, all addressed: version 1 file shape kept until a new switch is on (rollback safe), negative clock never locks a save and Retry-After is sent, Google client IDs tidy list with no empty entry and larger cap, docs and changelog separate the confirmed manual linking name from the two unconfirmed names, audit changed list capped, comment fixed, nonce switch limited to apple and google in both validators, docs say the interval counts from the last state change."
+}

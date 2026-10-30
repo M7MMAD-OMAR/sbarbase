@@ -14,7 +14,7 @@ test('the workspace styles draw no borders or outlines around components',()=>{
   for(const declaration of code.matchAll(/(?:^|[{;\s])((?:border|outline)(?:-[a-z-]+)?)\s*:\s*([^;}]+)/g)) {
    const [,property,value]=declaration;
    // `border-radius` rounds a tone step; a reset to 0 and the keyboard focus ring are the only others.
-   const allowed=property==='border-radius'||(property==='border'&&value!.trim()==='0')||(property.startsWith('outline')&&/focus-visible/.test(code));
+   const allowed=property==='border-radius'||(property==='border'&&value!.trim()==='0')||(property!.startsWith('outline')&&/focus-visible/.test(code));
    if(!allowed)throw new Error(`auth-workspace.css:${index+1} draws ${property}: ${value}`);
   }
  }

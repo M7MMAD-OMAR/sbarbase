@@ -710,6 +710,8 @@ export class Catalog {
           // An access token or API key by its id, a query by its digest, a migration by its version.
           ((key==='token'||key==='key')&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value))||
           (key==='query'&&/^[0-9a-f]{16}$/.test(value))||(key==='version'&&/^[0-9]{14}$/.test(value))||
+          // The platform key names a sign-in save changed (values are never recorded).
+          (row.action==='sign_in.saved'&&key==='changed'&&/^[A-Z0-9_,]{1,2000}$/.test(value))||
           (row.action==='database.agent_migration'&&key==='name'&&/^[A-Za-z0-9_.-]{1,100}$/.test(value))))detail[key]=value;
       }
       const member=row.actor.startsWith('system')||!!this.db.query('SELECT 1 FROM memberships WHERE organization=? AND actor=?').get(organization,row.actor);
@@ -1022,13 +1024,14 @@ export class Catalog {
     return {runtime:job.runtime,revision:row?.revision??0,applied:row?.applied??null,
       state:(row?.state??'unconfigured') as SignInState['state'],failure:row?.failure??null,updatedAt:row?.updated_at??null};
   }
-  requestSignIn(actor:string,environment:string,revision:number):SignInState {
+  requestSignIn(actor:string,environment:string,revision:number,changed:string[]=[]):SignInState {
     return this.db.transaction(()=>{
       const current=this.signIn(actor,environment);
       this.db.query(`INSERT INTO auth_settings(runtime,revision,applied,state,failure,actor,updated_at) VALUES (?,?,NULL,'pending',NULL,?,?)
         ON CONFLICT(runtime) DO UPDATE SET revision=excluded.revision,state='pending',failure=NULL,actor=excluded.actor,
         updated_at=excluded.updated_at`).run(current.runtime,revision,actor,Date.now());
-      this.record(actor,'sign_in.saved',environment,{revision});
+      // Key names only, never values: the audit log must not hold a setting someone may treat as private.
+      this.record(actor,'sign_in.saved',environment,{revision,changed:changed.join(',')});
       return this.signIn(actor,environment);
     }).immediate();
   }

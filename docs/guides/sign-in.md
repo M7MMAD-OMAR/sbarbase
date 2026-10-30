@@ -22,13 +22,13 @@ On the **URL Configuration** page:
 - **Site URL:** your application's address, for example `https://app.example.com`. Auth sends people here after an email link or a sign-in when no other address is allowed.
 - **Redirect URLs:** one per line. `*` and `**` match parts of an address, so `https://app.example.com/**` allows every page of that site. Mobile apps can use their own scheme, such as `myapp://callback`.
 
-On **Sign In / Providers**, section **User signups**: **Allow new users to sign up** and **Allow anonymous sign-ins.**
+On **Sign In / Providers**, section **User signups**: **Allow new users to sign up**, **Allow manual linking** (people may link another sign-in method to their account) and **Allow anonymous sign-ins.**
 
 ## 3. Add a provider
 
 1. On **Sign In / Providers**, open the provider from the list and copy **Callback URL (for OAuth)**. It looks like `https://api.example.com/<environment>/auth/v1/callback`.
 2. In the provider's developer settings (for example GitHub → Settings → Developer settings → OAuth Apps), create an application and paste that callback address.
-3. Back in the provider's panel, turn on **Enable Sign in with ...**, then paste its **Client ID** and **Client secret**. Keycloak also needs its server address; Azure, GitLab and WorkOS take one when you run your own. Press **Done**.
+3. Back in the provider's panel, turn on **Enable Sign in with ...**, then paste its **Client ID** and **Client secret**. Keycloak also needs its server address; Azure, GitLab and WorkOS take one when you run your own. Press **Done**. Some providers show more switches: **Skip nonce checks** (Apple and Google) and **Allow users without an email**. Google takes a comma-separated list of client IDs. These two switches follow the names Supabase's own dashboard uses; they have not yet been confirmed against a running Auth, so test them with your provider before relying on them.
 4. Press **Save and apply** in the bar at the bottom of the page.
 
 In your application, sign in the usual way:
@@ -59,6 +59,8 @@ In the console, open the environment, then **Sign-in settings**. The page has a 
 
 One bar at the bottom of the page saves everything: it says when you have unsaved changes, **Discard** puts the page back to what is saved, and **Save and apply** saves and restarts this environment's Auth. The badge at the top shows **Applied**, **Applying…**, **Not applied** (with the reason) or **Default settings**.
 
+- Saves are spaced: a second save of the same environment within 10 seconds of its last state change (a save, or the end of an apply) is refused ("Wait a few seconds before saving again"), because each save restarts that environment's Auth.
+- The audit log lists the names of the settings a save changed (for example `SITE_URL` or `EXTERNAL_GITHUB_SECRET`), never their values.
 - A secret is never shown again: a saved one reads "Saved. Leave empty to keep it.".
 - Everything on the page belongs to this environment alone. Another environment's providers and secrets never appear here and cannot be read through it.
 - Only owners and admins see the page.

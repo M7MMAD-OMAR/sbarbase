@@ -65,7 +65,7 @@ test('the route is read only, owner and admin only, and each environment shows o
   const project=catalog.createProject('alice',org,'P');
   const first=catalog.createEnvironment('alice',project,'production'),second=catalog.createEnvironment('alice',project,'staging');
   for(let i=0;i<2;i++){const job=catalog.claimProvision()!;catalog.finishProvision(job.environment,job.claim!,true);}
-  const handler=signInHandler(catalog,async request=>request.headers.get('authorization'),directory);
+  const handler=signInHandler(catalog,async request=>request.headers.get('authorization'),directory,0);
   const url=(environment:string,leaf:string)=>`http://local/management/v1/environments/${environment}/${leaf}`;
   const get=(actor:string,environment:string,leaf='auth-config',method='GET')=>handler(new Request(url(environment,leaf),{method,headers:{authorization:actor}}));
   expect((await get('carol',first)).status).toBe(403);

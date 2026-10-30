@@ -22,13 +22,13 @@
 - **Site URL:** عنوان تطبيقك، مثل `https://app.example.com`. يرسل Auth الناس إليه بعد رابط البريد أو تسجيل الدخول إذا لم يُسمح بعنوان آخر.
 - **Redirect URLs:** عنوان في كل سطر. الرمزان `*` و`**` يطابقان أجزاء من العنوان، فالعنوان `https://app.example.com/**` يسمح بكل صفحات ذلك الموقع. تستطيع تطبيقات الجوال استخدام مخطط خاص بها، مثل `myapp://callback`.
 
-وفي **Sign In / Providers**، قسم **User signups**: **Allow new users to sign up** و**Allow anonymous sign-ins.**
+وفي **Sign In / Providers**، قسم **User signups**: **Allow new users to sign up** و**Allow manual linking** (يستطيع الناس ربط طريقة دخول أخرى بحسابهم) و**Allow anonymous sign-ins.**
 
 ## 3. أضف مزوّدًا
 
 1. في **Sign In / Providers** افتح المزوّد من القائمة وانسخ **Callback URL (for OAuth)**. يشبه `https://api.example.com/<environment>/auth/v1/callback`.
 2. في إعدادات المطوّرين عند المزوّد (مثلًا GitHub ← Settings ← Developer settings ← OAuth Apps) أنشئ تطبيقًا والصق ذلك العنوان.
-3. ارجع إلى لوحة المزوّد وفعّل **Enable Sign in with ...**، ثم الصق **Client ID** و**Client secret**. يحتاج Keycloak أيضًا إلى عنوان خادمه، ويقبل Azure وGitLab وWorkOS عنوانًا إذا كنت تشغّل خادمك الخاص. اضغط **Done**.
+3. ارجع إلى لوحة المزوّد وفعّل **Enable Sign in with ...**، ثم الصق **Client ID** و**Client secret**. يحتاج Keycloak أيضًا إلى عنوان خادمه، ويقبل Azure وGitLab وWorkOS عنوانًا إذا كنت تشغّل خادمك الخاص. اضغط **Done**. تعرض بعض المزوّدات مفاتيح إضافية: **Skip nonce checks** (Apple وGoogle) و**Allow users without an email**. ويقبل Google قائمة معرّفات عميل مفصولة بفواصل. هذان المفتاحان يتبعان الأسماء التي تستعملها لوحة Supabase نفسها ولم يُؤكَّدا بعد على Auth يعمل، فجرّبهما مع مزوّدك قبل الاعتماد عليهما.
 4. اضغط **Save and apply** في الشريط أسفل الصفحة.
 
 في تطبيقك، سجّل الدخول بالطريقة المعتادة:
@@ -59,6 +59,8 @@ await supabase.auth.signInWithOAuth({ provider: 'github', options: { redirectTo:
 
 شريط واحد أسفل الصفحة يحفظ كل شيء: يخبرك إن كانت لديك تغييرات غير محفوظة، و**Discard** يعيد الصفحة إلى المحفوظ، و**Save and apply** يحفظ ويعيد تشغيل Auth هذه البيئة. وتعرض الشارة في الأعلى **Applied** أو **Applying…** أو **Not applied** (مع السبب) أو **Default settings**.
 
+- الحفظ متباعد: يُرفض حفظ ثانٍ للبيئة نفسها خلال 10 ثوانٍ من آخر تغيّر في حالتها (حفظ أو انتهاء تطبيق) ("Wait a few seconds before saving again")، لأن كل حفظ يعيد تشغيل Auth تلك البيئة.
+- يسجّل سجل التدقيق أسماء الإعدادات التي غيّرها الحفظ (مثل `SITE_URL` أو `EXTERNAL_GITHUB_SECRET`) ولا يسجّل قيمها أبدًا.
 - السر لا يظهر مرة أخرى: المحفوظ يظهر بعبارة "Saved. Leave empty to keep it.".
 - كل ما في الصفحة يخص هذه البيئة وحدها. مزوّدو البيئات الأخرى وأسرارها لا تظهر هنا ولا يمكن قراءتها عبره.
 - لا يرى الصفحة إلا المالكون والمسؤولون.

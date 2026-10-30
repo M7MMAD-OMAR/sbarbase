@@ -6,9 +6,11 @@ import {signInErrors,type FieldErrors} from './settings-validation';
 import {ProviderIcon} from './ProviderIcon';
 import './auth-workspace.css';
 
-type Provider={enabled:boolean;client_id:string;secret_set?:boolean;secret?:string;url:string};
+type Provider={enabled:boolean;client_id:string;secret_set?:boolean;secret?:string;url:string;skip_nonce_check?:boolean;email_optional?:boolean};
+/** The providers whose sign-in accepts ID tokens with any nonce (the switch the cloud shows for them). */
+const NONCE_PROVIDERS=['apple','google'];
 type Session={access_token_seconds:number|null;timebox_seconds:number|null;inactivity_seconds:number|null};
-type Settings={site_url:string;redirect_urls:string[];signup:boolean;anonymous:boolean;session:Session;providers:Record<string,Provider>};
+type Settings={site_url:string;redirect_urls:string[];signup:boolean;anonymous:boolean;manual_linking:boolean;session:Session;providers:Record<string,Provider>};
 type State={state:'unconfigured'|'pending'|'applied'|'failed';revision:number;failure:string|null;callback_url:string;settings:Settings|null};
 
 /** The providers Auth offers, as people know them. `url` marks those that name their own server. */
@@ -18,7 +20,7 @@ export const PROVIDERS:Record<string,{label:string;url?:'optional'|'required'}>=
  kakao:{label:'Kakao'},keycloak:{label:'Keycloak',url:'required'},linkedin_oidc:{label:'LinkedIn'},notion:{label:'Notion'},
  slack_oidc:{label:'Slack'},spotify:{label:'Spotify'},twitch:{label:'Twitch'},twitter:{label:'X (Twitter)'},workos:{label:'WorkOS',url:'optional'},
  zoom:{label:'Zoom'}};
-const EMPTY:Settings={site_url:'http://localhost:3000',redirect_urls:[],signup:true,anonymous:false,
+const EMPTY:Settings={site_url:'http://localhost:3000',redirect_urls:[],signup:true,anonymous:false,manual_linking:false,
  session:{access_token_seconds:null,timebox_seconds:null,inactivity_seconds:null},providers:{}};
 type SessionText={token:string;timebox:string;inactivity:string};
 
@@ -52,7 +54,7 @@ function Switch({id,checked,disabled,label,hint,onChange}:{id:string;checked:boo
 
 /** An opened provider that was never filled in is not a saved provider. */
 function savedProviders(providers:Record<string,Provider>):Record<string,Provider>{
- return Object.fromEntries(Object.entries(providers).filter(([,entry])=>entry.enabled||entry.client_id||entry.secret||entry.secret_set||entry.url));
+ return Object.fromEntries(Object.entries(providers).filter(([,entry])=>entry.enabled||entry.client_id||entry.secret||entry.secret_set||entry.url||entry.skip_nonce_check||entry.email_optional));
 }
 
 /** The environment's Authentication settings: tabbed like the Supabase cloud's pages, one save bar, one state.
@@ -75,8 +77,8 @@ export function SignInSection({path,request}:{path:string;request:Api}){
  const fieldMessage=(id:string)=>fields[id]?<p id={id+'-error'} className="aw-error" role="alert">{fields[id]}</p>:null;
  /** What the person can change, as one string: the save bar is lit only when it differs from what loaded.
  * It counts the providers `savedProviders` would send, so opening one and closing it again is not a change. */
- const snapshot=(value:Settings,lines:string,lifetimes:SessionText)=>JSON.stringify([value.site_url,lines,value.signup,value.anonymous,lifetimes,
-  Object.entries(savedProviders(value.providers)).map(([name,entry])=>[name,entry.enabled,entry.client_id,entry.url,Boolean(entry.secret)]).sort()]);
+ const snapshot=(value:Settings,lines:string,lifetimes:SessionText)=>JSON.stringify([value.site_url,lines,value.signup,value.anonymous,value.manual_linking,lifetimes,
+  Object.entries(savedProviders(value.providers)).map(([name,entry])=>[name,entry.enabled,entry.client_id,entry.url,Boolean(entry.secret),Boolean(entry.skip_nonce_check),Boolean(entry.email_optional)]).sort()]);
  useEffect(()=>{
   if(!current)return;
   // A refresh of the same revision (polling a pending apply) must not wipe what the person is typing.
@@ -114,10 +116,10 @@ export function SignInSection({path,request}:{path:string;request:Api}){
    setTimeout(()=>document.getElementById(first)?.focus(),50);return;}
   setBusy(true);setError('');
   try {
-   const providers=Object.fromEntries(Object.entries(kept).map(([name,{enabled,client_id,secret,url}])=>
-    [name,{enabled,client_id,secret:secret??'',url}]));
+   const providers=Object.fromEntries(Object.entries(kept).map(([name,{enabled,client_id,secret,url,skip_nonce_check,email_optional}])=>
+    [name,{enabled,client_id:name==='google'?client_id.split(',').map(part=>part.trim()).join(','):client_id,secret:secret??'',url,skip_nonce_check:Boolean(skip_nonce_check),email_optional:Boolean(email_optional)}]));
    await request(path+'/sign-in','PUT',{base_revision:current?.revision,site_url:form.site_url.trim(),redirect_urls:redirects.split('\n').map(line=>line.trim()).filter(Boolean),
-    signup:form.signup,anonymous:form.anonymous,providers,
+    signup:form.signup,anonymous:form.anonymous,manual_linking:form.manual_linking,providers,
     session:{access_token_seconds:secondsOrNull(session.token),timebox_seconds:hoursOrNull(session.timebox),
      inactivity_seconds:hoursOrNull(session.inactivity)}});
    setOpen('');data.refresh();
@@ -139,6 +141,7 @@ export function SignInSection({path,request}:{path:string;request:Api}){
     <h4>User signups</h4>
     <div className="aw-group">
      <Switch id="allow-signup" checked={form.signup} disabled={busy} label="Allow new users to sign up" hint="If this is off, new users cannot sign up to your application." onChange={value=>setForm({...form,signup:value})}/>
+     <Switch id="allow-manual-linking" checked={form.manual_linking} disabled={busy} label="Allow manual linking" hint="Lets signed-in people link another sign-in method to their account." onChange={value=>setForm({...form,manual_linking:value})}/>
      <Switch id="allow-anonymous" checked={form.anonymous} disabled={busy} label="Allow anonymous sign-ins" hint="Lets people use your application before they create an account." onChange={value=>setForm({...form,anonymous:value})}/>
     </div>
     <h4>Auth providers</h4>
@@ -176,12 +179,14 @@ export function SignInSection({path,request}:{path:string;request:Api}){
   <div className="aw-drawer-head"><ProviderIcon name={open} label={meta.label}/><h3 id="aw-drawer-title">{meta.label}</h3><button type="button" className="aw-close" aria-label="Close" onClick={close}><X aria-hidden="true"/></button></div>
   <div className="aw-drawer-body">
    <Switch id={open+'-enabled'} checked={entry.enabled} disabled={busy} label={'Enable Sign in with '+meta.label} hint="Turns this provider on for this environment only." onChange={value=>provider(open,{enabled:value})}/>
-   <div className="aw-field"><label htmlFor={open+'-client'}>Client ID</label><input id={open+'-client'} maxLength={512} autoFocus aria-required={entry.enabled} {...field(open+'-client')} value={entry.client_id} onChange={event=>provider(open,{client_id:event.target.value})}/>{fieldMessage(open+'-client')}</div>
+   <div className="aw-field"><label htmlFor={open+'-client'}>{open==='google'?'Client IDs':'Client ID'}</label><input id={open+'-client'} maxLength={512} autoFocus aria-required={entry.enabled} {...field(open+'-client')} value={entry.client_id} onChange={event=>provider(open,{client_id:event.target.value})}/>{fieldMessage(open+'-client')}{open==='google'&&<p className="aw-hint">Comma-separated list of client IDs for Web, OAuth, Android apps, One Tap and Chrome extensions.</p>}</div>
    <div className="aw-field"><label htmlFor={open+'-secret'}>Client secret</label><input id={open+'-secret'} type="password" autoComplete="off" maxLength={4096} aria-required={entry.enabled&&!entry.secret_set} {...field(open+'-secret')} value={entry.secret??''}
     placeholder={entry.secret_set?'Saved. Leave empty to keep it.':''} onChange={event=>provider(open,{secret:event.target.value})}/>{fieldMessage(open+'-secret')}
     <p className="aw-hint">The secret stays on the server. It is never shown again.</p></div>
    {meta.url&&<div className="aw-field"><label htmlFor={open+'-url'}>Server address{meta.url==='optional'?' (optional)':''}</label>
     <input id={open+'-url'} type="url" maxLength={2048} aria-required={meta.url==='required'&&entry.enabled} {...field(open+'-url')} value={entry.url} onChange={event=>provider(open,{url:event.target.value})} placeholder="https://"/>{fieldMessage(open+'-url')}</div>}
+   {NONCE_PROVIDERS.includes(open)&&<Switch id={open+'-nonce'} checked={Boolean(entry.skip_nonce_check)} disabled={busy} label="Skip nonce checks" hint="Allows ID tokens with any nonce to be accepted, which is less secure. Useful when you cannot get the nonce used to issue the token, as on iOS." onChange={value=>provider(open,{skip_nonce_check:value})}/>}
+   <Switch id={open+'-email-optional'} checked={Boolean(entry.email_optional)} disabled={busy} label="Allow users without an email" hint="Lets a person sign in when this provider does not return an email address." onChange={value=>provider(open,{email_optional:value})}/>
    <div className="aw-field"><label htmlFor="callback">Callback URL (for OAuth)</label>
     <div className="aw-copy"><input id="callback" readOnly value={current?.callback_url??''}/><button type="button" className="aw-ghost" onClick={()=>void copy(current!.callback_url)}><Copy aria-hidden="true"/>Copy</button></div>
     <p className="aw-hint" role="status">{copied||'Register this address with '+meta.label+' for this environment.'}</p></div>

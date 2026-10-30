@@ -14,10 +14,11 @@ import auth_settings
 REGISTRY = json.loads((Path(__file__).resolve().parents[1] / 'src' / 'control' / 'auth-config-registry.json').read_text())
 E = 'e_' + 'c' * 24
 FULL = {'revision': 1, 'site_url': 'https://app.example.com', 'redirect_urls': ['https://app.example.com/**', 'myapp://cb'],
-        'signup': False, 'anonymous': True,
+        'signup': False, 'anonymous': True, 'manual_linking': True,
         'session': {'access_token_seconds': 1800, 'timebox_seconds': 7200, 'inactivity_seconds': 600},
         'providers': {name: {'enabled': True, 'client_id': 'id-' + name, 'secret': 'secret-' + name,
-                             'url': 'https://idp.example.com/' + name if meta['url'] != 'none' else ''}
+                             'url': 'https://idp.example.com/' + name if meta['url'] != 'none' else '',
+                             'skip_nonce_check': name in REGISTRY['nonce_providers'], 'email_optional': True}
                       for name, meta in REGISTRY['providers'].items()}}
 
 
@@ -58,6 +59,9 @@ class RegistryParityTests(unittest.TestCase):
             for field in REGISTRY['provider_fields']:
                 if field.get('only') == 'url' and meta['url'] == 'none':
                     self.assertNotIn(prefix + 'URL', self.config, name)
+                    continue
+                if field.get('only') == 'nonce' and name not in REGISTRY['nonce_providers']:
+                    self.assertNotIn(prefix + field['suffix'], self.config, name)
                     continue
                 variable = prefix + field['suffix']
                 self.assertIn(variable, self.config, variable)

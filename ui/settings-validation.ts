@@ -30,7 +30,9 @@ export function signInErrors(site:string,redirects:string,providers:Record<strin
  else if(addresses.some(address=>address.length>2048||/[\s\x00-\x1f,]/.test(address)||!/^[a-z][a-z0-9+.-]*:\/\//.test(address)))
   errors.redirects='Enter one address per line, up to 2048 characters each, with a scheme such as https:// or myapp:// and no spaces or commas.';
  for(const [name,entry] of Object.entries(providers)){
-  if(entry.client_id.length>512||/\s/.test(entry.client_id))errors[name+'-client']='Use at most 512 characters without spaces.';
+  const ids=name==='google'?entry.client_id.split(',').map(part=>part.trim()).join(','):entry.client_id;
+  if(name==='google'&&ids&&ids.split(',').includes(''))errors[name+'-client']='Separate client IDs with single commas, with no empty entry.';
+  else if(ids.length>(name==='google'?2048:512)||/\s/.test(ids))errors[name+'-client']=`Use at most ${name==='google'?2048:512} characters without spaces.`;
   else if(entry.enabled&&!entry.client_id)errors[name+'-client']='Enter a client ID for this enabled provider.';
   const secret=entry.secret??'';
   if(secret.length>4096||/\s/.test(secret))errors[name+'-secret']='Use at most 4096 characters without spaces.';

@@ -49,7 +49,9 @@ PROVIDERS = ('apple', 'azure', 'bitbucket', 'discord', 'facebook', 'figma', 'git
 PROVIDER_URL = {'azure': False, 'gitlab': False, 'keycloak': True, 'workos': False}
 MAX_REDIRECTS = 50
 # The file format this version reads. A file from a newer version is refused, never half read.
-VERSION = 1
+VERSION = 2
+# The only providers the nonce check applies to, as the cloud offers it.
+NONCE_PROVIDERS = ('apple', 'google')
 MAX_BYTES = 65536
 DEFAULT_PUBLIC_URL = 'http://localhost'
 # The session members a file may set, with their inclusive ranges in seconds.
@@ -60,7 +62,7 @@ SESSION_LIMITS = {'access_token_seconds': (60, 86400), 'timebox_seconds': (3600,
 # own settings, never a sign of drift.
 # GOTRUE_JWT_EXP and GOTRUE_SESSIONS_ are the session settings below: operator settings of that
 # environment, never drift.
-OWNED_PREFIXES = ('GOTRUE_EXTERNAL_', 'GOTRUE_SITE_URL', 'GOTRUE_URI_ALLOW_LIST', 'GOTRUE_DISABLE_SIGNUP',
+OWNED_PREFIXES = ('GOTRUE_EXTERNAL_', 'GOTRUE_SECURITY_MANUAL_LINKING_', 'GOTRUE_SITE_URL', 'GOTRUE_URI_ALLOW_LIST', 'GOTRUE_DISABLE_SIGNUP',
                   'API_EXTERNAL_URL', 'GOTRUE_JWT_EXP', 'GOTRUE_SESSIONS_')
 
 
@@ -94,17 +96,18 @@ def redirect_address(value):
 
 def validate(settings):
     """The settings as the file holds them, or SettingsError naming the first bad field."""
-    if not isinstance(settings, dict) or set(settings) - {'version', 'revision', 'site_url', 'redirect_urls', 'signup', 'anonymous',
+    if not isinstance(settings, dict) or set(settings) - {'version', 'revision', 'site_url', 'redirect_urls', 'signup', 'anonymous', 'manual_linking',
                                                           'providers', 'session'}:
         raise SettingsError('settings')
     version = settings.get('version', 1)
     if isinstance(version, bool) or not isinstance(version, int) or not 1 <= version <= VERSION:
         raise SettingsError('version')
     result = {'revision': settings.get('revision', 0), 'site_url': web_address(settings.get('site_url'), 'site_url'),
-              'signup': settings.get('signup', True), 'anonymous': settings.get('anonymous', False)}
+              'signup': settings.get('signup', True), 'anonymous': settings.get('anonymous', False),
+              'manual_linking': settings.get('manual_linking', False)}
     if not isinstance(result['revision'], int) or result['revision'] < 0:
         raise SettingsError('revision')
-    for field in ('signup', 'anonymous'):
+    for field in ('signup', 'anonymous', 'manual_linking'):
         if not isinstance(result[field], bool):
             raise SettingsError(field)
     redirects = settings.get('redirect_urls', [])
@@ -116,12 +119,22 @@ def validate(settings):
         raise SettingsError('providers')
     result['providers'] = {}
     for name, entry in sorted(providers.items()):
-        if not isinstance(entry, dict) or set(entry) - {'enabled', 'client_id', 'secret', 'url'}:
+        if not isinstance(entry, dict) or set(entry) - {'enabled', 'client_id', 'secret', 'url', 'skip_nonce_check', 'email_optional'}:
             raise SettingsError(name)
         enabled, client, secret, url = entry.get('enabled', False), entry.get('client_id', ''), entry.get('secret', ''), entry.get('url', '')
+        nonce, optional = entry.get('skip_nonce_check', False), entry.get('email_optional', False)
+        if not isinstance(nonce, bool) or not isinstance(optional, bool):
+            raise SettingsError(name)
         if not isinstance(enabled, bool) or not isinstance(client, str) or not isinstance(secret, str) or not isinstance(url, str):
             raise SettingsError(name)
-        if len(client) > 512 or len(secret) > 4096 or any(c.isspace() for c in client + secret):
+        if name == 'google':
+            # A list of client IDs: spaces around the commas are tidied, an empty entry is not allowed.
+            client = ','.join(part.strip() for part in client.split(',')) if client else client
+            if client and '' in client.split(','):
+                raise SettingsError(name)
+        if len(client) > (2048 if name == 'google' else 512) or len(secret) > 4096 or any(c.isspace() for c in client + secret):
+            raise SettingsError(name)
+        if nonce and name not in NONCE_PROVIDERS:
             raise SettingsError(name)
         if enabled and (not client or not secret):
             raise SettingsError(name)
@@ -131,7 +144,8 @@ def validate(settings):
             web_address(url, name)
         elif enabled and PROVIDER_URL.get(name):
             raise SettingsError(name)
-        result['providers'][name] = {'enabled': enabled, 'client_id': client, 'secret': secret, 'url': url}
+        result['providers'][name] = {'enabled': enabled, 'client_id': client, 'secret': secret, 'url': url,
+                                     'skip_nonce_check': nonce, 'email_optional': optional}
     # A file written before sessions existed, and a session object missing a member, both mean
     # every member is null: no such variable reaches the container.
     session = settings['session'] if 'session' in settings else {}
@@ -179,6 +193,19 @@ def load_applied(e):
     return validate(json.loads(read_private(file)))
 
 
+def file_form(settings):
+    """The settings as a file holds them. While none of the switches added with version 2 is on, the file
+    keeps the version 1 shape, so a build from before them still reads it (a rollback is not an outage)."""
+    plain = not settings.get('manual_linking') and not any(
+        entry.get('skip_nonce_check') or entry.get('email_optional') for entry in settings['providers'].values())
+    if not plain:
+        return {**settings, 'version': VERSION}
+    stripped = {key: value for key, value in settings.items() if key != 'manual_linking'}
+    stripped['providers'] = {name: {key: value for key, value in entry.items() if key not in ('skip_nonce_check', 'email_optional')}
+                             for name, entry in settings['providers'].items()}
+    return {**stripped, 'version': 1}
+
+
 def write_applied(e, settings):
     """Keeps the settings just applied, created private (mode 0600, never a link) and replaced in one step."""
     file = applied_path(e)
@@ -186,7 +213,7 @@ def write_applied(e, settings):
     pending.unlink(missing_ok=True)
     descriptor = os.open(pending, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
     with os.fdopen(descriptor, 'w') as handle:
-        handle.write(json.dumps(settings))
+        handle.write(json.dumps(file_form(settings)))
         handle.flush()
         os.fsync(handle.fileno())
     os.replace(pending, file)
@@ -216,6 +243,10 @@ def configuration(e, settings):
                    'GOTRUE_URI_ALLOW_LIST': ','.join(settings['redirect_urls']),
                    'GOTRUE_DISABLE_SIGNUP': 'false' if settings['signup'] else 'true',
                    'GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED': 'true' if settings['anonymous'] else 'false'})
+    # Off is Auth's own default, so only an enabled switch adds a variable: an environment saved before
+    # this setting existed keeps the very environment it had.
+    if settings.get('manual_linking'):
+        config['GOTRUE_SECURITY_MANUAL_LINKING_ENABLED'] = 'true'
     # A null member adds nothing, so a file without session settings yields the same dict as before.
     session = settings.get('session') or {}
     for name, variable in (('access_token_seconds', 'GOTRUE_JWT_EXP'), ('timebox_seconds', 'GOTRUE_SESSIONS_TIMEBOX'),
@@ -231,6 +262,10 @@ def configuration(e, settings):
                        prefix + 'SECRET': entry['secret'], prefix + 'REDIRECT_URI': external + '/callback'})
         if entry['url']:
             config[prefix + 'URL'] = entry['url']
+        if entry.get('skip_nonce_check'):
+            config[prefix + 'SKIP_NONCE_CHECK'] = 'true'
+        if entry.get('email_optional'):
+            config[prefix + 'EMAIL_OPTIONAL'] = 'true'
     return config
 
 

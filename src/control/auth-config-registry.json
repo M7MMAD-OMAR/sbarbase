@@ -36,6 +36,16 @@
    "owner": "auth"
   },
   {
+   "key": "SECURITY_MANUAL_LINKING_ENABLED",
+   "page": "providers",
+   "label": "Allow manual linking",
+   "type": "bool",
+   "from": "manual_linking",
+   "default": false,
+   "owner": "auth",
+   "evidence": "json tag manual_linking_enabled with default false in the pinned Auth binary (SecurityConfiguration)"
+  },
+  {
    "key": "DISABLE_SIGNUP",
    "page": "providers",
    "label": "Allow new users to sign up",
@@ -110,6 +120,21 @@
    "from": "url",
    "default": "",
    "only": "url"
+  },
+  {
+   "suffix": "SKIP_NONCE_CHECK",
+   "type": "bool",
+   "from": "skip_nonce_check",
+   "default": false,
+   "only": "nonce",
+   "evidence": "name from the pinned Studio bundle schema"
+  },
+  {
+   "suffix": "EMAIL_OPTIONAL",
+   "type": "bool",
+   "from": "email_optional",
+   "default": false,
+   "evidence": "name from the pinned Studio bundle schema (EXTERNAL_AZURE_EMAIL_OPTIONAL)"
   },
   {
    "suffix": "REDIRECT_URI",
@@ -194,5 +219,9 @@
    "label": "Zoom",
    "url": "none"
   }
- }
+ },
+ "nonce_providers": [
+  "apple",
+  "google"
+ ]
 }

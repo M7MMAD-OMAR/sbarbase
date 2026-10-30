@@ -3,7 +3,7 @@ import {chmodSync,mkdtempSync,readFileSync,renameSync,rmSync,statSync,symlinkSyn
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {Catalog} from '../src/control/catalog';
-import {readSettings,signInHandler,settingsFromInput,SettingsError} from '../src/control/sign-in';
+import {readSettings,signInHandler,settingsFromInput,SettingsError,changedKeys} from '../src/control/sign-in';
 
 const valid={site_url:'https://app.example.com',redirect_urls:['https://app.example.com/**','myapp://callback'],signup:true,anonymous:false,
  providers:{github:{enabled:true,client_id:'Iv1.abc',secret:'s3cret',url:''}}};
@@ -36,7 +36,7 @@ test('owners and admins save sign-in settings; the secret goes to a private file
  try {
   const org=catalog.createOrganization('alice','A');catalog.setMember('alice',org,'carol','viewer');
   const environment=catalog.createEnvironment('alice',catalog.createProject('alice',org,'P'),'production');
-  const handler=signInHandler(catalog,async request=>request.headers.get('authorization'),directory);
+  const handler=signInHandler(catalog,async request=>request.headers.get('authorization'),directory,0);
   const call=(actor:string,method='GET',body?:unknown)=>handler(new Request(`http://local/management/v1/environments/${environment}/sign-in`,
    {method,headers:{authorization:actor,'content-type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)}));
   expect((await call('alice')).status).toBe(409);
@@ -71,7 +71,7 @@ test('the three session lifetimes are saved, read back, and kept by a save that 
  try {
   const org=catalog.createOrganization('alice','A');
   const environment=catalog.createEnvironment('alice',catalog.createProject('alice',org,'P'),'production');
-  const handler=signInHandler(catalog,async request=>request.headers.get('authorization'),directory);
+  const handler=signInHandler(catalog,async request=>request.headers.get('authorization'),directory,0);
   const call=(method='GET',body?:unknown)=>handler(new Request(`http://local/management/v1/environments/${environment}/sign-in`,
    {method,headers:{authorization:'alice','content-type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)}));
   const job=catalog.claimProvision()!;catalog.finishProvision(environment,job.claim!,true);
@@ -125,7 +125,7 @@ test('a save made from an older page is refused, and a link or open file is not 
   const org=catalog.createOrganization('alice','A');
   const environment=catalog.createEnvironment('alice',catalog.createProject('alice',org,'P'),'production');
   const job=catalog.claimProvision()!;catalog.finishProvision(environment,job.claim!,true);
-  const handler=signInHandler(catalog,async request=>request.headers.get('authorization'),directory);
+  const handler=signInHandler(catalog,async request=>request.headers.get('authorization'),directory,0);
   const put=(body:unknown)=>handler(new Request(`http://local/management/v1/environments/${environment}/sign-in`,
    {method:'PUT',headers:{authorization:'alice','content-type':'application/json'},body:JSON.stringify(body)}));
   expect((await put({...valid,base_revision:0})).status).toBe(202);
@@ -152,7 +152,7 @@ test('a dangling link and a newer file version are refused, and the console says
   const environment=catalog.createEnvironment('alice',catalog.createProject('alice',org,'P'),'production');
   const job=catalog.claimProvision()!;catalog.finishProvision(environment,job.claim!,true);
   const runtime=catalog.getProvision('alice',environment).runtime;
-  const handler=signInHandler(catalog,async request=>request.headers.get('authorization'),directory);
+  const handler=signInHandler(catalog,async request=>request.headers.get('authorization'),directory,0);
   const call=(method='GET',body?:unknown)=>handler(new Request(`http://local/management/v1/environments/${environment}/sign-in`,
    {method,headers:{authorization:'alice','content-type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)}));
   const file=join(directory,runtime+'-auth.json');
@@ -161,11 +161,76 @@ test('a dangling link and a newer file version are refused, and the console says
   const refused=await call();
   expect(refused.status).toBe(409);expect((await refused.json() as {message:string}).message).toContain('cannot be read on the server');
   rmSync(file);
-  writeFileSync(file,JSON.stringify({...valid,version:2,revision:1}),{mode:0o600});
+  writeFileSync(file,JSON.stringify({...valid,version:3,revision:1}),{mode:0o600});
   expect(()=>readSettings(directory,runtime)).toThrow(SettingsError);
   expect((await call('PUT',valid)).status).toBe(409);
   rmSync(file);
   expect((await call('PUT',valid)).status).toBe(202);
-  expect(JSON.parse(readFileSync(file,'utf8')).version).toBe(1);
+  // No version 2 switch is on, so the file keeps the shape a build from before them reads.
+  const written=JSON.parse(readFileSync(file,'utf8'));
+  expect(written.version).toBe(1);expect('manual_linking' in written).toBe(false);expect('skip_nonce_check' in written.providers.github).toBe(false);
+ } finally {catalog.close();}
+});
+
+test('the audit lists the platform key names a save changed, never a value',async()=>{
+ const first=settingsFromInput({...valid,manual_linking:true},null);
+ const second=settingsFromInput({...valid,site_url:'https://b.example.com',manual_linking:false,
+  providers:{github:{enabled:true,client_id:'Iv1.abc',secret:'a-new-secret'},apple:{enabled:true,client_id:'x',secret:'y',skip_nonce_check:true}}},first);
+ const changed=changedKeys(first,second);
+ expect(changed).toEqual(['SITE_URL','SECURITY_MANUAL_LINKING_ENABLED','EXTERNAL_GITHUB_SECRET','EXTERNAL_APPLE_ENABLED','EXTERNAL_APPLE_CLIENT_ID',
+  'EXTERNAL_APPLE_SECRET','EXTERNAL_APPLE_SKIP_NONCE_CHECK']);
+ expect(JSON.stringify(changed)).not.toContain('a-new-secret');
+ expect(changedKeys(first,first)).toEqual([]);
+ // An omitted switch keeps what is saved, like the session lifetimes.
+ const kept=settingsFromInput({...valid,providers:{github:{enabled:true,client_id:'Iv1.abc',secret:''},apple:{enabled:true,client_id:'x',secret:''}}},second);
+ expect(kept.manual_linking).toBe(false);expect(kept.providers.apple!.skip_nonce_check).toBe(true);
+});
+
+test('saves of one environment are spaced, and the audit event carries the changed names only',async()=>{
+ const catalog=new Catalog(':memory:');
+ const directory=mkdtempSync(join(tmpdir(),'sign-in-'));
+ try {
+  const org=catalog.createOrganization('alice','A');
+  const environment=catalog.createEnvironment('alice',catalog.createProject('alice',org,'P'),'production');
+  const job=catalog.claimProvision()!;catalog.finishProvision(environment,job.claim!,true);
+  const handler=signInHandler(catalog,async request=>request.headers.get('authorization'),directory,60_000);
+  const put=(body:unknown)=>handler(new Request(`http://local/management/v1/environments/${environment}/sign-in`,
+   {method:'PUT',headers:{authorization:'alice','content-type':'application/json'},body:JSON.stringify(body)}));
+  expect((await put(valid)).status).toBe(202);
+  const again=await put({...valid,manual_linking:true});
+  expect(again.status).toBe(429);
+  const events=catalog.auditEvents('alice',org,50).filter(event=>event.action==='sign_in.saved');
+  expect(events.length).toBe(1);
+  const detail=JSON.stringify(events[0]);
+  expect(detail).toContain('EXTERNAL_GITHUB_SECRET');expect(detail).not.toContain('s3cret');
+ } finally {catalog.close();}
+});
+
+test('google takes a tidy list of client IDs, the nonce switch is for apple and google only, and a stepped back clock never locks a save out',async()=>{
+ const base={...valid,providers:{google:{enabled:true,client_id:'a.apps.example, b.apps.example',secret:'s'}}};
+ expect(settingsFromInput(base,null).providers.google!.client_id).toBe('a.apps.example,b.apps.example');
+ for(const id of ['a,,b','a,','a b'])expect(()=>settingsFromInput({...base,providers:{google:{enabled:true,client_id:id,secret:'s'}}},null)).toThrow(SettingsError);
+ expect(()=>settingsFromInput({...valid,providers:{github:{enabled:true,client_id:'a',secret:'s',skip_nonce_check:true}}},null)).toThrow(SettingsError);
+ expect(settingsFromInput({...valid,providers:{apple:{enabled:true,client_id:'a',secret:'s',skip_nonce_check:true}}},null).providers.apple!.skip_nonce_check).toBe(true);
+ // Any switch on writes the version 2 shape; changedKeys never grows without bound.
+ const many=Object.fromEntries(['apple','azure','bitbucket','discord','facebook','figma','github','gitlab','google','kakao','linkedin_oidc','notion','slack_oidc','spotify','twitch','twitter','zoom'].map(name=>[name,{enabled:true,client_id:'c',secret:'s'}]));
+ const big=settingsFromInput({...valid,providers:many},null);
+ expect(changedKeys(null,big).length).toBeLessThanOrEqual(61);
+
+ const catalog=new Catalog(':memory:');
+ const directory=mkdtempSync(join(tmpdir(),'sign-in-'));
+ try {
+  const org=catalog.createOrganization('alice','A');
+  const environment=catalog.createEnvironment('alice',catalog.createProject('alice',org,'P'),'production');
+  const job=catalog.claimProvision()!;catalog.finishProvision(environment,job.claim!,true);
+  const handler=signInHandler(catalog,async request=>request.headers.get('authorization'),directory,60_000);
+  const put=(body:unknown)=>handler(new Request(`http://local/management/v1/environments/${environment}/sign-in`,
+   {method:'PUT',headers:{authorization:'alice','content-type':'application/json'},body:JSON.stringify(body)}));
+  expect((await put(valid)).status).toBe(202);
+  const refused=await put(valid);
+  expect(refused.status).toBe(429);expect(Number(refused.headers.get('retry-after'))).toBeGreaterThan(0);
+  // The clock stepped back an hour: the row now looks like it was saved in the future.
+  const real=Date.now;Date.now=()=>real()-3_600_000;
+  try{expect((await put(valid)).status).toBe(202);}finally{Date.now=real;}
  } finally {catalog.close();}
 });
