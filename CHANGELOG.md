@@ -10,14 +10,20 @@ The declared package version is 0.9.2. Historical 0.1.0 and 0.2.0 entries retain
 
 ## [Unreleased]
 
+### Still open
+
+- **Purging a deleted environment is refused**, because nothing proves that only that environment wrote the shared PostgreSQL cluster and Storage objects; delete and restore are soft.
+
+## [0.10.2] - 2026-10-30
+
+### Added
+
+- **Walkthrough guides with screenshots.** New guides for the Authentication workspace (`docs/guides/authentication.md`), the Edge Functions workspace and a tour of every console section (`docs/guides/console-tour.md`), in English and Arabic, with screenshots of demo data.
+
 ### Changed
 
 - **Confirm email and the email limits no longer need custom SMTP.** They are sign-in settings now (`MAILER_AUTOCONFIRM`, `RATE_LIMIT_EMAIL_SENT`, `RATE_LIMIT_OTP`, `RATE_LIMIT_VERIFY`, `SMTP_MAX_FREQUENCY`, registry page `emails`), so they show and save with custom SMTP off, and turning custom SMTP off no longer resets them. `PUT /environments/{id}/smtp` still takes `confirm_email` and the four limits (a number sets one, `null` puts it back to the default, omitted keeps it) and now also accepts a body with only these and `enabled: false`; they are stored in the sign-in settings under one revision, and a first save creates those settings with the values Auth already runs with if none exist. A new mail file no longer carries them. **Upgrade:** a mail file written by an earlier version keeps deciding what the sign-in settings do not name, so no environment changes behaviour on upgrade; the first save from the page, or turning SMTP off, moves its values into the sign-in settings and out of the file. A form the page cannot hold (`30/1h`, `1h30m`) stays in the file. With nothing saved and no mail file, the page now shows Confirm email off, as the environment runs, instead of on. `lab/mail_config.py` accepts a file without these five keys. Live check (`lab/auth-names-check.py --only mail_settings`, [evidence](docs/evidence/settings-routes-2026-10-30/mail-settings-names.json)): through the sign-in settings with no mail file, Confirm email off left a new user unconfirmed, the hourly limit refused the second mail, and the minimum interval was sent as seconds and obeyed. The two 5 minute limits (sign-in emails, token verifications) showed no refusal on `/magiclink`, `/otp` or `/verify`, with or without a client address header, so their effect is not shown; they keep the names the mail file always used.
 - **One shared helper for the settings routes.** The SMTP, phone and email template routes use `src/control/settings-route.ts` for their path match, management check, stale page and spacing refusals, order of reading and writing, revision and error answers, and for private file reading and writing. URLs, statuses and messages are unchanged, except that a mail file that is not JSON answers 409 instead of 500, a file holding only `null` is refused instead of read as absent, and a first SMTP save creates the directory.
-
-### Still open
-
-- **Purging a deleted environment is refused**, because nothing proves that only that environment wrote the shared PostgreSQL cluster and Storage objects; delete and restore are soft.
 
 ## [0.10.1] - 2026-10-30
 
