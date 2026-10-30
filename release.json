@@ -1,9 +1,9 @@
 {
-  "version": "0.10.1",
+  "version": "0.10.2",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "Fixes found in review of 0.10.0: a refused phone or email template save no longer stays on disk, template bodies follow the Auth that is running, an SMTP host that is local or link-local is refused, and a function's output hides more forms of its secrets.",
-    "ar": "إصلاحات من مراجعة 0.10.0: حفظ مرفوض للهاتف أو قوالب البريد لم يعد يبقى على القرص، ونصوص القوالب تتبع Auth الجاري، ويُرفض مضيف SMTP المحلي أو المحلي الارتباط، وتخفي مخرجات الدالة صيغًا أكثر من أسرارها."
+    "en": "Confirm email and the email limits no longer need custom SMTP, the SMTP, phone and template routes share one helper, and new walkthrough guides with screenshots cover the Authentication workspace, Edge Functions and the console.",
+    "ar": "لم يعد Confirm email وحدود البريد يحتاجان إلى SMTP مخصص، وتشترك مسارات SMTP والهاتف والقوالب في مساعد واحد، وأدلة جديدة بلقطات شاشة تغطي مساحة المصادقة والدوال الطرفية واللوحة."
   },
   "migrations": []
 }
