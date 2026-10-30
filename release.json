@@ -1,9 +1,9 @@
 {
-  "version": "0.9.1",
+  "version": "0.9.2",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "Adds the live measurement of the upgrade features on a free CI runner: a plain restart 22.2 s of failed reads, the handover 7.2 s with none on the console, REST rolling none in 1826 s, the database window 3.4 s, a killed handover refused and fallen back at 29.8 s. One arm is inconclusive and says so.",
-    "ar": "يضيف القياس الحي لميزات الترقية على مشغّل CI مجاني: إعادة تشغيل عادية 22.2 ثانية، والتسليم 7.2 ثانية بلا فشل على وحدة التحكم، واستبدال REST بلا فشل في 1826 ثانية، ونافذة قاعدة البيانات 3.4 ثانية، وتسليم مقتول رُفض ورجع عند 29.8 ثانية. وفرع واحد غير حاسم ويقول ذلك."
+    "en": "Fixes OAuth sign-in on a real server: an environment with an enabled provider such as Google or GitHub now gets the outbound network its Auth needs to reach the provider, so sign-in no longer fails with a failed lookup of the provider's address.",
+    "ar": "يصلح تسجيل الدخول عبر OAuth على خادم حقيقي: صارت البيئة التي فعّلت مزوّدًا مثل Google أو GitHub تنال الشبكة الخارجية التي تحتاجها خدمة Auth للوصول إلى المزوّد، فلا يفشل الدخول ببحث فاشل عن عنوان المزوّد."
   },
   "migrations": []
 }
