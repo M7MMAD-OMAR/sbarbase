@@ -450,11 +450,3 @@ th,td{padding:12px}
 .search{max-width:none}
 }
 
-.config-rows{margin:0;display:grid;gap:0}
-.config-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:16px;padding:10px 0;border-top:1px solid var(--border)}
-.config-row dt{font-size:14px}
-.config-row dd{margin:0;font-size:14px;overflow-wrap:anywhere}
-.config-key{font-family:var(--mono-font);font-size:12px}
-.config-provider{border-top:1px solid var(--border);padding:8px 0}
-.config-provider summary{cursor:pointer;font-size:14px;padding:6px 0}
-@media (max-width:640px){.config-row{grid-template-columns:1fr;gap:4px}}

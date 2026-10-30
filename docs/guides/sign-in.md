@@ -2,7 +2,7 @@
 
 # Sign-in settings and OAuth providers
 
-Each environment has its own sign-in settings: where Auth sends people after they sign in or open an email link, who may sign up, and which providers (Google, GitHub, Apple and others) they can sign in with. Set them in the console: open the environment, then **Sign-in settings**, section **Sign-in**. Only owners and admins of the client see this section.
+Each environment has its own sign-in settings: where Auth sends people after they sign in or open an email link, who may sign up, and which providers (Google, GitHub, Apple and others) they can sign in with. Set them in the console: open the environment, then **Sign-in settings**. Only owners and admins of the client see this page.
 
 ## 1. Give the server its public address
 
@@ -17,16 +17,19 @@ Put HTTPS in front first ([server deployment](server-deployment.md)). Until this
 
 ## 2. Set where people land
 
+On the **URL Configuration** page:
+
 - **Site URL:** your application's address, for example `https://app.example.com`. Auth sends people here after an email link or a sign-in when no other address is allowed.
-- **Other allowed redirect addresses:** one per line. `*` and `**` match parts of an address, so `https://app.example.com/**` allows every page of that site. Mobile apps can use their own scheme, such as `myapp://callback`.
-- **Allow new users to sign up** and **Allow anonymous sign-ins.**
+- **Redirect URLs:** one per line. `*` and `**` match parts of an address, so `https://app.example.com/**` allows every page of that site. Mobile apps can use their own scheme, such as `myapp://callback`.
+
+On **Sign In / Providers**, section **User signups**: **Allow new users to sign up** and **Allow anonymous sign-ins.**
 
 ## 3. Add a provider
 
-1. Under **Sign-in providers**, copy the **callback address to give each provider**. It looks like `https://api.example.com/<environment>/auth/v1/callback`.
+1. On **Sign In / Providers**, open the provider from the list and copy **Callback URL (for OAuth)**. It looks like `https://api.example.com/<environment>/auth/v1/callback`.
 2. In the provider's developer settings (for example GitHub → Settings → Developer settings → OAuth Apps), create an application and paste that callback address.
-3. Back in the console, choose the provider, then paste its **client ID** and **client secret**. Keycloak also needs its server address; Azure, GitLab and WorkOS take one when you run your own.
-4. Press **Save and apply**.
+3. Back in the provider's panel, turn on **Enable Sign in with ...**, then paste its **Client ID** and **Client secret**. Keycloak also needs its server address; Azure, GitLab and WorkOS take one when you run your own. Press **Done**.
+4. Press **Save and apply** in the bar at the bottom of the page.
 
 In your application, sign in the usual way:
 
@@ -36,30 +39,36 @@ await supabase.auth.signInWithOAuth({ provider: 'github', options: { redirectTo:
 
 ## 4. Choose how long a session lasts
 
-Section **Session** sets three lifetimes. All three are optional, and an empty field means no cap: Auth sets no variable there, so the session does not end on that count. With all three empty, a person who signs in once stays signed in, which is what a store that never wants to log a buyer out wants.
+Page **Sessions** sets three lifetimes. All three are optional, and an empty field means no cap: Auth sets no variable there, so the session does not end on that count. With all three empty, a person who signs in once stays signed in, which is what a store that never wants to log a buyer out wants.
 
 | Field | What it sets | Empty means |
 |---|---|---|
-| **Access token lifetime (seconds)** | `GOTRUE_JWT_EXP`, how long one access token is valid | the pinned Auth default, 3600 seconds. The client refreshes it, so this does not sign anyone out |
-| **Signed in for at most (hours)** | `GOTRUE_SESSIONS_TIMEBOX`, the longest a session may live from the moment it started | no limit |
-| **Sign out after (hours) of inactivity** | `GOTRUE_SESSIONS_INACTIVITY_TIMEOUT`, the idle time before a session ends | no limit |
+| **Access token expiry time (seconds)** | `GOTRUE_JWT_EXP`, how long one access token is valid | the pinned Auth default, 3600 seconds. The client refreshes it, so this does not sign anyone out |
+| **Time-box user sessions (hours)** | `GOTRUE_SESSIONS_TIMEBOX`, the longest a session may live from the moment it started | no limit |
+| **Inactivity timeout (hours)** | `GOTRUE_SESSIONS_INACTIVITY_TIMEOUT`, the idle time before a session ends | no limit |
 
 A cap applies to sessions started after the change; a session already running keeps the lifetime it started with. The fields take whole numbers: hours for the two caps, seconds for the token.
 
-## See everything Auth is set to
+## The Authentication page
 
-Under **Sign-in settings**, **Authentication configuration** shows what this environment's Auth is set to, grouped like the Supabase cloud's pages: Sign In / Providers, URL Configuration and Sessions, then every provider with its client ID and its callback URL. It is read only for now; change settings in the form below it.
+In the console, open the environment, then **Sign-in settings**. The page has a menu on the left, like Supabase's Authentication pages:
 
-- A value you never saved is marked **default**.
-- A secret is never shown, only **Set (hidden)** or **Not set**.
-- It shows this environment alone. Another environment's providers and secrets never appear here, and cannot be read through it.
-- Only owners and admins see it.
+- **Sign In / Providers**: **User signups** (allow new users, allow anonymous sign-ins) and the list of **Auth providers**, each with its logo and an **Enabled** or **Disabled** badge. Opening a provider shows a panel with its switch, client ID, client secret, server address where the provider takes one, and the **Callback URL (for OAuth)** with a Copy button.
+- **URL Configuration**: **Site URL** and **Redirect URLs**.
+- **Sessions**: the three lifetimes.
 
-Editing every page of this view in the console, the way the cloud does, is planned in [the Authentication workspace plan](../engineering/plans/2026-10-30-auth-providers-workspace.md). Studio's own Authentication settings pages stay hidden by upstream design, so the console is where they are built.
+One bar at the bottom of the page saves everything: it says when you have unsaved changes, **Discard** puts the page back to what is saved, and **Save and apply** saves and restarts this environment's Auth. The badge at the top shows **Applied**, **Applying…**, **Not applied** (with the reason) or **Default settings**.
+
+- A secret is never shown again: a saved one reads "Saved. Leave empty to keep it.".
+- Everything on the page belongs to this environment alone. Another environment's providers and secrets never appear here and cannot be read through it.
+- Only owners and admins see the page.
+- The logos are local files of the console, never loaded from another site; their source and terms are in `ui/assets/providers/SOURCES.md`. Microsoft (Azure) and WorkOS show a letter instead of a logo.
+
+The remaining Authentication pages of the Supabase cloud (email templates and SMTP, rate limits, multi-factor, attack protection, audit logs) are planned in [the Authentication workspace plan](../engineering/plans/2026-10-30-auth-providers-workspace.md). Studio's own Authentication settings pages stay hidden by upstream design, so the console is where they are built.
 
 ## What happens when you save
 
-Saving recreates that environment's Auth with the new settings; other environments are not touched. Users, sessions and every row stay, because Auth keeps them in the environment's database. The section shows **Applying…**, then **Applied**. If Auth does not start with the new settings, the previous Auth keeps running and the section says **Not applied**.
+Saving recreates that environment's Auth with the new settings; other environments are not touched. Users, sessions and every row stay, because Auth keeps them in the environment's database. The badge at the top of the page shows **Applying…**, then **Applied**. If Auth does not start with the new settings, the previous Auth keeps running and the badge says **Not applied** with the reason; **Save and apply** stays available so you can retry.
 
 Saving is safe against two people at once and against a bad file:
 

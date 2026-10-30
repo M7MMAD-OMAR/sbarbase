@@ -1,0 +1,39 @@
+{
+ "date": "2026-10-30",
+ "checkpoint": "U0 tabbed Authentication page, provider logos, no border boxes",
+ "base_commit": "964733553b22aba97ade9fd4ea560aa94f883d62",
+ "working_blobs": {
+  "ui/SignIn.tsx": "b0e9b9554ea42a2ddc95a40dde2953792d742a2b",
+  "ui/ProviderIcon.tsx": "eb35f37d4d802e01e53f490b5f58a76082b9b0ed",
+  "ui/auth-workspace.css": "e7d5fd9b583e1cac1f266f41c4656e1e183cb2f0",
+  "ui/assets/providers/SOURCES.md": "261210ab64edf5afb532d99c2a3c03d5fc0ee6b5",
+  "ui/Connection.tsx": "20d2d5a490e4e6ace5bac57afd449f0830ec9270",
+  "ui/style.css": "b8fe6d128628594467366972c7249493e9aaefa9",
+  "tests/auth-workspace-ui.test.ts": "a3beb4cd1d6562f38d62b8fc2e0c99f5185e199a",
+  "docs/guides/sign-in.md": "318e1a3e81694f963d7601e1316f398e04a27938",
+  "docs/guides/sign-in.ar.md": "8a411771c43eea1d78f70e1b3d9b453d122acade"
+ },
+ "screenshots": {
+  "dark-desktop-providers.jpg": "dark, desktop width, provider list",
+  "light-desktop-drawer.jpg": "light, desktop width, Google panel",
+  "light-desktop-url-configuration.jpg": "light, URL Configuration page",
+  "dark-phone-failed-state.jpg": "dark, phone width 375, Not applied state with reason, tabs scroll sideways",
+  "dark-rtl-drawer.jpg": "dark, right to left, panel opens from the left and rows mirror",
+  "dark-desktop-failed-retry.jpg": "dark, Not applied state: Save and apply stays enabled to retry (after review fixes)"
+ },
+ "how_rendered": "The real SignInSection component rendered by a throwaway Vite page (removed afterwards) with a stub request returning a saved Google provider; not a running installation, so the save and apply path against a live Auth was not exercised here (its request code is unchanged; covered by tests/sign-in.test.ts and lab tests).",
+ "checks": {
+  "bun test tests/auth-workspace-ui.test.ts ui-contrast ui-client-boundaries ui-static sign-in": "18 pass",
+  "bun run typecheck:ui": "ok",
+  "bun run build:ui": "ok",
+  "dom checks after the fixes (harness, then removed)": "failed state keeps Save enabled; panel is role=dialog on a div; page inert while open; focus returns to the opener; opening and toggling a provider on then off is not a change",
+  "bun test auth-workspace-ui ui-contrast sign-in": "16 pass"
+ },
+ "not_verified": [
+  "Arabic text in the console (no translation layer exists; only the layout was mirrored)",
+  "Touch interaction on a real phone",
+  "Keyboard focus trap inside the panel (Escape closes it; focus is not trapped)",
+  "Contrast of the new tones was checked by eye and by the existing contrast test, which does not cover auth-workspace.css"
+ ],
+ "review": "Independent read only review found 10 items; fixed: retry after a failed apply, drawer is a div dialog (no global aside rules), inert page and focus return and scrim mousedown, dirty flag counts only providers that would be saved, invalid fields tint and a Needs attention badge, global hover and label and code rules neutralised, polling a pending apply no longer wipes edits (reset only on a new revision), docs wording, aria-required, Remove only for loaded entries, symmetric shadow."
+}

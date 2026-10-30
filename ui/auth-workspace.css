@@ -1,0 +1,90 @@
+/* Authentication workspace. No borders: surfaces differ by tone (page, pane, field) and by space.
+   Logical properties only, so the layout reads the same right to left. */
+.aw{display:grid;gap:16px;margin-block-end:96px}
+.aw button{border:0;box-shadow:none;border-radius:var(--radius);font-family:inherit}
+.aw input,.aw textarea{border:0;box-shadow:none;border-radius:var(--radius);background:var(--selected);color:var(--text);padding:8px 12px;min-height:var(--control);width:100%;font:inherit}
+.aw textarea{resize:vertical;line-height:20px}
+.aw input::placeholder,.aw textarea::placeholder{color:var(--subtle)}
+.aw input[readonly]{background:var(--hover);color:var(--muted)}
+.aw-top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.aw-top h2{margin:0 0 4px;font-size:18px}
+.aw-hint{margin:0;color:var(--subtle);font-size:13px;line-height:20px}
+.aw-lead{margin-block-end:20px}
+.aw-chip{flex:none;padding:4px 12px;border-radius:999px;background:var(--selected);color:var(--muted);font-size:12px;font-weight:500}
+.aw-chip.applied{background:var(--ok-bg);color:var(--ok-fg)}
+.aw-chip.failed{background:var(--error-bg);color:var(--danger-fg)}
+.aw-chip.pending{background:var(--notice-bg);color:var(--notice-fg)}
+.aw-layout{display:grid;grid-template-columns:220px minmax(0,1fr);gap:24px;align-items:start}
+.aw-nav{display:grid;gap:2px;position:sticky;top:16px}
+.aw-nav button{display:block;width:100%;text-align:start;padding:8px 12px;background:transparent;color:var(--muted);font-size:14px;font-weight:500;min-height:36px;justify-content:flex-start}
+.aw-nav button:hover{background:var(--hover);color:var(--text)}
+.aw-nav button.active{background:var(--selected);color:var(--text)}
+.aw-pane{background:var(--surface-2);border-radius:var(--radius-lg);padding:24px 28px;min-width:0}
+.aw-pane h3{margin:0 0 4px;padding:0;border:0;font-size:18px}
+.aw-pane h4{margin:28px 0 8px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--subtle)}
+.aw-group{display:grid;gap:2px;background:var(--surface);border-radius:var(--radius);padding:4px 0}
+.aw-row{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:14px 20px}
+.aw-row+.aw-row{background:linear-gradient(var(--hover),var(--hover)) top/100% 1px no-repeat}
+.aw-text label{font-size:14px;font-weight:500;color:var(--text)}
+.aw-text .aw-hint{margin-block-start:2px}
+.aw-switch{flex:none;position:relative;width:40px;height:22px;padding:0;min-height:22px;border-radius:999px;background:var(--control-border);cursor:pointer;transition:background .15s}
+.aw-switch span{position:absolute;inset-block-start:3px;inset-inline-start:3px;width:16px;height:16px;border-radius:50%;background:var(--surface);transition:inset-inline-start .15s}
+.aw-switch[aria-checked=true]{background:var(--accent-solid)}
+.aw-switch[aria-checked=true] span{inset-inline-start:21px}
+.aw-switch:disabled{opacity:.5;cursor:not-allowed}
+.aw-providers{list-style:none;margin:12px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px}
+.aw-provider{display:flex;align-items:center;gap:12px;width:100%;padding:12px 14px;background:var(--surface);color:var(--text);font-size:14px;font-weight:500;text-align:start;min-height:52px;cursor:pointer}
+.aw-provider:hover{background:var(--hover)}
+.aw-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.aw-badge{flex:none;padding:2px 8px;border-radius:999px;background:var(--selected);color:var(--subtle);font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.aw-badge.on{background:var(--ok-bg);color:var(--ok-fg)}
+.aw-icon{flex:none;display:grid;place-items:center;width:32px;height:32px;border-radius:8px;background:#ffffff}
+.aw-icon img{display:block}
+.aw-monogram{font-size:14px;font-weight:700;color:#3c3c3c}
+.aw-field{display:grid;gap:6px;margin-block-end:20px;max-width:560px}
+.aw-field label{font-size:14px;font-weight:500}
+.aw-error{margin:0;color:var(--danger-fg);font-size:13px}
+.aw-notice{margin:0 0 16px;padding:12px 14px;border-radius:var(--radius);background:var(--notice-bg);color:var(--notice-fg);font-size:13px}
+.aw-copy{display:flex;gap:8px}
+.aw-primary{background:var(--accent-solid);color:var(--accent-fg);padding:6px 16px;min-height:var(--button);font-weight:600;cursor:pointer}
+.aw-primary:hover:not(:disabled){background:var(--accent-solid-hover)}
+.aw-primary:disabled{opacity:.45;cursor:not-allowed}
+.aw-ghost{background:var(--selected);color:var(--text);padding:6px 14px;min-height:var(--button);cursor:pointer}
+.aw-ghost:hover:not(:disabled){background:var(--code-bg)}
+.aw-ghost:disabled{opacity:.45;cursor:not-allowed}
+.aw-danger{background:transparent;color:var(--danger-fg);padding:6px 10px;min-height:var(--button);cursor:pointer}
+.aw-danger:hover:not(:disabled){background:var(--error-bg)}
+.aw-savebar{position:sticky;inset-block-end:0;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 20px;border-radius:var(--radius-lg);background:var(--selected);box-shadow:0 8px 24px var(--shadow-strong)}
+.aw-savebar p{margin:0;font-size:13px;color:var(--muted)}
+.aw-actions{display:flex;gap:8px;flex:none}
+.aw-scrim{position:fixed;inset:0;z-index:20;background:#0000008c;display:flex;justify-content:flex-end}
+.aw-drawer{display:flex;flex-direction:column;width:min(480px,100%);height:100%;background:var(--surface);color:var(--text);box-shadow:0 0 32px var(--shadow-strong)}
+.aw-drawer-head{display:flex;align-items:center;gap:12px;padding:16px 20px;background:var(--surface-2)}
+.aw-drawer-head h3{flex:1;margin:0;padding:0;border:0;font-size:16px}
+.aw-close{background:transparent;color:var(--muted);padding:6px;min-height:32px;cursor:pointer}
+.aw-close:hover{background:var(--selected)}
+.aw-drawer-body{flex:1;overflow:auto;padding:12px 20px 24px}
+.aw-drawer-body .aw-row{padding-inline:0}
+.aw-drawer-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;background:var(--surface-2)}
+.aw :focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+@media (max-width:860px){
+ .aw-layout{grid-template-columns:1fr}
+ .aw-nav{position:static;display:flex;gap:4px;overflow-x:auto;padding-block-end:4px}
+ .aw-nav button{width:auto;white-space:nowrap}
+ .aw-pane{padding:20px 16px}
+ .aw-savebar{flex-direction:column;align-items:stretch}
+ .aw-actions{justify-content:flex-end}
+ .aw-providers{grid-template-columns:1fr}
+}
+
+/* Global rules in style.css that would otherwise leak into this workspace. */
+.aw label{margin:0}
+.aw code{border:0}
+.aw [aria-invalid=true]{background:var(--error-bg);color:var(--text)}
+.aw-badge.bad{background:var(--error-bg);color:var(--danger-fg)}
+.aw-primary:disabled:hover{background:var(--accent-solid)}
+.aw-ghost:disabled:hover{background:var(--selected)}
+.aw-switch:not([aria-checked=true]):hover{background:var(--control-border)}
+.aw-switch[aria-checked=true]:hover{background:var(--accent-solid)}
+.aw-nav button.active:hover{background:var(--selected)}
+.aw-nav button:not(.active):hover{background:var(--hover)}
