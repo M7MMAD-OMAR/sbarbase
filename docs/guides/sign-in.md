@@ -2,6 +2,8 @@
 
 # Sign-in settings and OAuth providers
 
+For a click by click walkthrough with screenshots of every page, see [Authentication in the console](authentication.md). This page is the reference.
+
 Each environment has its own sign-in settings: where Auth sends people after they sign in or open an email link, who may sign up, and which providers (Google, GitHub, Apple and others) they can sign in with. Set them in the console: open the environment, then **Sign-in settings**. Only owners and admins of the client see this page.
 
 ## 1. Give the server its public address
