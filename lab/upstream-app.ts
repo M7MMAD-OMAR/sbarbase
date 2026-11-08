@@ -1,6 +1,7 @@
 import {placementServices,resolveRuntimePlacement} from '../src/control/placement';
 import {publicUrl} from '../src/control/sign-in';
 import {storageCredentialIssuer} from '../src/control/storage-credentials';
+import {consolePort,localRequestOrigin} from '../src/http/local-server';
 import {readStorageCredentialPolicies} from '../src/control/storage-credentials-private';
 import {installedLifecycleAdmission} from '../src/control/lifecycle-recovery';
 import {LifecycleAuthorizationStore} from '../src/control/lifecycle-authority';
@@ -98,7 +99,13 @@ export function invitationAccounts(address:string|(()=>string),serviceRole:strin
   },
  };
 }
+/** Fixed TLS proxy destination; candidates keep a separate private MCP listener. */
+export function storageCredentialProxyOrigin(configuredPort:string|undefined,request:Request):string|undefined {
+ const port=consolePort(configuredPort),origin=port?`http://127.0.0.1:${port}`:undefined;
+ return origin&&localRequestOrigin(request)===origin?origin:undefined;
+}
 export function openUpstreamApplication() {
+ const storageProxyPort=process.env.SBARBASE_CONSOLE_PORT;
  const load=(path:string)=>JSON.parse(readFileSync(path,'utf8'));
  let key:Buffer|undefined;
  const studioSessionKey=()=>key??=studioKey('.secrets/upstream/studio-session.key');
@@ -158,6 +165,7 @@ export function openUpstreamApplication() {
   secret:runtime=>(readJsonCached('.secrets/upstream/runtime.json') as {environments:Record<string,{jwt:string}>}).environments[runtime]?.jwt,
   rate:(bucket,limit,windowMs)=>catalog.managementSecurity.rate(bucket,limit,windowMs),
   host:()=>new URL(publicUrl()).host,
+  proxyOrigin:request=>storageCredentialProxyOrigin(storageProxyPort,request),
  });
  const handler=application(catalog,keys,{get auth(){return managementAuth();},publishableKey:managementPublishableKey,
   anonymousToken:internalToken(secrets.management.jwt,'anon')},resolve,fetch,studioSessionKey,requests,undefined,

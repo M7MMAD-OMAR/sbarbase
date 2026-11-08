@@ -2,6 +2,10 @@ import {createServer,type ServerResponse} from 'node:http';
 import {connect,type Socket} from 'node:net';
 import {EventEmitter} from 'node:events';
 
+const listenerOrigins=new WeakMap<Request,string>();
+/** Transport-owned ingress origin. Host and forwarding headers cannot create it. */
+export const localRequestOrigin=(request:Request):string|undefined=>listenerOrigins.get(request);
+
 /** What the listener does with a WebSocket upgrade: connect it to host:port and send `head`,
  * or answer it with a status. */
 /** `onOpen` is called once the socket reaches its upstream; the function it returns is called when the socket closes (the Services page counts open sockets). */
@@ -175,12 +179,13 @@ export async function serveLocal(fetch:(request:Request)=>Response|Promise<Respo
  options:{host?:string;hostnames?:(name:string)=>boolean;upgrade?:Upgrade;isUpgrade?:(path:string)=>boolean;
   admit?:(source:string)=>boolean;requestTimeout?:number;flushMs?:number;stallMs?:number;headMs?:number}={}) {
  const bind=options.host??'127.0.0.1';
+ let listenerOrigin:string|undefined;
  if(options.admit&&options.upgrade)throw new Error('A source check needs a listener without upgrades');
  const fronted=!!options.upgrade||port!==0;
  // Behind a front the HTTP server listens on a private loopback port.
  const admit=options.admit,innerHost=fronted?'127.0.0.1':bind;
- // Behind a front with `admit`: the client's address for each loopback hop the front opened,
- // keyed by the hop's address and port as the inner server sees them.
+ // The client's address for every hop the front opened, keyed as the inner server
+ // sees it. This also proves ingress provenance for credential routes.
  const origins=new Map<string,string>();
  const source=(socket:Socket|undefined):string|undefined=>!socket?undefined
   :fronted?origins.get(`${plain(socket.remoteAddress)}:${socket.remotePort}`):socket.remoteAddress;
@@ -233,6 +238,7 @@ export async function serveLocal(fetch:(request:Request)=>Response|Promise<Respo
    const hasBody=!['GET','HEAD'].includes(method)&&framed;
    const request=new Request(target,{method,headers,signal:abort.signal,
     ...(hasBody?{body:requestBody(incoming),duplex:'half'}:{})} as RequestInit);
+   if(listenerOrigin&&(!fronted||socket&&origins.has(hopName(socket))))listenerOrigins.set(request,listenerOrigin);
    const response=await fetch(request);
    if(abort.signal.aborted){void response.body?.cancel().catch(()=>{});return;}
    // A small declared body the handler never read, as when admission refuses a REST call with
@@ -303,6 +309,7 @@ export async function serveLocal(fetch:(request:Request)=>Response|Promise<Respo
   // Behind a front, the HTTP server itself listens on a private loopback port.
   server.listen(fronted?0:port,innerHost,()=>{server.off('error',reject);resolve();});});
  const address=server.address();if(!address||typeof address==='string')throw new Error('Local listener address unavailable');
+ if(!fronted&&bind==='127.0.0.1')listenerOrigin=`http://127.0.0.1:${address.port}`;
  // A kept-alive connection is not closed when the drain starts: a request its client already
  // sent may be waiting, unread, in the connection. Through the grace every request is answered
  // with `connection: close` and its connection then closes. At the end of the grace the
@@ -330,13 +337,14 @@ export async function serveLocal(fetch:(request:Request)=>Response|Promise<Respo
  let front:Awaited<ReturnType<typeof frontListener>>;
  try {
   front=await frontListener(port,bind,innerHost,address.port,options.upgrade,options.isUpgrade??(()=>false),options.flushMs??PIPE_FLUSH_MS,
-   name=>['127.0.0.1','localhost',bind].includes(name)||!!options.hostnames?.(name),options.admit,admit?origins:undefined,options.stallMs,options.headMs);
+   name=>['127.0.0.1','localhost',bind].includes(name)||!!options.hostnames?.(name),options.admit,origins,options.stallMs,options.headMs);
  } catch(error) {
   // The port could not be taken: the inner server, listening already, must not stay behind.
   // Functions Storage and the Studio listener retry a failed bind every 2 s.
   server.closeAllConnections();server.close();
   throw error;
  }
+ if(bind==='127.0.0.1')listenerOrigin=`http://127.0.0.1:${front.port}`;
  answered=front.answered;
  return {port:front.port,connections:()=>front.connections(),
   /** The inner server's loopback port, for tests and diagnostics: nothing but the front should reach it. */
@@ -496,7 +504,8 @@ async function frontListener(port:number,bind:string,innerHost:string,inner:numb
  const hops=new WeakMap<Client,string>(),byHop=new Map<string,Client>();
  const hopOf=(socket:Client,http:Socket)=>{
   const hop=`${plain(http.localAddress)}:${http.localPort}`;hops.set(socket,hop);byHop.set(hop,socket);
-  http.once('close',()=>{if(byHop.get(hop)===socket)byHop.delete(hop);});
+  origins?.set(hop,socket.remoteAddress??'');
+  http.once('close',()=>{if(byHop.get(hop)===socket){byHop.delete(hop);origins?.delete(hop);}});
   return hop;
  };
  // Whether a complete request head arrived from the client since its last answer: such a
@@ -522,8 +531,7 @@ async function frontListener(port:number,bind:string,innerHost:string,inner:numb
    socket.on('data',keep);
    const http=connect(inner,innerHost,()=>{
     // Recorded before the first byte reaches the inner server, which checks it per request.
-    const hop=hopOf(socket,http);if(origins)origins.set(hop,socket.remoteAddress??'');
-    http.once('close',()=>origins?.delete(hop));
+    hopOf(socket,http);
     socket.off('data',keep);for(const chunk of early)http.write(chunk);
     pipe(socket,http);
    });

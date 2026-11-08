@@ -9,6 +9,8 @@ import {createGateway} from '../src/gateway/handler';
 import {application} from '../src/control/application';
 import {Catalog} from '../src/control/catalog';
 import {KeyStore} from '../src/control/keys';
+import {storageCredentialProxyOrigin} from '../lab/upstream-app';
+import {serveLocal,localRequestOrigin} from '../src/http/local-server';
 const ENV='e_0123456789abcdef01234567',OTHER='e_aaaaaaaaaaaaaaaaaaaaaaaa',NOW=1800000000;
 const ROLE='fanio_0123456789abcdef01234567_original_reader';
 const bootstrap=()=> 'sb_storage_refresh_'+randomBytes(32).toString('base64url');
@@ -156,4 +158,53 @@ test('bootstrap hashes cannot be shared across purposes or environments',()=>{
  const f=setup();
  for(const other of [{...f.record,purpose:'evidence',role:'fanio_0123456789abcdef01234567_evidence_runtime'},{...f.record,environment:OTHER,role:'fanio_aaaaaaaaaaaaaaaaaaaaaaaa_original_reader'}])expect(()=>validateStorageCredentialPolicies({version:1,credentials:[f.record,other]})).toThrow();
  const key=bootstrap();expect(validateStorageCredentialPolicies({version:1,credentials:[f.record,{...f.record,generation:'g2',secretSha256:hash(key)}]}).credentials).toHaveLength(2);
+});
+
+test('actual loopback TLS proxy shape uses only the exact configured listener and public authority',async()=>{
+ const f=setup();let origin:string|undefined;
+ f.options.proxyOrigin=()=>origin;
+ const server=Bun.serve({hostname:'127.0.0.1',port:0,fetch:request=>f.issue(request)});
+ origin=server.url.origin;
+ try {
+  const response=await fetch(`${origin}/${ENV}/storage-credentials/v1/originals`,{method:'POST',body:new ArrayBuffer(0),
+   headers:{authorization:'Bearer '+f.key,'x-forwarded-host':'issuer.fixture','x-forwarded-proto':'https'}});
+  expect(response.status).toBe(200);await response.body?.cancel();
+  const rejectedHeaders:Record<string,string>[]=[
+   {'x-forwarded-host':'other.fixture','x-forwarded-proto':'https'},
+   {'x-forwarded-host':'issuer.fixture','x-forwarded-proto':'http'},
+   {'x-forwarded-host':'issuer.fixture'},
+   {'x-forwarded-host':'issuer.fixture','x-forwarded-proto':'https','x-forwarded-host-invalid':'dropped'},
+  ];
+  for(const headers of rejectedHeaders) {
+   const request=f.request({url:`${origin}/${ENV}/storage-credentials/v1/originals`,headers:{host:new URL(origin).host,...headers}});
+   expect((await f.issue(request)).status).toBe(400);
+  }
+  expect((await f.issue(f.request({url:`http://127.0.0.1:1/${ENV}/storage-credentials/v1/originals`,headers:{host:'127.0.0.1:1','x-forwarded-host':'issuer.fixture','x-forwarded-proto':'https'}}))).status).toBe(400);
+  origin='http://remote.fixture';
+  expect((await f.issue(f.request({url:`${origin}/${ENV}/storage-credentials/v1/originals`,headers:{host:'remote.fixture','x-forwarded-host':'issuer.fixture','x-forwarded-proto':'https'}}))).status).toBe(400);
+ } finally {server.stop(true);}
+});
+
+
+test('fixed proxy admission uses actual ingress and rejects candidate or inner hops with forged Host',async()=>{
+ const f=setup();let configured:string|undefined;
+ f.options.proxyOrigin=request=>storageCredentialProxyOrigin(configured,request);
+ const probe=await serveLocal(()=>new Response('owned'));const port=probe.port;probe.stop(true);
+ const fixed=await serveLocal(request=>f.issue(request),port,{upgrade:()=>({ok:false,status:404,message:'none'})});
+ const candidate=await serveLocal(request=>f.issue(request),0,{upgrade:()=>({ok:false,status:404,message:'none'})});
+ configured=String(fixed.port);
+ try {
+  const headers={authorization:'Bearer '+f.key,'x-forwarded-host':'issuer.fixture','x-forwarded-proto':'https'};
+  for(const at of [candidate.port,candidate.innerPort,fixed.innerPort]){
+   expect(at).toBeNumber();
+   const response=await fetch(`http://127.0.0.1:${at}/${ENV}/storage-credentials/v1/originals`,{method:'POST',headers:{...headers,host:`127.0.0.1:${fixed.port}`}});
+   expect(response.status).toBe(400);await response.body?.cancel();
+  }
+  const accepted=await fetch(`http://127.0.0.1:${fixed.port}/${ENV}/storage-credentials/v1/originals`,{method:'POST',headers});
+  expect(accepted.status).toBe(200);await accepted.body?.cancel();
+  const synthetic=new Request(`http://127.0.0.1:${fixed.port}`);
+  expect(localRequestOrigin(synthetic)).toBeUndefined();expect(storageCredentialProxyOrigin(configured,synthetic)).toBeUndefined();
+  expect(storageCredentialProxyOrigin(undefined,synthetic)).toBeUndefined();expect(storageCredentialProxyOrigin('',synthetic)).toBeUndefined();
+  for(const value of ['0','1023','65536','8787/evil','8787@evil'])expect(()=>storageCredentialProxyOrigin(value,synthetic)).toThrow();
+ } finally {candidate.stop(true);fixed.stop(true);}
 });

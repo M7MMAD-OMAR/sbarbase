@@ -8,6 +8,8 @@ export type StorageIssuerOptions={
  secret:(environment:string)=>string|undefined;
  rate:(bucket:string,limit:number,windowMs:number)=>boolean;
  host:()=>string;
+ /** Exact local listener supplied by the host, never by request forwarding headers. */
+ proxyOrigin?:(request:Request)=>string|undefined;
  now?:()=>number;
 };
 const response=(status:number,message:string)=>Response.json({message},{status,headers:{'cache-control':'private, no-store','x-content-type-options':'nosniff'}});
@@ -19,7 +21,16 @@ export function storageCredentialIssuer(options:StorageIssuerOptions):StorageCre
    const url=new URL(request.url),match=url.pathname.match(/^\/(e_[a-f0-9]{24})\/storage-credentials\/v1\/([a-z][a-z0-9_-]{0,63})$/);
    if(!match)return response(404,'Unknown credential route');
    if(request.method!=='POST')return response(405,'Method not allowed');
-   if(url.host!==options.host()||request.headers.has('host')&&request.headers.get('host')!==url.host||url.search||request.headers.has('origin')||request.headers.has('sec-fetch-site')||request.body!==null)return response(400,'Invalid credential request');
+   const publicHost=options.host(),local=options.proxyOrigin?.(request);
+   let proxied=false;
+   if(local){
+    const listener=new URL(local);
+    proxied=listener.protocol==='http:'&&listener.hostname==='127.0.0.1'&&!listener.username&&!listener.password&&listener.pathname==='/'&&!listener.search&&!listener.hash&&
+     url.origin===listener.origin&&request.headers.get('host')===url.host&&request.headers.get('x-forwarded-host')===publicHost&&
+     request.headers.get('x-forwarded-proto')==='https'&&!request.headers.has('x-forwarded-host-invalid');
+   }
+   const direct=url.host===publicHost&&(!request.headers.has('host')||request.headers.get('host')===url.host);
+   if(!direct&&!proxied||url.search||request.headers.has('origin')||request.headers.has('sec-fetch-site')||request.body!==null)return response(400,'Invalid credential request');
    const authorization=request.headers.get('authorization');
    if(!authorization||!/^Bearer sb_storage_refresh_[A-Za-z0-9_-]{43}$/.test(authorization))return response(401,'Invalid storage credential');
    const hash=createHash('sha256').update(authorization.slice(7)).digest(),environment=match[1]!,purpose=match[2]!,at=now();
