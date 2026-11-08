@@ -1,9 +1,9 @@
 {
-  "version": "0.11.0",
+  "version": "0.11.1",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "Services page per environment, On demand mode for Edge Functions and Realtime, hints for unused services, and server capacity with a safe build cache cleanup.",
-    "ar": "صفحة Services لكل بيئة، ووضع On demand لـ Edge Functions وRealtime، وتلميحات للخدمات غير المستخدمة، وسعة الخادم مع تنظيف آمن لذاكرة البناء."
+    "en": "Add Fanio purpose-scoped Storage credential issuance and HTTP audience isolation. Native provisioning and data migration remain separate.",
+    "ar": "إضافة إصدار اعتمادات تخزين فانيو بحسب الغرض وعزل استخدامها عبر HTTP. تجهيز التخزين ونقل البيانات خطوتان منفصلتان."
   },
   "migrations": []
 }
