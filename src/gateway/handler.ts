@@ -122,11 +122,45 @@ export function createGateway(registry:RouteRegistry, transport:typeof fetch = f
   return async (request:Request):Promise<Response> => withCors(await handle(request),request);
 }
 
+const STORAGE_AUDIENCE='sbarbase:storage';
+/** Negative routing only. Decoding is not authentication: upstream still verifies
+ * the original signature, expiry and role. A reserved audience can only remove
+ * routes; it never substitutes for API-key verification or grants Storage access. */
+function bearerStorageScope(request:Request):'ordinary'|'storage'|'invalid' {
+  const authorization=request.headers.get('authorization');
+  if(!authorization)return 'ordinary';
+  if(!/^Bearer \S+$/i.test(authorization))return 'invalid';
+  const token=authorization.slice(7),parts=token.split('.');
+  // Preserve opaque ordinary tokens, including legacy dot-separated tokens.
+  // Only the reserved audience constrains routes. Bound every decode first.
+  if(parts.length===1)return 'ordinary';
+  if(token.length>8192)return 'invalid';
+  const payload=parts[1];
+  if(!payload)return 'ordinary';
+  if(payload.length>4096)return 'invalid';
+  const bytes=Buffer.from(payload,'base64url');
+  let text:string;
+  try {text=new TextDecoder('utf-8',{fatal:true}).decode(bytes);}
+  catch {return bytes.toString('utf8').includes(STORAGE_AUDIENCE)?'invalid':'ordinary';}
+  let value:unknown;
+  try {value=JSON.parse(text);}
+  catch {return text.includes(STORAGE_AUDIENCE)?'invalid':'ordinary';}
+  if(!value||typeof value!=='object'||Array.isArray(value))return 'ordinary';
+  const aud=(value as Record<string,unknown>).aud;
+  const reserved=aud===STORAGE_AUDIENCE||Array.isArray(aud)&&aud.includes(STORAGE_AUDIENCE);
+  if(!reserved)return 'ordinary';
+  if(parts.length!==3||!parts[0]||!parts[2]||!/^[A-Za-z0-9_-]+$/.test(payload)||bytes.toString('base64url')!==payload)return 'invalid';
+  return aud===STORAGE_AUDIENCE||Array.isArray(aud)&&aud.length===1?'storage':'invalid';
+}
+
 /** Shared gateway admission preserves public Auth, Storage and Function routes. */
 export function gatewayKeyAccess(request:Request,service:string,path:string,verifyKey:(key:string)=>KeyVerdict):Response|{apiKey:string|null;kind:'publishable'|'secret'|null;keylessFunction:boolean} {
   if(service==='functions'&&!FUNCTION_NAME.test(path.split('/')[1]??''))return error(404,'Function not found');
   if(service==='realtime'&&!(path==='/api/broadcast'&&request.method==='POST'))return error(404,'Unknown route');
   if(request.method==='OPTIONS')return {apiKey:null,kind:null,keylessFunction:false};
+  const scope=bearerStorageScope(request);
+  if(scope==='invalid')return error(401,'Invalid authorization');
+  if(scope==='storage'&&service!=='storage')return error(403,'Credential audience does not permit this service');
   const url=new URL(request.url);
   const apiKey = request.headers.get('apikey');
   const readMethod=request.method==='GET'||request.method==='HEAD';
@@ -155,6 +189,8 @@ export function gatewayKeyAccess(request:Request,service:string,path:string,veri
     if(!kind) return error(401,'Invalid API key');
     if(kind==='secret'&&looksLikeBrowser(request.headers)) return error(401,SECRET_IN_BROWSER);
   } else if(!publicStorageRead&&!browserAuthStep&&!keylessFunction) return error(401,'Invalid API key');
+  if(scope==='storage'&&(kind!=='publishable'||apiKey===null||matches(request.headers.get('authorization')!.slice(7),apiKey)))
+    return error(401,'A separate publishable API key is required');
   return {apiKey,kind,keylessFunction};
 }
 

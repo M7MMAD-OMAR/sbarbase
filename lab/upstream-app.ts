@@ -1,3 +1,7 @@
+import {placementServices,resolveRuntimePlacement} from '../src/control/placement';
+import {publicUrl} from '../src/control/sign-in';
+import {storageCredentialIssuer} from '../src/control/storage-credentials';
+import {readStorageCredentialPolicies} from '../src/control/storage-credentials-private';
 import {installedLifecycleAdmission} from '../src/control/lifecycle-recovery';
 import {LifecycleAuthorizationStore} from '../src/control/lifecycle-authority';
 import {readFileSync} from 'node:fs';
@@ -141,10 +145,24 @@ export function openUpstreamApplication() {
   // A Functions call without a key may wake the runtime only for a function its owner made public.
   publicFunction:(runtime:string,name:string)=>isPublicFunction('.lab/upstream/functions',runtime,name)};
  const database=new DirectDatabase();
+ const storageIssuer=storageCredentialIssuer({
+  policies:()=>readStorageCredentialPolicies('.secrets/upstream/storage-runtime-credentials.json'),
+  epoch:runtime=>{
+   if(!catalog.runtimeReady(runtime))return null;
+   const routing=catalog.runtimeRouting(runtime);
+   if(routing.maintenance)return null;
+   try{placementServices(resolveRuntimePlacement(runtime,routing));}catch{return null;}
+   const route=resolve(runtime);
+   return route?.enabled&&route.storage?catalog.runtimeEpoch(runtime):null;
+  },
+  secret:runtime=>(readJsonCached('.secrets/upstream/runtime.json') as {environments:Record<string,{jwt:string}>}).environments[runtime]?.jwt,
+  rate:(bucket,limit,windowMs)=>catalog.managementSecurity.rate(bucket,limit,windowMs),
+  host:()=>new URL(publicUrl()).host,
+ });
  const handler=application(catalog,keys,{get auth(){return managementAuth();},publishableKey:managementPublishableKey,
   anonymousToken:internalToken(secrets.management.jwt,'anon')},resolve,fetch,studioSessionKey,requests,undefined,
    invitationAccounts(managementAuth,internalToken(secrets.management.jwt,'service_role')),database,{tokens,loopback:()=>loopback},
-   {activity,onDemand:gate,memory:()=>{const memory=health().memory;return {availableBytes:memory.availableBytes,totalBytes:memory.totalBytes};}});
+   {activity,onDemand:gate,memory:()=>{const memory=health().memory;return {availableBytes:memory.availableBytes,totalBytes:memory.totalBytes};}},storageIssuer);
  const socket=realtimeUpgrade({
   route:catalogRealtimeRoute(catalog,resolve),
   verifyKey:(runtime,key)=>keys.resolve(runtime,key),

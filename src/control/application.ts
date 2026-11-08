@@ -25,6 +25,7 @@ import {developerSql,type SqlRunner} from './agent-sql';
 import {mcpEndpoint} from './mcp';
 import {publicUrl} from './sign-in';
 import {authAdminThrough} from './auth-admin';
+import type {StorageCredentialIssuer} from './storage-credentials';
 
 /** Access for agents and tools (docs/guides/agents.md): personal access tokens, the
  * Supabase-compatible API under /v1 and the MCP endpoint. Off when no token store is given. */
@@ -36,7 +37,7 @@ export type AgentOptions={tokens:AccessTokenStore;sql?:SqlRunner;loopback?:()=>s
  */
 export function application(catalog:Catalog,keys:KeyStore,realm:ManagementRealm,
  resolve:(runtime:string)=>EnvironmentRoute|undefined,transport:typeof fetch=fetch,studioKey?:()=>Buffer,
- requests=new RequestLog(),containers?:ContainerReader,accounts?:InvitationAccounts,direct?:DirectDatabase,agents?:AgentOptions,serviceOptions:ServicesOptions={}) {
+ requests=new RequestLog(),containers?:ContainerReader,accounts?:InvitationAccounts,direct?:DirectDatabase,agents?:AgentOptions,serviceOptions:ServicesOptions={},storageIssuer?:StorageCredentialIssuer) {
  const auth=new URL(realm.auth);
  if(!['http:','https:'].includes(auth.protocol)||auth.username||auth.password||auth.search||auth.hash||auth.pathname!=='/')
   throw new Error('Invalid management Auth endpoint');
@@ -128,6 +129,7 @@ export function application(catalog:Catalog,keys:KeyStore,realm:ManagementRealm,
  }
  return async(request:Request):Promise<Response>=>{
   const path=new URL(request.url).pathname;
+  if(/^\/e_[a-f0-9]{24}\/storage-credentials(?:\/|$)/.test(path))return storageIssuer?storageIssuer(request):reply(404,{message:'Unknown credential route'});
   if(path.startsWith('/management/auth/')) {
    if(!path.startsWith('/management/auth/v1/'))return reply(404,{message:'Unknown authentication route'});
    return login(request);
