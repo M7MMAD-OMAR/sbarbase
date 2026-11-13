@@ -1,5 +1,5 @@
 {
-  "version": "0.12.2",
+  "version": "0.12.3",
   "minimum_from": "0.3.1",
   "notes": {
     "en": "Borderless elevation, persistent navigation and direct environment switching; PGMQ ownership repair; capability discovery over API and MCP; signed, verified GitHub source release publication and website fixes. Supabase client and MCP packages updated. Container image upgrades remain subject to separate migration validation.",
