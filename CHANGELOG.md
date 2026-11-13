@@ -6,13 +6,27 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-The declared package version is 0.9.2. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
+The declared package version is 0.12.0. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
 
 ## [Unreleased]
 
 ### Still open
 
 - **Purging a deleted environment is refused**, because nothing proves that only that environment wrote the shared PostgreSQL cluster and Storage objects; delete and restore are soft.
+
+## [0.12.0] - 2026-11-13
+
+### Changed
+
+- Console surfaces use elevation colors without decorative borders. The desktop navigation scrolls independently, and mobile footer controls remain fixed. Organization, project and environment selectors support direct switching and protect undeployed Edge Function drafts.
+- The connection workspace loads on demand with a recoverable failure state. Original Supabase Studio stays a full page.
+- Supabase JS and Auth are pinned to 2.119.0 and the official MCP server to 0.17.0. Container image upgrades are not claimed by this release.
+
+### Fixed
+
+- PGMQ activation prepares its fixed schema and preserves database-local ownership through an upstream-derived read-only adapter. Shared server statistics remain denied. Capabilities are available at `GET /v1/capabilities` and MCP resource `sbarbase://capabilities`.
+- Website documentation images are served locally, and the missing Arabic Storage credential guide is included.
+- Signed source releases are published from verified draft downloads and checksums. Replays reconcile published assets; older stable tags cannot demote a newer published version from Latest.
 
 ## [0.11.0] - 2026-10-30
 

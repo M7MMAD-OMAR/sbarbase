@@ -1,3 +1,4 @@
+import {CAPABILITIES} from '../src/control/capabilities';
 import {useEffect,useRef,useState} from 'react';
 import type * as React from 'react';
 import {useData,type Api} from './api';
@@ -134,6 +135,12 @@ export function ServicesPage({path,request,go}:{path:string;request:Api;go:(sect
     {anyOnDemand&&<p className="aw-notice" role="status">The installation operator has turned On demand off for now. Services saved as On demand are kept running, and your choices are kept.</p>}
     {!current.canChange&&<p className="aw-hint svc-readonly">You can see these services. Owners and admins can change them.</p>}
     {tab==='overview'&&<>
+     <details className="aw-notice"><summary>Database extensions and supported features</summary>
+      <p className="aw-hint"><strong>pgmq:</strong> {CAPABILITIES.extensions.pgmq.activation} {CAPABILITIES.extensions.pgmq.prerequisite}</p>
+      <p className="aw-hint"><strong>Query Performance:</strong> {CAPABILITIES.extensions.pg_stat_statements.reason}</p>
+      <p className="aw-hint">These are platform capabilities. Installed extensions are listed in the selected environment's Studio.</p>
+      <a href={CAPABILITIES.documentation} target="_blank" rel="noreferrer">API and MCP documentation</a>
+     </details>
      <h3>Overview</h3><p className="aw-hint">What runs for this environment now, what it holds in memory and when it was last used.</p>
      <div className="aw-group svc-list">{ORDER.map(id=>{const service=byId(id);if(!service)return null;
       const onDemand=service.mode==='on_demand';

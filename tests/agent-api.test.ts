@@ -325,6 +325,10 @@ test('the MCP endpoint runs the official Supabase MCP server against this API, w
   };
   const init=await rpc('initialize',{protocolVersion:'2025-06-18',capabilities:{},clientInfo:{name:'test',version:'1'}});
   expect(init.status).toBe(200);expect(init.body.result.serverInfo).toBeDefined();
+  const resources=await rpc('resources/list',{},20);
+  expect(resources.body.result.resources[0].uri).toBe('sbarbase://capabilities');
+  const capability=await rpc('resources/read',{uri:'sbarbase://capabilities'},21);
+  expect(JSON.parse(capability.body.result.contents[0].text).extensions.pg_stat_statements.policy).toBe('blocked');
   const tools=await rpc('tools/list',{},2);
   const names=tools.body.result.tools.map((tool:any)=>tool.name);
   for(const name of ['list_projects','execute_sql','apply_migration','deploy_edge_function','get_project_url','get_publishable_keys'])expect(names).toContain(name);
@@ -407,4 +411,21 @@ test('through MCP: publishable keys, the logs tool this server answers, and no U
   const otherRuntime=s.catalog.getProvision('owner',other.environment).runtime!;
   expect(JSON.stringify(outside)).not.toContain(otherRuntime);
  } finally {server.stop(true);s.close();}
+});
+
+
+test('capability policy is authenticated, read-only and does not claim installed extension state',async()=>{
+ const s=setup();try{
+  expect((await s.api('invalid','GET','/v1/capabilities')).status).toBe(401);
+  const token=await s.mint({read_only:true});
+  const answer=await s.api(token,'GET','/v1/capabilities');
+  expect(answer.status).toBe(200);
+  const value=await answer.json();
+  expect(value.scope).toBe('installation-policy');
+  expect(value.workspace.gitBranches).toBe(false);
+  expect(value.extensions.pg_stat_statements.policy).toBe('blocked');
+  expect(value.extensions.pgmq.installed).toContain('does not report installed state');
+  expect(s.sqlCalls).toHaveLength(0);
+  expect((await s.api(token,'PUT','/v1/capabilities',{})).status).toBe(403);
+ }finally{s.close();}
 });

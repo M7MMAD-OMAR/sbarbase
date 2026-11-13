@@ -38,6 +38,7 @@ import mail_state
 import private_directories
 import kept_runtime
 import runtime_files
+import studio_extensions
 import rolling
 
 MAIL_KEY_PREFIXES = ('GOTRUE_SMTP_', 'GOTRUE_MAILER_', 'GOTRUE_RATE_LIMIT_')
@@ -939,6 +940,7 @@ class Runtime:
         self.wait_database()
         self.ensure_connection_capacity()
         self.hba_writer.ready(launched_cid,created=created)
+        studio_extensions.install(lab.docker, launched_cid, self.image('db')[1], OWNER)
         # Where direct database access connects (src/http/database-proxy.ts); the address changes only with the container.
         runtime_files.write_database(self.endpoint(DB, 5432).split('//')[1].split(':')[0], 5432, STATE)
         if self.sql("SELECT 1 FROM pg_roles WHERE rolname='storage_control';").stdout.strip() != '1':
@@ -1844,6 +1846,7 @@ DO $$ BEGIN
 END $$;
 ALTER PUBLICATION supabase_realtime OWNER TO {role};
 GRANT CREATE ON DATABASE {e} TO {role};
+{studio_extensions.prepare_sql(e)}
 {studio_identity_sql(e)}"""
 
     def database_preconditions(self, e):

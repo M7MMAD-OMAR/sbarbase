@@ -52,6 +52,7 @@ import image_identity
 import resource_policy
 import run as lab
 import runtime_files
+import studio_extensions
 import rolling
 import source_fence
 import write_pause
@@ -135,6 +136,7 @@ ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT ALL ON TABLES TO
 ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO anon, authenticated, service_role;
 {runtime.studio_identity_sql(e)}
+{studio_extensions.prepare_sql(e)}
 ALTER ROLE {role} LOGIN;
 """
 

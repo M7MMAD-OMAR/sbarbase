@@ -397,7 +397,7 @@ def plan_archive(source, body, original, stage):
             if len(tokens) > 5 and all(keyword(tokens[index], name) for index, name in ((2, 'IF'), (3, 'NOT'), (4, 'EXISTS'))):
                 position = 5
             supported = {'plpgsql', 'pgcrypto', 'uuid-ossp', 'citext', 'hstore', 'ltree', 'pg_trgm',
-                         'btree_gin', 'btree_gist', 'vector', 'pg_stat_statements', 'pgaudit'}
+                         'btree_gin', 'btree_gist', 'vector', 'pg_stat_statements', 'pgaudit', 'pgmq', 'supabase_vault'}
             if identifier(tokens[position]) not in supported:
                 raise PlanError('Archive extension has no classified restore worker contract')
         if len(tokens) >= 2 and keyword(tokens[0], 'CREATE') and keyword(tokens[1], 'SUBSCRIPTION'):

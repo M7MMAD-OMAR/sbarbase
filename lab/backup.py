@@ -879,8 +879,12 @@ def start_services(e):
         runtime = durable_runtime.Runtime()
         runtime.rest_deadlines(e, rewrite=True, end_sessions=True)
         runtime.sql(data_api.guard_sql(e), e)
+        # CREATE EXTENSION ran under the staged database name. Reconcile its
+        # database-local ownership after cutover, before Auth and REST resume.
+        runtime.sql(data_api.SAFE + durable_runtime.DEVELOPER_BOUNDS +
+                    durable_runtime.studio_extensions.prepare_sql(e), e)
     except Exception as error:
-        raise BackupError(f'The Data API setup of {e} could not be completed after the restore ({type(error).__name__}); '
+        raise BackupError(f'The database setup of {e} could not be completed after the restore ({type(error).__name__}); '
                           'Auth and REST stay stopped, and the next start of Sbarbase starts them') from None
     # The restored database brings the archive's Data API settings with it; the catalog decides
     # what is served (lab/data_api.py), so they are written again before REST starts.

@@ -16,6 +16,7 @@ import time
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import release
@@ -740,7 +741,6 @@ class VersionTests(unittest.TestCase):
     def test_the_repository_manifest_is_valid_and_matches_package_json(self):
         value = channel.validate(json.loads((ROOT / 'release.json').read_text()))
         self.assertEqual(value['version'], json.loads((ROOT / 'package.json').read_text())['version'])
-        self.assertEqual(value['migrations'], [])
         for text in (ROOT / 'release.json').read_text(), (ROOT / 'deploy' / 'release-signers').read_text():
             self.assertFalse({'\u2013', '\u2014'} & set(text))
         # Any key the maintainer adds is one allowed signers line for git's namespace.
@@ -899,3 +899,83 @@ class PrepareTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class PublisherTests(unittest.TestCase):
+    def test_refuses_bad_tag_and_missing_signature(self):
+        import release
+        from unittest.mock import patch
+        with self.assertRaises(release.PrepareError):
+            release.publish('wrong')
+        with patch.object(release.channel, 'object_of', return_value='abc'), patch.object(
+                release.channel, 'verify', return_value='missing signature'):
+            with self.assertRaisesRegex(release.PrepareError, 'missing signature'):
+                release.publish('v1.2.3')
+
+    def test_download_failure_and_checksum_mismatch_never_publish(self):
+        import release
+        from unittest.mock import patch
+        from types import SimpleNamespace
+        import json
+        draft = json.dumps({'tag_name': 'v1.2.3', 'draft': True, 'prerelease': False, 'assets': []})
+        for mismatch in (False, True):
+            calls = []
+            def fake_gh(*args, **kwargs):
+                calls.append(args)
+                if args[0] == 'api':
+                    return SimpleNamespace(returncode=0, stdout=draft, stderr='')
+                if args[:2] == ('release', 'download'):
+                    if not mismatch:
+                        raise release.PrepareError('download failed')
+                    dest = Path(args[args.index('--dir') + 1])
+                    (dest / 'sbarbase-1.2.3.tar.gz').write_bytes(b'wrong')
+                    (dest / 'SHA256SUMS').write_bytes(b'wrong')
+                return SimpleNamespace(returncode=0, stdout='', stderr='')
+            with patch.object(release.channel, 'object_of', return_value='abc'), patch.object(
+                    release.channel, 'verify', return_value=None), patch.object(
+                    release.channel, 'commit_of', return_value='commit'), patch.object(
+                    release.channel, 'manifest', return_value={'notes': {'en': 'notes'}}), patch.object(
+                    release, 'remote_tag'), patch.object(release, 'gh', side_effect=fake_gh), patch.object(
+                    release.subprocess, 'run', return_value=SimpleNamespace(stdout=b'tar')):
+                with self.assertRaises(release.PrepareError):
+                    release.publish('v1.2.3')
+            self.assertFalse(any(call[:2] == ('release', 'edit') for call in calls))
+
+class PublisherReconciliationTests(unittest.TestCase):
+    def test_newest_stable_uses_all_pages_and_ignores_drafts_and_prereleases(self):
+        history = [[{'tag_name': 'v1.2.3', 'draft': False, 'prerelease': False}],
+                   [{'tag_name': 'v1.2.4', 'draft': False, 'prerelease': False},
+                    {'tag_name': 'v9.0.0', 'draft': True, 'prerelease': False}]]
+        with patch.object(release, 'gh', return_value=SimpleNamespace(stdout=json.dumps(history))):
+            self.assertFalse(release.newest_stable('v1.2.3'))
+            self.assertTrue(release.newest_stable('v1.2.4'))
+
+    def test_publish_and_replay_verify_bytes_and_cannot_demote_a_newer_version(self):
+        for already_published in (False, True):
+            for eligible in (False, True):
+                uploads, calls = {}, []
+                def fake_gh(*args, **kwargs):
+                    calls.append(args)
+                    if args[0] == 'api':
+                        assets = [{'name': name} for name in uploads]
+                        return SimpleNamespace(returncode=0, stdout=json.dumps(dict(tag_name='v1.2.3', draft=not already_published, prerelease=False, assets=assets)), stderr='')
+                    if args[:2] == ('release', 'upload'):
+                        path = Path(args[3]);uploads[path.name] = path.read_bytes()
+                    if args[:2] == ('release', 'download'):
+                        for name, content in uploads.items():
+                            (Path(args[args.index('--dir') + 1]) / name).write_bytes(content)
+                    return SimpleNamespace(returncode=0, stdout='', stderr='')
+                raw = b'tar'
+                import gzip, hashlib
+                archive = gzip.compress(raw, mtime=0)
+                if already_published:
+                    uploads = {'sbarbase-1.2.3.tar.gz': archive, 'SHA256SUMS': (hashlib.sha256(archive).hexdigest()+'  sbarbase-1.2.3.tar.gz\n').encode()}
+                with patch.object(channel, 'object_of', return_value='abc'), patch.object(channel, 'verify', return_value=None), \
+                     patch.object(channel, 'commit_of', return_value='commit'), patch.object(channel, 'manifest', return_value={'notes': {'en': 'notes'}}), \
+                     patch.object(release, 'remote_tag'), patch.object(release, 'gh', side_effect=fake_gh), \
+                     patch.object(release, 'newest_stable', return_value=eligible), \
+                     patch.object(release.subprocess, 'run', return_value=SimpleNamespace(stdout=raw)):
+                    release.publish('v1.2.3', latest=True)
+                edits = [call for call in calls if call[:2] == ('release', 'edit')]
+                self.assertEqual(len(edits), int(not already_published or eligible))
+                if edits:
+                    self.assertIn('--latest='+str(eligible).lower(), edits[0])

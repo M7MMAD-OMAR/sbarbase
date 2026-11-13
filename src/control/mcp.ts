@@ -1,3 +1,4 @@
+import {CAPABILITIES} from './capabilities';
 import {createSupabaseMcpServer} from '@supabase/mcp-server-supabase';
 import {createSupabaseApiPlatform} from '@supabase/mcp-server-supabase/platform/api';
 import {createMcpHandler} from '@modelcontextprotocol/server';
@@ -42,7 +43,14 @@ export function mcpEndpoint(options:McpOptions) {
   // Two tools this server cannot answer: free ClickHouse log queries (get_logs, which it can, is
   // listed instead) and the health advisors on Supabase's v2 API.
   platform.debugging={...platform.debugging!,queryLogs:undefined,getHealthAdvisors:undefined};
-  return createSupabaseMcpServer({platform,readOnly:caller.token.read_only,features:MCP_FEATURES});
+  const server=createSupabaseMcpServer({platform,readOnly:caller.token.read_only,features:MCP_FEATURES});
+  server.registerCapabilities({resources:{}});
+  server.setRequestHandler('resources/list',async()=>({resources:[{uri:'sbarbase://capabilities',name:'Sbarbase capabilities',description:'Supported interfaces and extension policies, not live installed state.',mimeType:'application/json'}]}));
+  server.setRequestHandler('resources/read',async request=>{
+   if(request.params.uri!=='sbarbase://capabilities')throw new Error('Unknown Sbarbase resource');
+   return {contents:[{uri:'sbarbase://capabilities',mimeType:'application/json',text:JSON.stringify(CAPABILITIES)}]};
+  });
+  return server;
  },{legacy:'stateless'});
  return async(request:Request):Promise<Response>=>{
   const bearer=/^Bearer (\S+)$/i.exec(request.headers.get('authorization')??'')?.[1]??'';

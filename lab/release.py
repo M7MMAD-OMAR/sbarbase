@@ -11,6 +11,10 @@ how installations read and verify the result.
 """
 import argparse
 import contextlib
+import gzip
+import hashlib
+import tempfile
+from pathlib import Path
 import json
 import os
 import shutil
@@ -146,6 +150,105 @@ def prepare(version, notes_en, notes_ar, minimum_from=None, migrations=()):
             f'git push {channel.CANONICAL} HEAD:refs/heads/main refs/tags/{tag}']
 
 
+
+REPOSITORY = 'M7MMAD-OMAR/sbarbase'
+
+
+def gh(*args, check=True):
+    result = subprocess.run(['gh', *args], cwd=ROOT, capture_output=True, text=True, timeout=120)
+    if check and result.returncode:
+        raise PrepareError(f"gh {args[0]} failed: {result.stderr.strip()}")
+    return result
+
+
+def remote_tag(tag, oid):
+    result = channel.git('ls-remote', '--tags', '--refs', channel.CANONICAL,
+                         f'refs/tags/{tag}', network=True).stdout.strip()
+    if result != f'{oid}\trefs/tags/{tag}':
+        raise PrepareError('The canonical remote tag is missing or differs from the verified tag')
+
+
+def newest_stable(tag):
+    """Never demote a newer published stable version, including paginated history."""
+    pages = json.loads(gh('api', f'repos/{REPOSITORY}/releases', '--paginate', '--slurp').stdout)
+    if not isinstance(pages, list) or any(not isinstance(page, list) for page in pages):
+        raise PrepareError('Release history is unverifiable')
+    candidate = channel.tag_version(tag)
+    for page in pages:
+        for item in page:
+            if not isinstance(item, dict):
+                raise PrepareError('Release history is unverifiable')
+            version = channel.tag_version(item.get('tag_name', ''))
+            if not item.get('draft') and not item.get('prerelease') and version and not channel.parse(version)[3]:
+                if channel.key(version) > channel.key(candidate):
+                    return False
+    return True
+
+
+def publish(tag, latest=False):
+    version = channel.tag_version(tag)
+    if version is None:
+        raise PrepareError('Invalid release tag')
+    oid = channel.object_of('refs/tags/' + tag)
+    refusal = channel.verify(oid, name=tag)
+    if refusal:
+        raise PrepareError(refusal)
+    commit = channel.commit_of(oid)
+    manifest = channel.manifest(commit, tag)
+    remote_tag(tag, oid)
+    prerelease = bool(channel.parse(version)[3])
+    if latest and prerelease:
+        raise PrepareError('A prerelease cannot be marked latest')
+    with tempfile.TemporaryDirectory() as directory:
+        base = Path(directory)
+        name = f'sbarbase-{version}.tar.gz'
+        archive = base / name
+        raw = subprocess.run(['git', 'archive', '--format=tar', f'--prefix=sbarbase-{version}/', commit],
+                             cwd=ROOT, capture_output=True, check=True).stdout
+        with archive.open('wb') as out:
+            with gzip.GzipFile(filename='', mode='wb', fileobj=out, mtime=0) as zipped:
+                zipped.write(raw)
+        digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+        checksum = base / 'SHA256SUMS'
+        checksum.write_text(f'{digest}  {name}\n', encoding='utf-8')
+        expected = {name: archive.read_bytes(), checksum.name: checksum.read_bytes()}
+        view = gh('api', f'repos/{REPOSITORY}/releases/tags/{tag}', check=False)
+        if view.returncode:
+            if 'HTTP 404' not in view.stderr:
+                raise PrepareError('Could not inspect release: ' + view.stderr.strip())
+            gh('release', 'create', tag, '--repo', REPOSITORY, '--verify-tag', '--draft',
+               '--title', tag, '--notes', 'Source-only release. No binaries are provided.\n\n' + manifest['notes']['en'],
+               *(['--prerelease'] if prerelease else []))
+            view = gh('api', f'repos/{REPOSITORY}/releases/tags/{tag}')
+        release = json.loads(view.stdout)
+        if release.get('tag_name') != tag or type(release.get('draft')) is not bool or release.get('prerelease') is not prerelease:
+            raise PrepareError('Existing release is published or has conflicting metadata')
+        assets = release.get('assets')
+        if not isinstance(assets, list) or any(a.get('name') not in expected for a in assets):
+            raise PrepareError('Draft has unexpected assets; inspect it manually')
+        names = [a['name'] for a in assets]
+        if len(names) != len(set(names)):
+            raise PrepareError('Draft has duplicate asset names')
+        for asset in expected:
+            if asset not in names:
+                if not release['draft']:
+                    raise PrepareError('Published release is missing an expected asset; inspect it manually')
+                gh('release', 'upload', tag, str(base / asset), '--repo', REPOSITORY)
+        downloaded = base / 'download'
+        downloaded.mkdir()
+        gh('release', 'download', tag, '--repo', REPOSITORY, '--dir', str(downloaded))
+        if {p.name for p in downloaded.iterdir()} != set(expected):
+            raise PrepareError('Downloaded assets do not match the expected set')
+        for asset, content in expected.items():
+            if hashlib.sha256((downloaded / asset).read_bytes()).digest() != hashlib.sha256(content).digest():
+                raise PrepareError(f'Downloaded asset checksum mismatch: {asset}')
+        remote_tag(tag, oid)
+        mark_latest = latest and newest_stable(tag)
+        if release['draft'] or mark_latest:
+            gh('release', 'edit', tag, '--repo', REPOSITORY, '--draft=false',
+               '--latest=' + ('true' if mark_latest else 'false'))
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description='Prepare a Sbarbase release')
     sub = parser.add_subparsers(dest='command', required=True)
@@ -155,7 +258,17 @@ def main(argv=None):
     command.add_argument('--notes-ar', required=True)
     command.add_argument('--minimum-from')
     command.add_argument('--migration', action='append', default=[], help='a declared data migration (makes the release manual)')
+    publisher = sub.add_parser('publish')
+    publisher.add_argument('--tag', required=True)
+    publisher.add_argument('--latest', action='store_true')
     args = parser.parse_args(argv)
+    if args.command == 'publish':
+        try:
+            publish(args.tag, args.latest)
+        except (PrepareError, channel.ReleaseError, OSError, subprocess.SubprocessError, ValueError) as error:
+            print(str(error), file=sys.stderr)
+            return 1
+        return 0
     try:
         commands = prepare(args.version, args.notes_en, args.notes_ar, args.minimum_from, args.migration)
     except PrepareError as error:

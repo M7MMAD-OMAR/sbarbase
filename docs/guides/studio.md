@@ -71,3 +71,13 @@ Studio's Logs and Realtime pages expect Supabase's own platform services and sta
 A running Studio uses up to 768 MiB (Studio 512 MiB and postgres-meta 256 MiB). If the server lacks the room, Start fails with a message and nothing else is touched. Stop Studio when you are done.
 
 CI starts Studio on a clean machine with every change, uses the table list, SQL, users and buckets through it, checks every refusal above, and stops it ([evidence](../evidence/docker-studio-checks.json)).
+
+
+## Extension prerequisites on shared databases
+
+PGMQ activation needs its fixed `pgmq` schema and database-local ownership. The platform prepares the schema without enabling the extension. Its `lab/postgres/pgmq-after-create.sql` adapter retains the pinned upstream queue backup behavior and assigns extension objects to the environment developer. Startup installs it atomically as a root-owned 0444 file, reads back its checksum and permissions, and rechecks the exact container identity. It does not recreate the HBA-bound database container. Reopening Studio repairs existing pgmq 1.5.1 hosted-role ownership while retaining queues; unexpected versions or schemas are refused for operator review. See [agent capabilities](agents.md#discover-capabilities-before-changing-a-project).
+
+Query Performance requires shared server statistics and is unavailable on this shared topology. Enabling `pg_stat_statements` is deliberately refused. The console's Services page explains this restriction; the vendor Studio page is preserved unchanged.
+
+
+PGMQ 1.5.1 reconciliation is a declared manual migration. Review a backup before acknowledging the platform update. It retains existing queues and messages, makes ordinary queues independent logical-dump objects, and records queue discovery metadata as extension configuration data. The patched `pgmq.create(text)` still calls the native non-partitioned queue creator. Partitioned or custom queue creation paths are not covered by this backup qualification. Rolling back application code does not reverse database ownership or queue backup metadata changes.

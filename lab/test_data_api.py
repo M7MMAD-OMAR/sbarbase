@@ -1184,7 +1184,7 @@ class InPlaceRestoreTests(unittest.TestCase):
 
         class Fake:
             def sql(self, query, database='postgres', check=True):
-                order.append(('revoke' if query == scheduled_jobs.revoke_sql(E) else 'guard', database))
+                order.append(('revoke' if query == scheduled_jobs.revoke_sql(E) else 'extensions' if '$studio_extensions$' in query else 'guard', database))
 
             def rest_deadlines(self, e, rewrite=False, end_sessions=False):
                 order.append(('pin', e, rewrite, end_sessions))
@@ -1205,7 +1205,7 @@ class InPlaceRestoreTests(unittest.TestCase):
             backup.start_services(E)
         # REST stopped and its sessions ended with the pin before the guard, which they could hold up (found in
         # review); Scheduled jobs, off here, have the scheduler's rights taken back before the services start.
-        self.assertEqual(order, [('docker', 'stop'), ('pin', E, True, True), ('guard', E), ('data_api', E, False),
+        self.assertEqual(order, [('docker', 'stop'), ('pin', E, True, True), ('guard', E), ('extensions', E), ('data_api', E, False),
                                  ('revoke', E), ('docker', 'start')])
 
     def test_restore_does_not_start_rest_when_the_login_cannot_be_pinned(self):
@@ -1242,6 +1242,27 @@ class InPlaceRestoreTests(unittest.TestCase):
                 patch.object(durable_runtime, 'Runtime', NoGuard), self.assertRaisesRegex(backup.BackupError, 'stay stopped'):
             backup.start_services(E)
         self.assertEqual(started, ['stop', 'pin'])
+
+    def test_restore_does_not_start_services_when_extension_ownership_cannot_be_repaired(self):
+        import backup
+        started = []
+
+        class FailedExtensionRepair:
+            def sql(self, query, database='postgres', check=True):
+                if '$studio_extensions$' in query:
+                    self.outer.assertTrue(query.startswith(data_api.SAFE + durable_runtime.DEVELOPER_BOUNDS))
+                    self.outer.assertEqual(database, E)
+                    raise RuntimeError('catalog busy')
+
+            def rest_deadlines(self, *args, **kwargs):
+                pass
+        FailedExtensionRepair.outer = self
+        with patch.object(backup, 'require_service_images'), \
+                patch.object(backup, 'run', lambda command, *a, **k: started.append(command[1])), \
+                patch.object(durable_runtime, 'Runtime', FailedExtensionRepair), \
+                self.assertRaisesRegex(backup.BackupError, 'stay stopped'):
+            backup.start_services(E)
+        self.assertEqual(started, ['stop'])
 
     def test_restore_starts_services_even_when_the_settings_cannot_be_written(self):
         import backup

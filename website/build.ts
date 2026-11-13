@@ -1,6 +1,6 @@
 import {mkdir,cp,rm} from 'node:fs/promises';
 import {render} from './src/render';
-import {docs,diagrams,repoFile,sources} from './src/docs';
+import {docs,diagrams,images,repoFile,sources} from './src/docs';
 import {llms,llmsFull,changelogFeed} from './src/agents';
 import {SITE} from './src/layout';
 const out=(path:string)=>new URL(`./dist/${path}`,import.meta.url);
@@ -33,7 +33,7 @@ await Bun.write(out('llms-full.txt'),llmsFull(pages));
 const released=modified['CHANGELOG.md']||new Date().toISOString().slice(0,10);
 await Bun.write(out('docs/changelog/feed.xml'),changelogFeed('ar',released));
 await Bun.write(out('en/docs/changelog/feed.xml'),changelogFeed('en',released));
-for(const diagram of diagrams())await Bun.write(out(diagram),Bun.file(repoFile(diagram)));
+for(const asset of new Set([...diagrams(),...images()]))await Bun.write(out(asset),Bun.file(repoFile(asset)));
 // Every page, in both languages, with its alternate.
 const entry=(path:string,alternates:[string,string],lastmod='')=>`<url><loc>${SITE}${path}</loc>${lastmod?`<lastmod>${lastmod}</lastmod>`:''}<xhtml:link rel="alternate" hreflang="ar" href="${SITE}${alternates[0]}"/><xhtml:link rel="alternate" hreflang="en" href="${SITE}${alternates[1]}"/></url>`;
 const urls=[entry('/',['/','/en/'],homeModified),entry('/en/',['/','/en/'],homeModified),...pages.map(p=>entry(p.url,p.source.lang==='ar'?[p.url,p.other]:[p.other,p.url],modified[p.source.path]))];

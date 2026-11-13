@@ -2,23 +2,17 @@
 
 # Console design and local Studio preview
 
-Updated 2026-10-18. This record covers the console's design system, navigation and the disposable local Studio preview. It does not approve production deployment. See [deployment readiness](deployment-readiness.md).
+Updated 2026-11-13. This record covers the console's design system, navigation and the disposable local Studio preview. It does not approve production deployment. See [deployment readiness](deployment-readiness.md).
 
 ## Supabase design tokens and components
 
 The console uses Supabase's own design language. Its colours are the semantic tokens of the [Supabase UI package](https://github.com/supabase/supabase/tree/master/packages/ui) (`build/css/source/semantic.css` with `themes/light.css` and `themes/dark.css`, commit `7425d493`), resolved to literal values in `ui/style.css`. Buttons, inputs, text areas, cards, alerts, badges, tables and the focus ring follow the recipes of the upstream [Button](https://github.com/supabase/supabase/blob/master/packages/ui/src/components/Button/Button.tsx), [Input](https://github.com/supabase/supabase/blob/master/packages/ui/src/components/shadcn/ui/input.tsx), [Card](https://github.com/supabase/supabase/blob/master/packages/ui/src/components/shadcn/ui/card.tsx), [Alert](https://github.com/supabase/supabase/blob/master/packages/ui/src/components/shadcn/ui/alert.tsx), [Badge](https://github.com/supabase/supabase/blob/master/packages/ui/src/components/shadcn/ui/badge.tsx) and [Table](https://github.com/supabase/supabase/blob/master/packages/ui/src/components/shadcn/ui/table.tsx) components and the focus-ring and control-shadow utilities of `packages/config/css/utilities.css`, rewritten as plain CSS on the console's existing class names. No Supabase React component, Tailwind or Radix package is installed. The repository is Apache 2.0 and the `packages/ui` and `packages/config` packages declare MIT; the attribution and the MIT terms are in `NOTICE`.
 
-Text and surfaces keep Supabase's default contrast setting (0.5). Strokes use Supabase's own contrast setting raised to 0.75, and editable fields take the upstream hover stroke at rest, because at the default setting cards, fields and buttons blend into one grey. Some values differ from upstream for WCAG AA: the light theme's lightest text step is slightly darker, and the dark theme's destructive hover darkens instead of lightening so white text keeps 4.5:1. The small print on the sign-in art panel was also adjusted to 4.5:1.
+Surfaces use filled elevation colors without decorative borders, including fields, buttons, cards, table headers, alerts and environment tabs. A selected item receives a filled selected surface. Keyboard focus retains a 2px green outline and 2px offset. Text and focus tokens retain the existing contrast checks in both themes.
 
-What each element means:
+The desktop sidebar occupies the viewport height. Its navigation scrolls independently while workspace selectors and footer controls remain visible. Organization, project and environment have direct native selectors, with old requests aborted and results matched to the selected scope. Mobile selectors use separate columns without overlap.
 
-- **Primary action**: the solid green button, one at a time for the task in front of you. Other buttons use the raised default surface; destructive confirmations are solid red.
-- **Editable fields** are sunk, with a stroke of at least 3:1 against the card. **Read-only values** (tokens, keys, URLs, commands) are filled, monospace and have a quiet stroke, so they read as something to copy.
-- **Cards** have a header strip; the first heading of a section becomes it. A one-time secret panel has a green edge and header.
-- **Alerts** are warning (amber), destructive (red) and success (green), each with a coloured edge. Status badges use the same three colours.
-- **Focus** is a 2px ring with a 2px offset in the brand green, at least 3:1 against every surface.
-
-`tests/ui-contrast.test.ts` checks every text and boundary pair above in both themes. Desktop controls are 32px buttons and 34px fields; on phones, buttons stay at least 36px tall. Existing focus order, field errors, native select behaviour and the light, dark and system theme choice are unchanged.
+The environment connection workspace loads on demand behind a Suspense boundary inside the main content area. Sidebar controls remain mounted while that chunk loads. Build output and local switch timing are implementation evidence, not production performance claims.
 
 Projects are cards. Team and organization settings have separate sidebar entries. Environment pages separate Overview, Database connection, Sign-in settings, Services, Usage and API keys. Inactive environment sections unmount to stop their reads and polling. Switching sections discards unsaved drafts in those child forms; network retries within the same section preserve values. If permissions remove the active section, navigation falls back to Overview.
 
@@ -53,3 +47,8 @@ The three owned containers use an internal network, read-only root filesystems, 
 The console was checked with the existing Bun suite, UI typecheck, build, bilingual/link/reference checks and browser journeys. Browser checks include field validation, network retries, separated navigation, organization switching, mobile overflow and actual OS-visible counters. Native Studio table and SQL journeys use a separate browser run. Full installation acceptance and production readiness remain open.
 
 Workspace verification passed 362 Bun tests, UI types and a targeted typecheck of application sources and the new navigation tests. The broader control typecheck still reports 16 existing test typing errors. Browser verification covers scoped labels, signed cross-host switching, unavailable targets, literal untrusted names, failed-read retry and mobile overflow. It does not approve full installation or production.
+
+
+## November 2026 verification
+
+The isolated project workflow now checks direct selectors, keyboard focus, clearing old environment choices, borderless rendered surfaces, independent sidebar scrolling at a 600px viewport height, and mobile overflow in both light and dark themes. Run `SBAR_BROWSER_EXECUTABLE=/usr/bin/chromium-browser bun lab/project-workflow-browser.ts` after the UI build. It does not certify a production deployment. Current UI and control typechecks include the test sources; the historical typing limitations above no longer describe the current check.

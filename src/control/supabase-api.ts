@@ -1,3 +1,4 @@
+import {CAPABILITIES} from './capabilities';
 import {createHash} from 'node:crypto';
 import {existsSync,readdirSync,readFileSync,statSync} from 'node:fs';
 import {join,relative} from 'node:path';
@@ -291,6 +292,7 @@ export function supabaseApi(options:SupabaseApiOptions) {
    if(!organization)refuse(404,'Organization not found');
    return reply(200,{id:organization!.id,slug:organization!.id,name:organization!.name,plan:'free',allowed_release_channels:['ga'],opt_in_tags:[]});
   }
+  if(path==='/v1/capabilities'&&method==='GET')return reply(200,CAPABILITIES);
   if(path==='/v1/projects'&&method==='GET')return reply(200,directory(token).map(project));
   if(path==='/v1/projects'&&method==='POST'){
    const input=await json() as {name?:unknown;organization_slug?:unknown;organization_id?:unknown};

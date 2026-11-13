@@ -159,3 +159,19 @@ mkdir -p ~/.claude/skills/sbarbase && curl -fsSL https://raw.githubusercontent.c
 - One SQL call runs for at most 120 seconds and answers at most 5 MiB.
 - An agent's changes through the console's routes are recorded under your name; SQL and migrations also carry the token's id.
 - A migration applied by an agent gets the time it was applied as its version, as on Supabase, not the timestamp in the repository's file name. The history therefore does not match the repository's file names; it records what was applied and when.
+
+
+## Discover capabilities before changing a project
+
+Read `GET /v1/capabilities` with the same personal access token, or use MCP `resources/list` then `resources/read` with `uri: "sbarbase://capabilities"`. Both return the same versioned installation policy. They do not probe installed extensions, current service health, or token permissions. Every later operation still checks the token and membership.
+
+Projects contain environments with independent databases. Environments are not Git branches. Choose the organization, project and environment directly in the console sidebar. The original Supabase Studio remains a separate full page. Services > Overview explains extension restrictions and links here.
+
+For PGMQ, first apply the platform upgrade so the database uses the read-only ownership adapter, then restart Studio for the selected environment. Enable **pgmq** in Studio's Database > Extensions. SQL or MCP `execute_sql` may instead run `CREATE EXTENSION pgmq WITH SCHEMA pgmq;` using a writable owner/admin token. Confirm installation with `SELECT extname, extversion FROM pg_extension WHERE extname = 'pgmq';`. Queue operations run as that environment's developer role. When Studio reopens, the bounded platform provisioner reconciles pgmq 1.5.1 previously owned by the hosted postgres role, retaining existing queues and messages. An unexpected version or schema is refused for operator review.
+
+`pg_stat_statements` and `pg_stat_monitor` remain blocked because shared server statistics can expose neighboring environments. Upstream Studio's Query Performance screen therefore cannot work on this topology. Use per-environment request logs and the security advisor instead. Hosted billing, Git branching, ClickHouse SQL logs, hosted health advisors and GraphQL are not available. Do not attempt to bypass these restrictions with a shared administrator role.
+
+The PGMQ adapter preserves the pinned image's queue backup compatibility script and changes only its owner selection. `python3 lab/pgmq-check.py` exercises an isolated real postgres-meta request, restricted Studio identity, queue creation and send, drop/re-enable, sibling database denial and blocked shared statistics. It creates and removes only its own disposable containers and network.
+
+
+PGMQ 1.5.1 reconciliation is a declared manual migration. Review a backup before acknowledging the platform update. It retains existing queues and messages, makes ordinary queues independent logical-dump objects, and records queue discovery metadata as extension configuration data. The patched `pgmq.create(text)` still calls the native non-partitioned queue creator. Partitioned or custom queue creation paths are not covered by this backup qualification. Rolling back application code does not reverse database ownership or queue backup metadata changes.

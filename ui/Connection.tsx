@@ -37,6 +37,7 @@ export function Connection({environment,organization,request,onBack}:{environmen
  const [section,setSection]=useState('overview'),[functionsDirty,setFunctionsDirty]=useState(false);
  // Edits in the Edge Functions editor are not saved until they are deployed: leaving its section asks first.
  const leave=()=>!functionsDirty||window.confirm('You have Edge Functions changes that are not deployed. Leave and lose them?');
+ useEffect(()=>{const guard=(event:Event)=>{if(functionsDirty&&!window.confirm('You have Edge Functions changes that are not deployed. Leave and lose them?'))event.preventDefault();};window.addEventListener('sbarbase:before-navigate',guard);return()=>window.removeEventListener('sbarbase:before-navigate',guard);},[functionsDirty]);
  const sections=[{id:'overview',label:'Overview',Icon:LayoutGrid},...(canWrite?[{id:'database',label:'Database connection',Icon:Database},{id:'authentication',label:'Sign-in settings',Icon:Shield}]:[]),{id:'services',label:'Services',Icon:Layers},...(canWrite?[{id:'functions',label:'Edge Functions',Icon:Code2}]:[]),{id:'usage',label:'Usage',Icon:Activity},{id:'keys',label:'API keys',Icon:KeyRound}];
  const activeSection=sections.some(item=>item.id===section)?section:'overview';
  const info=useData<{apiPath:string;services:string[]}|undefined>(signal=>activeSection==='overview'?request(path+'/connection','GET',undefined,signal):Promise.resolve(undefined),[environment.id,request,activeSection]);

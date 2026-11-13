@@ -2,12 +2,12 @@
    an explicit choice on <html data-theme> overrides it in either direction.
    Colours are Supabase's semantic tokens (supabase/supabase packages/ui/build/css:
    semantic.css with themes/light.css and themes/dark.css) resolved to literal values.
-   Text and surfaces use Supabase's default contrast (0.5); strokes use Supabase's own
-   contrast knob at 0.75 so cards, fields and buttons stand apart. Sources, the
+   Text uses Supabase's semantic contrast. Surfaces use filled elevation without
+   decorative strokes; focus outlines remain visible. Sources, the
    resolution and every checked contrast pair: docs/reference/console-design.md. */
 :root{color-scheme:light;
---page:#fdfdfd;--rail:#fafafa;--surface:#ffffff;--surface-2:#f8f8f8;--hover:#f5f5f5;--selected:#ececec;
---field:#fbfbfb;--code-bg:#f5f5f5;--border:#dddddd;--border-strong:#c0c0c0;--control-border:#8c8c8c;--control-hover:#636363;
+--page:#fdfdfd;--rail:#f0f2f0;--surface:#ffffff;--surface-2:#f0f2f0;--hover:#f5f5f5;--selected:#ececec;
+--field:#e9ede9;--code-bg:#f5f5f5;--border:#dddddd;--border-strong:#c0c0c0;--control-border:#747474;--control-hover:#636363;
 --text:#030303;--muted:#4b4b4b;--subtle:#636363;
 --accent:#0e7e4e;--accent-solid:#0e7e4e;--accent-solid-hover:#007243;--accent-fg:#fafcfb;--accent-edge:#007243;--ring:#0e7e4e;--brand:#3fcf8e;
 --danger:#ab413e;--danger-hover:#9d3533;--danger-on:#fff9f8;--danger-fg:#ab413e;--danger-border:#f3b0a2;
@@ -20,7 +20,7 @@
 --art-topline:#41604b;--art-edition:#4e6a59;--art-heading:#1d3a29;--art-body:#4b6a57;
 --art-rule:#cfe0d4;--art-foot:#4b6a57}
 :root[data-theme=dark]{color-scheme:dark;
---page:#131413;--rail:#131413;--surface:#181a19;--surface-2:#1f2120;--hover:#232423;--selected:#2a2c2b;
+--page:#131413;--rail:#1a1d1a;--surface:#181a19;--surface-2:#1f2120;--hover:#232423;--selected:#2a2c2b;
 --field:#161716;--code-bg:#262827;--border:#363736;--border-strong:#4e4f4e;--control-border:#7a7b7a;--control-hover:#989a99;
 --text:#edefee;--muted:#bcbdbc;--subtle:#989a99;
 --accent:#4acd8b;--accent-solid:#006338;--accent-solid-hover:#076e43;--accent-fg:#edefee;--accent-edge:#2d7d59;--ring:#4acd8b;--brand:#3ecf8e;
@@ -34,7 +34,7 @@
 --art-topline:#98b0a1;--art-edition:#98b0a1;--art-heading:#e7f2e9;--art-body:#9bb3a3;
 --art-rule:#37503d;--art-foot:#97b1a0}
 @media(prefers-color-scheme:dark){:root:not([data-theme=light]){color-scheme:dark;
---page:#131413;--rail:#131413;--surface:#181a19;--surface-2:#1f2120;--hover:#232423;--selected:#2a2c2b;
+--page:#131413;--rail:#1a1d1a;--surface:#181a19;--surface-2:#1f2120;--hover:#232423;--selected:#2a2c2b;
 --field:#161716;--code-bg:#262827;--border:#363736;--border-strong:#4e4f4e;--control-border:#7a7b7a;--control-hover:#989a99;
 --text:#edefee;--muted:#bcbdbc;--subtle:#989a99;
 --accent:#4acd8b;--accent-solid:#006338;--accent-solid-hover:#076e43;--accent-fg:#edefee;--accent-edge:#2d7d59;--ring:#4acd8b;--brand:#3ecf8e;
@@ -65,11 +65,11 @@ strong{font-weight:600;color:var(--text)}
 .muted{color:var(--muted)}
 .small{font-size:13px}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-code{font-family:var(--mono-font);font-size:12.5px;color:var(--text);background:var(--code-bg);border:1px solid var(--border);border-radius:4px;padding:1px 5px;overflow-wrap:anywhere}
+code{font-family:var(--mono-font);font-size:12.5px;color:var(--text);background:var(--code-bg);border:0;border-radius:4px;padding:1px 5px;overflow-wrap:anywhere}
 
 /* Buttons: Supabase Button. Default is the raised control surface, primary is the solid
    brand plate, danger is the solid destructive plate. */
-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:var(--button);padding:5px 12px;border:1px solid var(--border-strong);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;font-weight:500;line-height:18px;cursor:pointer;white-space:nowrap;box-shadow:0 1px 2px var(--shadow)}
+button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:var(--button);padding:5px 12px;border:0;border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;font-weight:500;line-height:18px;cursor:pointer;white-space:nowrap;box-shadow:0 1px 2px var(--shadow)}
 button:hover{background:var(--hover);border-color:var(--control-border)}
 button:disabled{cursor:not-allowed;opacity:.5}
 button:disabled:hover{background:var(--surface);border-color:var(--border-strong)}
@@ -81,49 +81,50 @@ button.danger{background:var(--danger);border-color:var(--danger);color:var(--da
 button.danger:hover{background:var(--danger-hover);border-color:var(--danger-hover)}
 button.danger:disabled:hover{background:var(--danger);border-color:var(--danger)}
 button.secondary{background:var(--surface);border-color:var(--border-strong)}
-a.button{display:inline-flex;align-items:center;gap:6px;min-height:var(--button);padding:5px 12px;border:1px solid var(--accent-edge);border-radius:var(--radius);font-size:13px;font-weight:500;line-height:18px;text-decoration:none;white-space:nowrap}
+a.button{display:inline-flex;align-items:center;gap:6px;min-height:var(--button);padding:5px 12px;border:0;border-radius:var(--radius);font-size:13px;font-weight:500;line-height:18px;text-decoration:none;white-space:nowrap}
 a.button svg{width:16px;height:16px}
 a.button.secondary{background:var(--surface);border-color:var(--border-strong);color:var(--text);box-shadow:0 1px 2px var(--shadow)}
 a.button.secondary:hover{background:var(--hover);border-color:var(--control-border)}
 :focus-visible{outline:2px solid var(--ring);outline-offset:2px}
 input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
 
-/* Fields: Supabase Input and Textarea. Editable fields are sunk with a strong control
-   border; read-only values (tokens, URLs, commands) are filled, monospace and quiet, so
+/* Fields use filled surfaces. Read-only values (tokens, URLs, commands) are monospace and quiet, so
    they read as something to copy rather than to type into. */
-input,select,textarea{width:100%;min-height:var(--control);padding:7px 12px;border:1px solid var(--control-border);border-radius:var(--radius);background:var(--field);color:var(--text);font-size:14px;line-height:18px}
+input,select,textarea{width:100%;min-height:var(--control);padding:7px 12px;border:0;border-radius:var(--radius);background:var(--field);color:var(--text);font-size:14px;line-height:18px}
 input:hover,textarea:hover{border-color:var(--control-hover)}
 select{background:var(--surface);border-color:var(--control-border);cursor:pointer;padding-right:8px}
 select:hover{border-color:var(--control-hover)}
 input:disabled,select:disabled,textarea:disabled{opacity:.6;cursor:not-allowed}
 input::placeholder,textarea::placeholder{color:var(--subtle);opacity:1}
 textarea{min-height:88px;overflow-wrap:anywhere;resize:vertical;font-family:var(--mono-font);font-size:13px;line-height:1.55}
-input[readonly],textarea[readonly]{background:var(--code-bg);border-color:var(--border-strong);border-style:solid;color:var(--text);font-family:var(--mono-font);font-size:13px;cursor:text}
+input[readonly],textarea[readonly]{background:var(--code-bg);border-color:var(--border-strong);border-style:none;color:var(--text);font-family:var(--mono-font);font-size:13px;cursor:text}
 input[readonly]:hover,textarea[readonly]:hover{border-color:var(--border-strong)}
 input[type=checkbox],input[type=radio]{width:16px;height:16px;min-height:0;padding:0;accent-color:var(--accent-solid);cursor:pointer}
 input[aria-invalid="true"],textarea[aria-invalid="true"]{border-color:var(--danger-fg)}
 label{display:block;font-size:14px;font-weight:400;color:var(--muted);margin-bottom:8px}
 .field-error{color:var(--danger-fg);font-size:13px;margin:6px 0 14px;overflow-wrap:anywhere}
-fieldset{border:1px solid var(--border-strong);border-radius:var(--radius-lg);padding:4px 20px 20px;margin:0 0 20px;background:var(--surface);min-width:0;box-shadow:0 1px 2px var(--shadow)}
+fieldset{border:0;border-radius:var(--radius-lg);padding:4px 20px 20px;margin:0 0 20px;background:var(--surface);min-width:0;box-shadow:0 1px 2px var(--shadow)}
 legend{font-size:15px;font-weight:500;color:var(--text);padding:0 6px;margin-left:-6px}
 
 /* Shell: Supabase Studio's sidebar, top bar and page scaffold. */
 .app-shell{display:flex;min-height:100dvh}
-aside{width:240px;flex-shrink:0;border-right:1px solid var(--border);background:var(--rail);display:flex;flex-direction:column;padding:16px 12px;min-height:100dvh}
+aside{width:240px;flex-shrink:0;background:var(--rail);display:flex;flex-direction:column;padding:16px 12px;height:100dvh;position:sticky;top:0;overflow:hidden}
+aside nav[aria-label="Main"]{min-height:0;overflow-y:auto;overscroll-behavior:contain;flex:1}
+aside footer,aside>p.small{flex-shrink:0}
 aside>label{font-size:12px;font-weight:500;color:var(--subtle);padding:0 2px;margin:4px 0 6px}
 aside>select{margin-bottom:10px;min-height:var(--button);font-size:13px;font-weight:500}
 .workspace{min-width:0;flex:1;display:flex;flex-direction:column}
-header{height:48px;flex-shrink:0;border-bottom:1px solid var(--border);display:flex;gap:14px;align-items:center;padding:0 24px;color:var(--muted);background:var(--page);overflow:hidden}
+header{height:48px;flex-shrink:0;border:0;display:flex;gap:14px;align-items:center;padding:0 24px;color:var(--muted);background:var(--page);overflow:hidden}
 header span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 main{padding:32px 24px 48px;max-width:1200px;width:100%}
-.skip{position:absolute;left:10px;top:-60px;z-index:5;padding:10px 14px;background:var(--surface);color:var(--text);border:1px solid var(--border-strong);border-radius:var(--radius)}
+.skip{position:absolute;left:10px;top:-60px;z-index:5;padding:10px 14px;background:var(--surface);color:var(--text);border:0;border-radius:var(--radius)}
 .skip:focus{top:10px}
 .wordmark{display:flex;align-items:center;gap:8px;font-size:20px;font-weight:600;letter-spacing:-.02em;line-height:1.2;color:var(--text)}
 .wordmark img{flex-shrink:0;width:24px;height:28px;object-fit:contain}
 aside .wordmark{padding:0 4px;margin-bottom:20px}
 nav button{width:100%;justify-content:flex-start;border-color:transparent;background:transparent;box-shadow:none}
 .nav-group{display:flex;flex-direction:column;gap:2px}
-.nav-group+.nav-group{border-top:1px solid var(--border);margin-top:14px;padding-top:14px}
+.nav-group+.nav-group{border:0;margin-top:14px;padding-top:14px}
 .nav-group-label{font-size:11px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--subtle);margin:0 0 6px;padding:0 10px}
 .nav-group button{min-height:32px;padding:6px 10px;font-size:14px;font-weight:400;color:var(--muted);gap:10px}
 .nav-group button svg{color:var(--subtle)}
@@ -131,13 +132,13 @@ nav button{width:100%;justify-content:flex-start;border-color:transparent;backgr
 .nav-group button:hover svg{color:var(--text)}
 .nav-group button.selected{background:var(--selected);color:var(--text);font-weight:500}
 .nav-group button.selected svg{color:var(--text)}
-.new-organization{width:100%;justify-content:flex-start;margin-bottom:16px;border-style:dashed;box-shadow:none;background:transparent;color:var(--muted)}
+.new-organization{width:100%;justify-content:flex-start;margin-bottom:16px;border-style:none;box-shadow:none;background:transparent;color:var(--muted)}
 .new-organization:hover{color:var(--text)}
 aside .create-form{padding:12px;margin-bottom:12px}
 aside .form-row{flex-wrap:wrap}
 aside>p.small{margin:16px 2px 0;font-size:12px}
 footer{margin-top:auto;padding-top:20px;display:flex;flex-direction:column;gap:2px}
-footer p{border-top:1px solid var(--border);padding:12px 4px 4px;margin:6px 0 0;font-size:12px}
+footer p{border:0;padding:12px 4px 4px;margin:6px 0 0;font-size:12px}
 footer button{width:100%;justify-content:flex-start;background:transparent;border-color:transparent;box-shadow:none;color:var(--muted);font-weight:400;gap:10px}
 footer button:hover{background:var(--hover);border-color:transparent;color:var(--text)}
 .breadcrumb{display:flex;align-items:center;gap:8px;min-width:0;font-size:14px}
@@ -160,13 +161,13 @@ footer button:hover{background:var(--hover);border-color:transparent;color:var(-
 .search input{padding-left:34px}
 
 /* Cards: Supabase Card / Studio form panel. The first heading becomes the panel header. */
-.details,.create-form,.new-key{position:relative;padding:20px;border:1px solid var(--border-strong);border-radius:var(--radius-lg);background:var(--surface);margin-bottom:20px;box-shadow:0 1px 2px var(--shadow)}
-.details>h2:first-child,.details>.section-heading:first-child{margin:-20px -20px 20px;padding:14px 20px;border-bottom:1px solid var(--border);background:var(--surface-2);border-radius:var(--radius-lg) var(--radius-lg) 0 0;font-size:15px}
+.details,.create-form,.new-key{position:relative;padding:20px;border:0;border-radius:var(--radius-lg);background:var(--surface);margin-bottom:20px;box-shadow:0 1px 2px var(--shadow)}
+.details>h2:first-child,.details>.section-heading:first-child{margin:-20px -20px 20px;padding:14px 20px;border:0;background:var(--surface-2);border-radius:var(--radius-lg) var(--radius-lg) 0 0;font-size:15px}
 .details>h2:first-child{display:flex;align-items:center;gap:8px}
 .details>h2:first-child svg{width:18px;height:18px;color:var(--muted)}
 .details>.section-heading:first-child h2{margin:0}
 .section-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
-.details h3{font-size:14px;font-weight:500;margin:28px 0 12px;padding-top:20px;border-top:1px solid var(--border)}
+.details h3{font-size:14px;font-weight:500;margin:28px 0 12px;padding-top:20px;border:0}
 .details>h3:first-child,.details>.page-heading:first-child h2{margin-top:0;padding-top:0;border-top:0}
 .details>p:last-child,.details>div:last-child>p:last-child{margin-bottom:0}
 .details label{margin-top:18px}
@@ -181,10 +182,10 @@ footer button:hover{background:var(--hover);border-color:transparent;color:var(-
 label+.form-row,.form-row:first-child{margin-top:0}
 .form-row input{min-width:0}
 .form-row .primary{flex-shrink:0}
-.actions{margin-top:24px;padding-top:16px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap}
+.actions{margin-top:24px;padding-top:16px;border:0;display:flex;gap:8px;flex-wrap:wrap}
 .check{display:flex;align-items:center;gap:10px;margin:16px 0 0;color:var(--text);font-size:14px;cursor:pointer}
 .check input{width:16px;margin:0;flex-shrink:0}
-.provider{border:1px solid var(--border-strong);border-radius:var(--radius);padding:16px;margin:0 0 12px;background:var(--surface)}
+.provider{border:0;border-radius:var(--radius);padding:16px;margin:0 0 12px;background:var(--surface)}
 .provider .form-row{justify-content:space-between;flex-wrap:wrap;margin-top:0}
 .provider .form-row .check{margin:0}
 .keys-section{margin-top:36px}
@@ -200,7 +201,7 @@ label+.form-row,.form-row:first-child{margin-top:0}
 
 /* The one-time secret panel (new API key, new access token): a brand edge so it is the
    first thing on the page, with its values as read-only code fields. */
-.new-key{border-color:var(--ok-border);box-shadow:0 0 0 1px var(--ok-border),0 4px 12px var(--shadow)}
+.new-key{border-color:var(--ok-border);box-shadow:0 4px 12px var(--shadow)}
 .details.new-key>h2:first-child{background:var(--ok-bg);border-bottom-color:var(--ok-border);color:var(--text)}
 .details.new-key>h2:first-child svg{color:var(--ok-icon)}
 .new-key textarea{margin-bottom:0}
@@ -209,7 +210,7 @@ label+.form-row,.form-row:first-child{margin-top:0}
 .new-key>p.small{margin-top:20px}
 
 /* Alerts: Supabase Alert (default, warning, destructive) and the success variant. */
-.error,.notice,.success,.callout{position:relative;border:1px solid;border-radius:var(--radius-lg);padding:12px 16px;margin:0 0 16px;font-size:14px;color:var(--text);overflow-wrap:anywhere}
+.error,.notice,.success,.callout{position:relative;border:0;border-radius:var(--radius-lg);padding:12px 16px;margin:0 0 16px;font-size:14px;color:var(--text);overflow-wrap:anywhere}
 .error{background:var(--error-bg);border-color:var(--error-border)}
 .error:before{content:"";position:absolute;inset:12px auto 12px 0;width:3px;border-radius:0 2px 2px 0;background:var(--error-icon)}
 .notice{background:var(--notice-bg);border-color:var(--notice-border)}
@@ -222,10 +223,10 @@ label+.form-row,.form-row:first-child{margin-top:0}
 .details>h2:first-child+.callout,.details>h2:first-child+.notice,.details>.section-heading:first-child+.notice{margin-top:0}
 .status-bad{color:var(--danger-fg)}
 .status-warn{color:var(--notice-fg)}
-.empty{padding:40px 24px;border:1px dashed var(--border-strong);border-radius:var(--radius-lg);color:var(--muted);text-align:center;background:var(--surface)}
+.empty{padding:40px 24px;border:0;border-radius:var(--radius-lg);color:var(--muted);text-align:center;background:var(--surface)}
 
 /* Badges: Supabase Badge (default, success, warning, destructive). */
-.state{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border-strong);border-radius:999px;background:var(--surface);color:var(--muted);padding:3px 8px;font-size:11px;line-height:1;letter-spacing:.06em;font-weight:500;text-transform:uppercase;white-space:nowrap}
+.state{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:999px;background:var(--surface);color:var(--muted);padding:3px 8px;font-size:11px;line-height:1;letter-spacing:.06em;font-weight:500;text-transform:uppercase;white-space:nowrap}
 .state:before{content:"";width:6px;height:6px;border-radius:50%;background:var(--subtle);flex-shrink:0}
 .state.succeeded,.state.applied{background:var(--ok-bg);border-color:var(--ok-border);color:var(--ok-fg)}
 .state.succeeded:before,.state.applied:before{background:var(--dot-ok)}
@@ -235,11 +236,11 @@ label+.form-row,.form-row:first-child{margin-top:0}
 .state.queued:before,.state.running:before{background:var(--dot-pending)}
 
 /* Tables: Supabase Table inside a bordered card. */
-.table-wrap{border:1px solid var(--border-strong);border-radius:var(--radius-lg);overflow-x:auto;margin-bottom:20px;background:var(--surface)}
+.table-wrap{border:0;border-radius:var(--radius-lg);overflow-x:auto;margin-bottom:20px;background:var(--surface)}
 .details .table-wrap{margin:16px 0 0}
 table{border-collapse:collapse;width:100%;text-align:left;font-size:14px}
-th{font-size:12px;font-weight:500;color:var(--muted);background:var(--surface-2);padding:10px 16px;white-space:nowrap;border-bottom:1px solid var(--border-strong)}
-td{border-top:1px solid var(--border);padding:12px 16px;height:52px;background:var(--surface);vertical-align:middle}
+th{font-size:12px;font-weight:500;color:var(--muted);background:var(--surface-2);padding:10px 16px;white-space:nowrap;border:0}
+td{border:0;padding:12px 16px;height:52px;background:var(--surface);vertical-align:middle}
 tbody tr:first-child td{border-top:0}
 tbody tr:hover td{background:var(--hover)}
 td:first-child{width:40%;color:var(--text);font-weight:500}
@@ -257,29 +258,29 @@ td:last-child{text-align:right}
 
 /* Project cards: Studio's project list. */
 .project-grid{list-style:none;margin:0 0 20px;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,280px),1fr));gap:16px}
-.project-card{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;text-align:left;width:100%;min-height:156px;padding:18px;gap:8px;white-space:normal;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--radius-lg);box-shadow:0 1px 2px var(--shadow);font-weight:400}
+.project-card{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;text-align:left;width:100%;min-height:156px;padding:18px;gap:8px;white-space:normal;background:var(--surface);border:0;border-radius:var(--radius-lg);box-shadow:0 1px 2px var(--shadow);font-weight:400}
 .project-card:hover{border-color:var(--control-border);background:var(--surface-2)}
-.project-card-icon{display:grid;place-items:center;width:32px;height:32px;border:1px solid var(--ok-border);border-radius:var(--radius);color:var(--ok-fg);background:var(--ok-bg);margin-bottom:4px}
+.project-card-icon{display:grid;place-items:center;width:32px;height:32px;border:0;border-radius:var(--radius);color:var(--ok-fg);background:var(--ok-bg);margin-bottom:4px}
 .project-card-icon svg{width:16px;height:16px}
 .project-card-title{font-size:15px;font-weight:500;color:var(--text);overflow-wrap:anywhere}
 .project-card-id{font-size:13px;color:var(--muted)}
 .project-card-id code{font-size:12px}
-.project-card-footer{display:flex;align-items:center;justify-content:space-between;width:100%;font-size:13px;padding-top:12px;border-top:1px solid var(--border);margin-top:auto;color:var(--muted)}
+.project-card-footer{display:flex;align-items:center;justify-content:space-between;width:100%;font-size:13px;padding-top:12px;border:0;margin-top:auto;color:var(--muted)}
 .project-card:hover .project-card-footer{color:var(--text)}
 .page-summary{font-variant-numeric:tabular-nums}
 
-/* Environment sections: Studio's underlined tabs. */
-.environment-nav{display:flex;flex-wrap:wrap;gap:4px;border-bottom:1px solid var(--border-strong);margin:0 0 24px}
-.environment-nav button{width:auto;min-height:36px;padding:6px 10px;margin-bottom:-1px;background:transparent;border:0;border-bottom:2px solid transparent;border-radius:0;box-shadow:none;color:var(--muted);font-size:14px;font-weight:400}
+/* Environment sections use filled selected surfaces. */
+.environment-nav{display:flex;flex-wrap:wrap;gap:4px;border:0;margin:0 0 24px}
+.environment-nav button{width:auto;min-height:36px;padding:6px 10px;margin-bottom:0;background:transparent;border:0;border-radius:var(--radius);box-shadow:none;color:var(--muted);font-size:14px;font-weight:400}
 .environment-nav button svg{color:var(--subtle)}
-.environment-nav button:hover{background:transparent;color:var(--text);border-bottom-color:var(--border-strong)}
-.environment-nav button.selected{background:transparent;color:var(--text);border-bottom-color:var(--text);font-weight:500}
+.environment-nav button:hover{background:var(--hover);color:var(--text);border-bottom-color:var(--border-strong)}
+.environment-nav button.selected{background:var(--selected);color:var(--text);border-bottom-color:var(--text);font-weight:500}
 .environment-nav button.selected svg{color:var(--text)}
 .environment-nav button:focus-visible{outline-offset:-2px;border-radius:var(--radius) var(--radius) 0 0}
 
 /* Usage, logs and server health. */
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:16px 0}
-.stats div{border:1px solid var(--border-strong);border-radius:var(--radius);padding:12px 14px;display:flex;flex-direction:column;gap:4px;background:var(--surface-2)}
+.stats div{border:0;border-radius:var(--radius);padding:12px 14px;display:flex;flex-direction:column;gap:4px;background:var(--surface-2)}
 .stats strong{font-size:20px;font-weight:500;font-variant-numeric:tabular-nums}
 .chart{width:100%;height:80px;display:block}
 .chart .bar{fill:var(--brand)}
@@ -288,10 +289,10 @@ td:last-child{text-align:right}
 .log-controls>div{min-width:180px}
 .log-controls label{margin-top:0}
 .log-controls .check{margin:0 0 8px}
-pre.log{margin:16px 0 0;max-height:480px;overflow:auto;padding:14px 16px;border:1px solid var(--border-strong);border-radius:var(--radius);background:var(--code-bg);color:var(--text);font-family:var(--mono-font);font-size:12.5px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+pre.log{margin:16px 0 0;max-height:480px;overflow:auto;padding:14px 16px;border:0;border-radius:var(--radius);background:var(--code-bg);color:var(--text);font-family:var(--mono-font);font-size:12.5px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
 pre.commands{margin:12px 0 0}
 .server-health-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:16px;margin:24px 0}
-.server-health-card{padding:18px;border:1px solid var(--border-strong);border-radius:var(--radius-lg);background:var(--surface);font-variant-numeric:tabular-nums;box-shadow:0 1px 2px var(--shadow)}
+.server-health-card{padding:18px;border:0;border-radius:var(--radius-lg);background:var(--surface);font-variant-numeric:tabular-nums;box-shadow:0 1px 2px var(--shadow)}
 .server-health-card h2{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500;color:var(--muted);margin-bottom:12px}
 .server-health-card h2 svg{width:16px;height:16px;color:var(--subtle)}
 .server-health-card strong{display:block;font-size:22px;font-weight:500;margin-bottom:10px}
@@ -301,12 +302,12 @@ pre.commands{margin:12px 0 0}
 .server-health-monitor{margin-top:28px}
 .server-health-monitor a{display:inline-flex;align-items:center;gap:8px;color:var(--accent)}
 .server-health-monitor a svg{width:16px;height:16px}
-.secret-chip{display:inline-flex;align-items:center;gap:4px;margin:0 8px 8px 0;padding:2px 2px 2px 10px;border:1px solid var(--border-strong);border-radius:var(--radius);background:var(--code-bg);font-family:var(--mono-font);font-size:13px}
+.secret-chip{display:inline-flex;align-items:center;gap:4px;margin:0 8px 8px 0;padding:2px 2px 2px 10px;border:0;border-radius:var(--radius);background:var(--code-bg);font-family:var(--mono-font);font-size:13px}
 .secret-chip button{min-height:26px;padding:3px 6px;border:none;background:transparent;box-shadow:none}
 .details textarea#function-code{min-height:220px}
 
 /* Updates: the operator's notices, the updates page and its confirmation steps. */
-.update-banner{display:flex;align-items:center;gap:12px;padding:10px 24px;background:var(--notice-bg);color:var(--text);border-bottom:1px solid var(--notice-border)}
+.update-banner{display:flex;align-items:center;gap:12px;padding:10px 24px;background:var(--notice-bg);color:var(--text);border:0}
 .update-banner p{margin:0;flex:1;min-width:0}
 .update-banner>svg{width:18px;height:18px;flex-shrink:0;color:var(--notice-fg)}
 .update-banner button{min-height:30px;padding:4px 12px}
@@ -323,13 +324,13 @@ pre.commands{margin:12px 0 0}
 .update-class.applied svg{color:var(--dot-ok)}
 .update-class.running svg{color:var(--dot-pending)}
 .update-class.failed svg{color:var(--dot-failed)}
-.release-notes{white-space:pre-line;overflow-wrap:anywhere;padding:14px 16px;border:1px solid var(--border-strong);border-radius:var(--radius);background:var(--code-bg);font-size:13px}
+.release-notes{white-space:pre-line;overflow-wrap:anywhere;padding:14px 16px;border:0;border-radius:var(--radius);background:var(--code-bg);font-size:13px}
 .plain-list{margin:0;padding-inline-start:20px}
 .plain-list li{margin:4px 0}
 .plain-list.refusals{list-style:none;padding:0}
 .refusals li{display:flex;gap:8px;align-items:flex-start;color:var(--notice-fg)}
 .refusals svg{width:16px;height:16px;margin-top:3px;flex-shrink:0}
-.confirm-panel{border:1px solid var(--notice-border);background:var(--notice-bg);border-radius:var(--radius-lg);padding:16px;margin-top:16px}
+.confirm-panel{border:0;background:var(--notice-bg);border-radius:var(--radius-lg);padding:16px;margin-top:16px}
 .details .confirm-panel h3{margin:0 0 10px;padding:0;border:0}
 .confirm-panel .form-row{margin-top:16px}
 .confirm-panel h3:focus-visible,.update-progress h2:focus-visible{outline:2px solid var(--ring);outline-offset:3px}
@@ -381,7 +382,7 @@ aside .project-attribution{justify-content:flex-start;padding:0 4px;margin-botto
 .auth-footer .theme-control{width:auto;margin:0 0 0 6px;min-height:28px;padding:4px 8px;font-size:12px}
 .auth-footer .theme-control svg{width:14px;height:14px}
 .auth-bottom{display:grid;gap:16px}
-.auth-art-panel{position:relative;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden;min-width:0;background:radial-gradient(ellipse at 54% 35%,var(--art-1) 0,var(--art-2) 48%,var(--art-3) 100%);border-left:1px solid var(--art-border);padding:40px 48px 28px;isolation:isolate}
+.auth-art-panel{position:relative;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden;min-width:0;background:radial-gradient(ellipse at 54% 35%,var(--art-1) 0,var(--art-2) 48%,var(--art-3) 100%);border:0;padding:40px 48px 28px;isolation:isolate}
 .art-topline{display:flex;justify-content:space-between;gap:16px;color:var(--art-topline);font-size:11px;position:relative;z-index:1;margin-bottom:auto}
 .art-edition{white-space:nowrap;color:var(--art-edition)}
 .botanical-art{display:flex;align-items:center;justify-content:center;flex:1;min-height:0;padding:20px 0 14px}
@@ -389,7 +390,7 @@ aside .project-attribution{justify-content:flex-start;padding:0 4px;margin-botto
 .art-copy{position:relative;z-index:1;padding:0 0 36px 14px}
 .art-copy h2{font-size:clamp(34px,3.8vw,58px);font-weight:450;line-height:1.08;letter-spacing:-2px;color:var(--art-heading);margin-bottom:18px}
 .art-copy p{color:var(--art-body);font-size:15px;line-height:1.65;margin:0}
-.art-bottomline{display:flex;align-items:center;gap:8px;border-top:1px solid var(--art-rule);font-size:11px;padding-top:19px;color:var(--art-foot)}
+.art-bottomline{display:flex;align-items:center;gap:8px;border:0;font-size:11px;padding-top:19px;color:var(--art-foot)}
 .brand-dot{width:5px;height:5px;background:var(--brand);border-radius:50%}
 
 @media(min-width:1500px){.auth-main{padding:48px 64px 32px}
@@ -414,15 +415,15 @@ aside .project-attribution{justify-content:flex-start;padding:0 4px;margin-botto
 
 /* Phone layout: the sidebar becomes a top panel with wrapped navigation. */
 @media(max-width:720px){.app-shell{display:block}
-aside{width:auto;min-height:0;padding:16px 20px;border-right:0;border-bottom:1px solid var(--border);display:grid;grid-template-columns:1fr auto;gap:10px 16px;align-items:center}
+aside{width:auto;height:auto;position:static;overflow:visible;min-height:0;padding:16px 20px;border-right:0;border:0;display:grid;grid-template-columns:1fr auto;gap:10px 16px;align-items:center}
 aside .wordmark{margin:0}
 aside>label{grid-row:2;grid-column:1 / -1;margin:0}
 aside>select{grid-row:3;grid-column:1 / -1;margin:0}
-aside nav[aria-label="Main"]{grid-row:4;grid-column:1 / -1;display:flex;flex-direction:column;gap:10px}
+aside nav[aria-label="Main"]{grid-row:4;grid-column:1 / -1;display:flex;flex-direction:column;gap:10px;overflow:visible}
 .nav-group{flex-direction:row;flex-wrap:wrap;gap:6px;width:100%}
 .nav-group-label{width:100%;padding:0}
 .nav-group+.nav-group{margin-top:0;padding-top:10px}
-.nav-group button{width:auto;flex:1;min-width:110px;min-height:36px;font-size:13px;padding:6px 8px;border:1px solid var(--border)}
+.nav-group button{width:auto;flex:1;min-width:110px;min-height:36px;font-size:13px;padding:6px 8px;border:0}
 .new-organization,aside .create-form{grid-row:5;grid-column:1 / -1;margin:0}
 aside>p.small{grid-column:1 / -1;margin:0}
 aside footer{grid-row:6;grid-column:1 / -1;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding-top:4px}
@@ -450,3 +451,27 @@ th,td{padding:12px}
 .search{max-width:none}
 }
 
+
+/* Workspace selectors stay outside the scrolling navigation. */
+.workspace-picker{flex-shrink:0;display:flex;flex-direction:column;gap:4px;margin-bottom:10px;min-width:0}
+.workspace-picker label{font-size:12px;color:var(--subtle);margin:0;padding-inline:2px}
+.workspace-picker select{min-height:32px;font-size:13px;margin-bottom:4px;background:var(--surface-2)}
+@media(max-width:720px){
+ .workspace-picker{grid-column:1 / -1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px 10px;margin:0}
+ .workspace-picker label{grid-row:1}
+ .workspace-picker select{grid-row:2;margin:0;width:100%;min-width:0}
+ .workspace-picker label[for=organization],#organization{grid-column:1}
+ .workspace-picker label[for=project-switch],#project-switch{grid-column:2}
+ .workspace-picker label[for=environment-switch],#environment-switch{grid-column:3}
+ .workspace-picker .error{grid-column:1 / -1}
+}
+
+@media(max-width:720px){
+ .app-shell{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
+ aside footer{position:fixed;inset:auto 0 0;z-index:20;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;background:var(--rail);padding:8px 6px calc(8px + env(safe-area-inset-bottom));box-shadow:0 -4px 20px var(--shadow);margin:0}
+ aside footer button,aside footer .project-attribution a{width:100%;min-width:0;min-height:44px;display:flex;justify-content:center;align-items:center;flex-direction:column;gap:3px;font-size:10px;padding:4px 2px;white-space:nowrap}
+ aside footer .project-attribution{display:block;padding:0;margin:0}
+ aside footer .project-attribution a span{font-size:10px}
+ .table-wrap{position:relative}
+ .table-wrap::after{content:'Scroll horizontally for all actions';display:block;font-size:12px;padding:8px 12px;color:var(--muted);background:var(--surface-2)}
+}

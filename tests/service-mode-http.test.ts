@@ -1,3 +1,4 @@
+import {catalogTestDb} from './catalog-test-db';
 import {test,expect} from 'bun:test';
 import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
@@ -70,12 +71,12 @@ test('Edge Functions: a deploy turns them on only when they are Off, reports it,
   expect(first.status).toBe(201);
   expect(((await first.json()) as {data:{deployed:{turned_on:boolean}}}).data.deployed.turned_on).toBe(true);
   expect(catalog.serviceMode(runtime,'functions').mode).toBe('on');
-  catalog.db.query("UPDATE functions_settings SET state='off',desired='off'").run();
+  catalogTestDb(catalog).query("UPDATE functions_settings SET state='off',desired='off'").run();
   catalog.setServiceMode('alice',environment,'functions','on_demand');
   const second=await deploy('two');
   expect(((await second.json()) as {data:{deployed:{turned_on:boolean}}}).data.deployed.turned_on).toBe(false);
   expect(catalog.serviceMode(runtime,'functions').mode).toBe('on_demand');
-  expect(catalog.db.query<{state:string;desired:string},[]>('SELECT state,desired FROM functions_settings').get()).toEqual({state:'off',desired:'off'});
+  expect(catalogTestDb(catalog).query<{state:string;desired:string},[]>('SELECT state,desired FROM functions_settings').get()).toEqual({state:'off',desired:'off'});
   const state=await (await handler(new Request(`http://local/management/v1/environments/${environment}/functions`,{headers:{authorization:'alice'}}))).json() as {data:{mode:string}};
   expect(state.data.mode).toBe('on_demand');
   const changed=await handler(new Request(`http://local/management/v1/environments/${environment}/functions`,{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({mode:'on_demand',idle_minutes:25})}));

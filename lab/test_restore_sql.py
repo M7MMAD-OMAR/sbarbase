@@ -124,6 +124,13 @@ GRANT CONNECT ON DATABASE management TO management_auth;
     def test_extension_worker_contract_refuses_unclassified_archive_before_replay(self):
         _, body = plan(dump(body='CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;\n'))
         self.assertIn('CREATE EXTENSION IF NOT EXISTS pgcrypto', body)
+        # Pinned PGMQ 1.5.1 uses SQL/plpgsql and creates no background worker.
+        _, body = plan(dump(body='CREATE EXTENSION IF NOT EXISTS pgmq WITH SCHEMA pgmq;\n'))
+        self.assertIn('CREATE EXTENSION IF NOT EXISTS pgmq', body)
+        # Vault is part of every developer database and its library is already
+        # covered by the immutable native preload/worker profile admission.
+        _, body = plan(dump(body='CREATE EXTENSION IF NOT EXISTS supabase_vault WITH SCHEMA vault;\n'))
+        self.assertIn('CREATE EXTENSION IF NOT EXISTS supabase_vault', body)
         for extra in ('CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA public;\n',
                       'CREATE EXTENSION pg_cron;\n', 'CREATE EXTENSION arbitrary;\n',
                       "CREATE SUBSCRIPTION subscriber CONNECTION 'host=other' PUBLICATION writer;\n",

@@ -33,6 +33,9 @@ export function sources():Source[]{
  return paths.map(sourceOf);
 }
 
+const localImages=new Set<string>();
+export const images=()=>[...localImages];
+
 const isDirectory=(path:string)=>{try{return statSync(new URL(path,ROOT)).isDirectory();}catch{return false;}};
 
 // Rewrites one Markdown href found in the page at from (a repository path).
@@ -44,7 +47,9 @@ export function rewrite(from:string,href:string,set:Map<string,Source>){
  if(resolved.startsWith('..'))return href;
  const target=set.get(resolved);
  if(target)return docPage(target.lang,target.slug)+fragment;
- if(/^docs\/diagrams\/[^/]+\.svg$/.test(resolved))return `/${resolved}`;
+ if(/^docs\/.*\.(?:png|webp|svg|jpe?g|gif)$/i.test(resolved)){
+  try{if(statSync(new URL(resolved,ROOT)).isFile()){localImages.add(resolved);return `/${resolved}${fragment}`;}}catch{}
+ }
  const tree=path.endsWith('/')||isDirectory(resolved);
  return `${repo}/${tree?'tree':'blob'}/main/${resolved.replace(/\/$/,'')}${tree&&path.endsWith('/')?'/':''}${fragment}`;
 }

@@ -1,6 +1,6 @@
 import {test,expect} from 'bun:test';
 import {readdirSync,readFileSync,existsSync} from 'node:fs';
-import {docs,sources,diagrams,rewrite,DIRECTORIES,type Source} from '../src/docs';
+import {docs,sources,diagrams,images,rewrite,DIRECTORIES,type Source} from '../src/docs';
 import {render} from '../src/render';
 import {links} from '../src/content';
 import {llms,llmsFull,changelogFeed} from '../src/agents';
@@ -29,7 +29,7 @@ test('every page of the bilingual set renders in both languages',()=>{
 
 test('every internal link lands on a page and an id that exists',()=>{
  const broken:string[]=[];
- const diagramFiles=new Set(diagrams().map(d=>`/${d}`));
+ const diagramFiles=new Set([...diagrams(),...images()].map(d=>`/${d}`));
  for(const page of pages){
   for(const m of page.html.matchAll(/\b(href|src)="([^"]+)"/g)){
    const value=m[2]!.replaceAll('&amp;','&');
@@ -70,6 +70,7 @@ test('links are rewritten to the site, the diagrams or GitHub',()=>{
  expect(rewrite(from,'docker.md',set)).toBe('/en/docs/guides/docker/');
  expect(rewrite(from,'docker.ar.md#x',set)).toBe('/docs/guides/docker/#x');
  expect(rewrite(from,'../README.md',set)).toBe('/en/docs/');
+ expect(rewrite('docs/guides/authentication.md','images/authentication/providers.webp',set)).toBe('/docs/guides/images/authentication/providers.webp');
  expect(rewrite(from,'../diagrams/hierarchy.svg',set)).toBe('/docs/diagrams/hierarchy.svg');
  expect(rewrite(from,'../engineering/HOST-PREFLIGHT.md',set)).toBe('https://github.com/M7MMAD-OMAR/sbarbase/blob/main/docs/engineering/HOST-PREFLIGHT.md');
  expect(rewrite(from,'../../src/gateway/handler.ts#L12',set)).toBe('https://github.com/M7MMAD-OMAR/sbarbase/blob/main/src/gateway/handler.ts#L12');
