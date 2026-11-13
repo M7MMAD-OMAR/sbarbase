@@ -49,6 +49,28 @@ class IsolationTests(unittest.TestCase):
                 self.assertEqual(backup.ROOT, Path(directory))
                 self.assertEqual(backup.DATABASE_OWNER, instance.owner)
 
+    def test_stopped_services_use_their_pinned_native_images_and_rest_settings(self):
+        with tempfile.TemporaryDirectory() as directory:
+            instance = drill.NativeStorage(directory)
+            for service in ('auth', 'rest'):
+                calls = []
+                name = instance.prefix + '-' + drill.ENVIRONMENT + '-' + service
+                filename, key = backup.SERVICE_PINS[service]
+                pin = backup.image_pin(filename, key)
+                expected = drill.image_identity.reference(pin)
+                with patch.object(instance, 'absent'), patch.object(instance, 'docker', side_effect=lambda *args: calls.append(args)):
+                    instance.stopped_native_service(name)
+                args = calls[0]
+                self.assertEqual(args[-1], expected)
+                self.assertNotEqual(args[-1], instance.storage_reference)
+                self.assertIn('--pull=never', args)
+                self.assertEqual(args[args.index('--network') + 1], 'none')
+                self.assertEqual(args[args.index('--entrypoint') + 1], '/bin/true')
+                self.assertEqual(args[args.index('--memory') + 1], '256m')
+                self.assertIn(('container', name), instance.resources)
+                if service == 'rest':
+                    self.assertTrue(backup.data_api.carries_container_env([args[i + 1] for i, value in enumerate(args) if value == '-e']))
+
     def test_running_storage_is_stopped_before_helper_and_restarted_after_database(self):
         with tempfile.TemporaryDirectory() as directory:
             instance = drill.NativeStorage(directory)

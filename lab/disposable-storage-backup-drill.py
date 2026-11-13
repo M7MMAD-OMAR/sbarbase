@@ -114,6 +114,22 @@ class NativeStorage(base.Disposable):
         self.docker(*argv, reference, *command)
         self.resources.append(('container', name))
 
+    def stopped_native_service(self, name):
+        service = name.rsplit('-', 1)[-1]
+        if service not in ('auth', 'rest') or name != self.prefix + '-' + ENVIRONMENT + '-' + service:
+            raise base.Refusal('Unexpected disposable service identity')
+        filename, key = backup.SERVICE_PINS[service]
+        reference = image_identity.reference(backup.image_pin(filename, key))
+        self.absent('container', name)
+        argv = ['create', '--name', name, '--pull=never', '--network', 'none', '--memory', '256m',
+                '--memory-swap', '256m', '--cpus', '.5', '--pids-limit', '64',
+                '--label', 'io.sbarbase.owner=' + self.owner, '--entrypoint', '/bin/true']
+        if service == 'rest':
+            for key, value in backup.data_api.CONTAINER_ENV.items():
+                argv.extend(['-e', key + '=' + value])
+        self.docker(*argv, reference)
+        self.resources.append(('container', name))
+
     def start_database(self):
         self.launch(self.db, self.db_reference,
                     {'POSTGRES_PASSWORD': secrets.token_hex(32), 'POSTGRES_HOST': '/var/run/postgresql', 'POSTGRES_DB': 'postgres'},
@@ -285,6 +301,7 @@ print(json.dumps(files))'''
         backup.resolve_image(backup.image_pin('distro-image.lock.json'))
         backup.resolve_storage_image()
         backup.resolve_image(self.auth_pin)
+        backup.resolve_image(backup.image_pin('images.lock.json', 'rest'))
         info = json.loads(self.docker('info', '--format', '{{json .}}').stdout)
         self.check('local Linux daemon required for unpublished bridge HTTP', info.get('OSType') == 'linux' and info.get('Name') == socket.gethostname())
         self.native_toolchain()
@@ -303,7 +320,7 @@ print(json.dumps(files))'''
         self.storage_ready()
         self.register_tenant()
         for name in backup.service_names(ENVIRONMENT):
-            self.stopped_writer(name, self.storage_reference)
+            self.stopped_native_service(name)
         status, _ = self.api('/bucket', 'POST', json.dumps({'id': BUCKET, 'name': BUCKET, 'public': False}).encode())
         self.check('original Storage service role creates private bucket', status in (200, 201))
         self.stage = 'ordinary-native-upload-and-backup'
