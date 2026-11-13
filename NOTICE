@@ -3,9 +3,14 @@ Copyright 2026 Muhammad Omar and contributors.
 
 An independent project by Sbarah, built using original Supabase services.
 Not affiliated with or endorsed by Supabase.
-Supabase Studio and postgres-meta run as unmodified pinned upstream images
-(Apache-2.0, Supabase), started on demand per environment; no Studio source is copied
-into the sbarbase code.
+Supabase Studio and postgres-meta use pinned upstream images (Apache-2.0, Supabase),
+started on demand per environment. The images remain unchanged on disk. A narrow
+Studio SMTP compatibility adapter transforms verified JavaScript modules in proxy
+responses for Supabase commit 369927892fde63d07b199d4e80fe05ae780573d5.
+Unmodified extracts of those public modules are retained as regression fixtures in
+tests/fixtures/studio-smtp. Copyright Supabase and contributors. The repository's
+Apache License 2.0 applies to these extracts; their original source and hashes are
+documented alongside the fixtures.
 
 The platform console's stylesheet (ui/style.css) ports design material from the
 Supabase UI package, supabase/supabase packages/ui and packages/config at commit

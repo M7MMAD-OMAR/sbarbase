@@ -1,5 +1,6 @@
 import {placementServices,resolveRuntimePlacement} from '../src/control/placement';
 import {publicUrl} from '../src/control/sign-in';
+import {studioSmtpConfig} from '../src/control/studio-smtp';
 import {storageCredentialIssuer} from '../src/control/storage-credentials';
 import {consolePort,localRequestOrigin} from '../src/http/local-server';
 import {readStorageCredentialPolicies} from '../src/control/storage-credentials-private';
@@ -187,6 +188,7 @@ export function openUpstreamApplication() {
   return decision instanceof Promise?decision.then(finish):finish(decision);
  };
   const studio=studioProxy({key:studioSessionKey,allowed:(actor,runtime)=>catalog.studioAllowed(actor,runtime),epoch:actor=>catalog.managementSecurity.epoch(actor),runtimeEpoch:runtime=>catalog.runtimeEpoch(runtime),
+   authConfig:studioSmtpConfig(catalog),
    navigation:(actor,runtime,organization,project)=>catalog.studioNavigation(actor,runtime,organization,project),
    selection:(actor,environment)=>catalog.studio(actor,environment),
    touch:runtime=>catalog.touchStudio(runtime),starting:runtime=>catalog.studioStarting(runtime),

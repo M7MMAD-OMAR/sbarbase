@@ -5,6 +5,7 @@ import {Catalog,type StudioNavigation,type StudioSession} from './catalog';
 import {authenticate,reply,type ManagementIdentity} from './auth';
 import {studioWorkspaceAsset} from './studio-workspace';
 import {identifyStudioDocument} from './studio-identity';
+import {isStudioSmtpAsset,transformStudioSmtpAsset,STUDIO_SMTP_ASSET_VERSION} from './studio-smtp-assets';
 import {studioHosts,type StudioHosts} from './studio-host';
 import {publicUrl} from './sign-in';
 
@@ -249,6 +250,7 @@ export function studioProxy(options:{key:()=>Buffer;allowed:(actor:string,runtim
  runtimeEpoch?:(runtime:string)=>number;upstream:(runtime:string)=>string|undefined;transport?:typeof fetch;
  requestBodyLimit?:number;requestBodyTimeoutMs?:number;
  navigation?:(actor:string,runtime:string,organization?:string,project?:string)=>StudioNavigation;
+ authConfig?:(actor:string,runtime:string,request:Request,authorized:()=>boolean)=>Promise<Response>;
  selection?:(actor:string,environment:string)=>StudioSession;
  /** Records that this runtime's Studio is in use, so a restart brings it back (lab/dev.py). */
  touch?:(runtime:string)=>void;
@@ -263,8 +265,11 @@ export function studioProxy(options:{key:()=>Buffer;allowed:(actor:string,runtim
  const bodyLimit=options.requestBodyLimit??16*1024*1024,bodyTimeout=options.requestBodyTimeoutMs??30_000;
  if(!Number.isSafeInteger(bodyLimit)||bodyLimit<1||bodyLimit>64*1024*1024||!Number.isSafeInteger(bodyTimeout)||bodyTimeout<1||bodyTimeout>120_000)
   throw new Error('Invalid Studio request body limits');
+ const sessionCurrent=(claim:Claim,runtime:string)=>{
+  try{return claim.expires>Date.now()&&claim.epoch===options.epoch(claim.actor)&&(claim.runtimeEpoch??0)===(options.runtimeEpoch?.(runtime)??0);}catch{return false;}
+ };
  const current=(claim:Claim,runtime:string)=>{
-  try{return claim.expires>Date.now()&&claim.epoch===options.epoch(claim.actor)&&(claim.runtimeEpoch??0)===(options.runtimeEpoch?.(runtime)??0)&&options.allowed(claim.actor,runtime);}catch{return false;}
+  try{return sessionCurrent(claim,runtime)&&options.allowed(claim.actor,runtime);}catch{return false;}
  };
  return async(request:Request):Promise<Response>=>{
   const url=new URL(request.url);
@@ -344,6 +349,14 @@ export function studioProxy(options:{key:()=>Buffer;allowed:(actor:string,runtim
    const origin=request.headers.get('origin'),site=request.headers.get('sec-fetch-site');
    if(origin?origin!==selfOrigin(url):site!=='same-origin')return page(403,'This request did not come from this Studio page.');
   }
+  if(options.authConfig&&/^\/api\/platform\/auth\/[^/]+\/config$/.test(url.pathname)){
+   if(!['GET','PATCH'].includes(request.method))return reply(405,{message:'Method not allowed'});
+   let body:Uint8Array<ArrayBuffer>|undefined;
+   try{if(request.method==='PATCH')body=await studioBody(request,Math.min(bodyLimit,16*1024),bodyTimeout);}
+   catch(error){return reply(error instanceof StudioBodyError?error.status:400,{message:'Invalid SMTP request body'});}
+   if(!allowed())return reply(403,{message:'Forbidden'});
+   return guarded(await options.authConfig(claim.actor,runtime,new Request(request.url,{method:request.method,headers:request.headers,signal:request.signal,...(body?{body}:{})}),()=>sessionCurrent(claim,runtime)));
+  }
   const target=options.upstream(runtime);
   if(!target){
    let pending=false;try{pending=!!options.starting?.(runtime);}catch{}
@@ -351,6 +364,8 @@ export function studioProxy(options:{key:()=>Buffer;allowed:(actor:string,runtim
   }
   const headers=new Headers();
   for(const [name,value] of request.headers)if(!HOP.has(name))headers.set(name,value);
+  const smtpAsset=!!options.authConfig&&['GET','HEAD'].includes(request.method)&&isStudioSmtpAsset(url.pathname);
+  if(smtpAsset)for(const name of ['range','if-range','if-none-match','if-modified-since'])headers.delete(name);
   const cookies=withoutCookie(request.headers.get('cookie'),studioCookie());
   if(cookies)headers.set('cookie',cookies);else headers.delete('cookie');
   const destination=new URL(target);
@@ -366,7 +381,7 @@ export function studioProxy(options:{key:()=>Buffer;allowed:(actor:string,runtim
   // Assets retain their encoded bytes. HTML documents are decoded for the identity script,
   // then have encoding and length headers removed so the next hop cannot decode them twice.
   const document=!!options.navigation&&request.method==='GET'&&url.pathname.startsWith('/project/')&&!!request.headers.get('accept')?.includes('text/html');
-  try{response=await transport(destination,{method:request.method,headers,redirect:'manual',signal:request.signal,decompress:document,
+  try{response=await transport(destination,{method:smtpAsset&&request.method==='HEAD'?'GET':request.method,headers,redirect:'manual',signal:request.signal,decompress:document||smtpAsset,
    ...(['GET','HEAD'].includes(request.method)?{}:{body})} as RequestInit);}
   catch{return page(request.signal.aborted?400:502,'Unable to reach Studio.');}
   if(!allowed()||request.signal.aborted){
@@ -374,13 +389,32 @@ export function studioProxy(options:{key:()=>Buffer;allowed:(actor:string,runtim
    return page(request.signal.aborted?400:403,'Studio access is no longer available.');
   }
   if(document){
-   if(response.ok&&response.headers.get('content-type')?.split(';')[0]?.trim()==='text/html')response=identifyStudioDocument(response);
+   if(response.ok&&response.headers.get('content-type')?.split(';')[0]?.trim()==='text/html'){
+    try{
+     // Bun's HTMLRewriter may lose a network-backed document when its lazy body is
+     // detached into the authorization stream. Bound the input, then materialize the
+     // rewritten response through its own reader before publishing ordinary bytes.
+     const input=await studioBody(new Request('http://studio-document.internal',{method:'POST',body:response.body,signal:request.signal}),2*1024*1024,bodyTimeout);
+     if(!allowed()||request.signal.aborted)return page(403,'Studio access is no longer available.');
+     const identified=identifyStudioDocument(new Response(input,{status:response.status,headers:response.headers}));
+     response=new Response(await identified.arrayBuffer(),{status:identified.status,headers:identified.headers});
+    }catch{return page(request.signal.aborted?400:502,'Unable to read the Studio document.');}
+   }
    else{const decoded=new Headers(response.headers);decoded.delete('content-encoding');decoded.delete('content-length');
     response=new Response(response.body,{status:response.status,headers:decoded});}
   }
+  if(smtpAsset)response=await transformStudioSmtpAsset(url.pathname,response);
+  if(!allowed()||request.signal.aborted){if(response.body)void response.body.cancel().catch(()=>{});return page(request.signal.aborted?400:403,'Studio access is no longer available.');}
   const out=new Headers();
   for(const [name,value] of response.headers)if(!HOP.has(name)&&name!=='set-cookie')out.set(name,value);
   for(const cookie of response.headers.getSetCookie())out.append('set-cookie',cookie);
+  // A returning browser may have the original immutable chunks. Clear only this origin's
+  // HTTP cache once for this adapter version; retain sign-in cookies and application storage.
+  const smtpMarker=studioCookie()+'_smtp_assets';
+  if(document&&options.authConfig&&response.ok&&cookieValue(request.headers.get('cookie'),smtpMarker)!==STUDIO_SMTP_ASSET_VERSION){
+   out.set('clear-site-data','"cache"');
+   out.append('set-cookie',`${smtpMarker}=${STUDIO_SMTP_ASSET_VERSION}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000${hosts.public?'; Secure':''}`);
+  }
   // Renewed only for this Studio page's own requests (or one typed into the address bar), after every check above.
   if(['same-origin','none',null].includes(request.headers.get('sec-fetch-site'))){
    const renewed=renewedSession(options.key(),claim);
