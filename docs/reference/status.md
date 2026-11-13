@@ -2,6 +2,10 @@
 
 # Status
 
+## Source version and evidence scope, 2026-11-13
+
+The source package declares version 0.12.2; see the [changelog](../../CHANGELOG.md) and [published downloads](https://github.com/M7MMAD-OMAR/sbarbase/releases). Service image pins remain unchanged, and image upgrades require separate migration validation. Server versions, capacity and rollout observations below retain their recorded dates and have not been reconfirmed for this source update. They do not establish independent production acceptance.
+
 ## Current state, 2026-10-26
 
 - **Released.** v0.7.0, v0.7.1, v0.8.0, v0.9.0 and v0.9.1 are on GitHub. The owner's real server runs v0.9.1, installed through the update channel three times (0.7.1, 0.9.0, 0.9.1), each confirmed by its health checks. Those three updates were code only or a rebuild; the measured interruption figures come from the fault injection run, not from them.

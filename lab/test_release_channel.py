@@ -968,7 +968,7 @@ class PublisherTests(unittest.TestCase):
             def fake_gh(*args, **kwargs):
                 calls.append(args)
                 if args[0] == 'api':
-                    return SimpleNamespace(returncode=0, stdout=draft, stderr='')
+                    return SimpleNamespace(returncode=0, stdout=json.dumps([[json.loads(draft)]]), stderr='')
                 if args[:2] == ('release', 'download'):
                     if not mismatch:
                         raise release.PrepareError('download failed')
@@ -987,6 +987,34 @@ class PublisherTests(unittest.TestCase):
             self.assertFalse(any(call[:2] == ('release', 'edit') for call in calls))
 
 class PublisherReconciliationTests(unittest.TestCase):
+    def test_draft_lookup_uses_all_pages_without_the_published_tag_endpoint(self):
+        draft = {'tag_name': 'v1.2.3', 'draft': True, 'prerelease': False, 'assets': []}
+        with patch.object(release, 'gh', return_value=SimpleNamespace(stdout=json.dumps([[], [draft]]))) as request:
+            self.assertEqual(release.release_for_tag('v1.2.3'), draft)
+        self.assertEqual(request.call_args.args, ('api', 'repos/M7MMAD-OMAR/sbarbase/releases', '--paginate', '--slurp'))
+        with patch.object(release, 'gh', return_value=SimpleNamespace(stdout=json.dumps([[draft, draft]]))):
+            with self.assertRaisesRegex(release.PrepareError, 'Multiple releases'):
+                release.release_for_tag('v1.2.3')
+
+    def test_creation_uses_returned_draft_metadata_without_tag_lookup(self):
+        calls = []
+        draft = dict(tag_name='v1.2.3', draft=True, prerelease=False, assets=[])
+        def fake_gh(*args, **kwargs):
+            calls.append(args)
+            if args[:3] == ('api', '--method', 'POST'):
+                return SimpleNamespace(stdout=json.dumps(draft))
+            raise release.PrepareError('stop before upload')
+        with patch.object(channel, 'object_of', return_value='abc'), patch.object(channel, 'verify', return_value=None), \
+             patch.object(channel, 'commit_of', return_value='commit'), patch.object(channel, 'manifest', return_value={'notes': {'en': 'notes'}}), \
+             patch.object(release, 'remote_tag'), patch.object(release, 'release_for_tag', return_value=None), \
+             patch.object(release, 'gh', side_effect=fake_gh), \
+             patch.object(release.subprocess, 'run', return_value=SimpleNamespace(stdout=b'tar')):
+            with self.assertRaisesRegex(release.PrepareError, 'stop before upload'):
+                release.publish('v1.2.3')
+        self.assertEqual(calls[0][:4], ('api', '--method', 'POST', 'repos/M7MMAD-OMAR/sbarbase/releases'))
+        self.assertIn('draft=true', calls[0])
+        self.assertFalse(any('/releases/tags/' in str(value) for call in calls for value in call))
+
     def test_newest_stable_uses_all_pages_and_ignores_drafts_and_prereleases(self):
         history = [[{'tag_name': 'v1.2.3', 'draft': False, 'prerelease': False}],
                    [{'tag_name': 'v1.2.4', 'draft': False, 'prerelease': False},
@@ -1003,7 +1031,7 @@ class PublisherReconciliationTests(unittest.TestCase):
                     calls.append(args)
                     if args[0] == 'api':
                         assets = [{'name': name} for name in uploads]
-                        return SimpleNamespace(returncode=0, stdout=json.dumps(dict(tag_name='v1.2.3', draft=not already_published, prerelease=False, assets=assets)), stderr='')
+                        return SimpleNamespace(returncode=0, stdout=json.dumps([[dict(tag_name='v1.2.3', draft=not already_published, prerelease=False, assets=assets)]]), stderr='')
                     if args[:2] == ('release', 'upload'):
                         path = Path(args[3]);uploads[path.name] = path.read_bytes()
                     if args[:2] == ('release', 'download'):

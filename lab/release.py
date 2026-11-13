@@ -168,20 +168,32 @@ def remote_tag(tag, oid):
         raise PrepareError('The canonical remote tag is missing or differs from the verified tag')
 
 
-def newest_stable(tag):
-    """Never demote a newer published stable version, including paginated history."""
+def release_records():
+    """Authenticated listings include drafts; the tag endpoint is for published releases."""
     pages = json.loads(gh('api', f'repos/{REPOSITORY}/releases', '--paginate', '--slurp').stdout)
     if not isinstance(pages, list) or any(not isinstance(page, list) for page in pages):
         raise PrepareError('Release history is unverifiable')
+    records = [item for page in pages for item in page]
+    if any(not isinstance(item, dict) for item in records):
+        raise PrepareError('Release history is unverifiable')
+    return records
+
+
+def release_for_tag(tag):
+    matches = [item for item in release_records() if item.get('tag_name') == tag]
+    if len(matches) > 1:
+        raise PrepareError('Multiple releases use this tag; inspect them manually')
+    return matches[0] if matches else None
+
+
+def newest_stable(tag):
+    """Never demote a newer published stable version, including paginated history."""
     candidate = channel.tag_version(tag)
-    for page in pages:
-        for item in page:
-            if not isinstance(item, dict):
-                raise PrepareError('Release history is unverifiable')
-            version = channel.tag_version(item.get('tag_name', ''))
-            if not item.get('draft') and not item.get('prerelease') and version and not channel.parse(version)[3]:
-                if channel.key(version) > channel.key(candidate):
-                    return False
+    for item in release_records():
+        version = channel.tag_version(item.get('tag_name', ''))
+        if not item.get('draft') and not item.get('prerelease') and version and not channel.parse(version)[3]:
+            if channel.key(version) > channel.key(candidate):
+                return False
     return True
 
 
@@ -212,15 +224,15 @@ def publish(tag, latest=False):
         checksum = base / 'SHA256SUMS'
         checksum.write_text(f'{digest}  {name}\n', encoding='utf-8')
         expected = {name: archive.read_bytes(), checksum.name: checksum.read_bytes()}
-        view = gh('api', f'repos/{REPOSITORY}/releases/tags/{tag}', check=False)
-        if view.returncode:
-            if 'HTTP 404' not in view.stderr:
-                raise PrepareError('Could not inspect release: ' + view.stderr.strip())
-            gh('release', 'create', tag, '--repo', REPOSITORY, '--verify-tag', '--draft',
-               '--title', tag, '--notes', 'Source-only release. No binaries are provided.\n\n' + manifest['notes']['en'],
-               *(['--prerelease'] if prerelease else []))
-            view = gh('api', f'repos/{REPOSITORY}/releases/tags/{tag}')
-        release = json.loads(view.stdout)
+        release = release_for_tag(tag)
+        if release is None:
+            created = gh('api', '--method', 'POST', f'repos/{REPOSITORY}/releases',
+                         '-f', 'tag_name=' + tag, '-f', 'name=' + tag,
+                         '-f', 'body=Source-only release. No binaries are provided.\n\n' + manifest['notes']['en'],
+                         '-F', 'draft=true', '-F', 'prerelease=' + str(prerelease).lower())
+            release = json.loads(created.stdout)
+        if not isinstance(release, dict):
+            raise PrepareError('Release metadata is unverifiable')
         if release.get('tag_name') != tag or type(release.get('draft')) is not bool or release.get('prerelease') is not prerelease:
             raise PrepareError('Existing release is published or has conflicting metadata')
         assets = release.get('assets')
