@@ -2,27 +2,9 @@
 
 # Server deployment
 
-Current published checkpoint `e08ed3b2684bdf04f0288c7162747a2783177026`: [CI 37600158231](https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37600158231) passed all four jobs: general checks, Python compatibility, Docker installation and empty-host acceptance. Python 3.12 passed 2102 tests. [Website 37600311118](https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37600311118) passed build and tests. Empty-host acceptance now runs automatically on main pushes as well as explicit manual requests; pull-request behavior is unchanged.
+Runbook for the native Linux supervisor installation. [Install with Docker](docker.md) is the primary container workflow. Validate host admission and the actual installation before using these commands; earlier rehearsal results do not automatically accept a new host.
 
-The [current native checkpoint summary](../evidence/ci-e08ed3b-2026-10-07/summary.json) binds the new Docker artifact to 13 reports and 254 passing checks for project creation, Supabase features, backup/restore, upgrades, rollback and restart. This is the new run's fresh-only artifact, not the earlier baafbad archive or historical installation transcription. Its runtime evidence is bound to core code commit `e08ed3b2684bdf04f0288c7162747a2783177026`; a subsequent documentation publication preserves that identity and does not establish runtime acceptance for later code changes.
-
-The [fresh empty-host evidence](../evidence/ci-e08ed3b-2026-10-07/empty-host/summary.json) contains six reports and one run manifest, with 58 unique checklist checks and a separately reported 21-check live Auth bootstrap. The identical rehearsal handoff copy adds no checks. The native log and final script guards establish that the shipped system unit became active and its console answered after the rehearsal. The earlier JSON unit snapshot records the deliberate inactive rehearsal phase; it is not the final restored service state. This is a fresh Ubuntu runner installation checkpoint, not physical reboot, Kali verification, complete lost-source recovery, cold/warm Cron continuity or production acceptance. Static-serving and TLS stub checks retain their separate scope; a public certificate is not proven.
-
-A separate [Fedora 44 systemd descriptor probe](../evidence/systemd-scope-fd-probe-2026-10-07/summary.json) preserved five descriptor identities across same-PID Python exec under bounded systemd scope custody. Its two-file public archive contains the probe and summary. It launched no guest or Docker container and accepts only that Python descriptor behavior, not a Linux guest, reboot or portable production deployment.
-
-Historical integration checkpoint before e08ed3b, 2026-10-07: Docker installation CI passed after `baafbad`, with 2086 Python tests and 254 current native checks. Manual standalone-service acceptance failed at the socket configuration handoff; its later rerun passed on e08ed3b. Full recovery and production remain unaccepted. See [current status](../reference/status.md); the following checkpoint paragraphs preserve historical snapshots and their limits.
-
-Historical checkpoint, 2026-10-06: complete snapshot verification passed 1449 tests with no failures, errors, warnings or skips and independent actual review. Repairs cover SQLite and HTTPError response closure, tempfile ownership and expected test diagnostics. All 52 preparation cases also passed; native PostgreSQL startup, Cron/Vault restart continuity and physical restore remain unaccepted. See [current status](../reference/status.md) for CI results and evidence scope.
-
-The separate public55 V3 role has actual MET: 25 component and 30 pump tests passed, original 290 and added 4 actual mode/byte captures matched, and all three known helpers were removed with no unresolved resources. Public BusyBox V8 help metadata also has actual MET: fixed-path Bash 5.3.3 and BusyBox 1.37.0 help returned zero, with its one helper removed. Neither result accepts private request operation, timeout timing/signal behavior, installed binary source provenance, candidate startup, cold/warm Vault or Cron continuity, physical restore or production.
-
-The preserved warning-window V4 negative run reported 1447 ordinary tests OK but six ResourceWarnings, native 1 and observed window 839 for every warning. Three records have exact sqlite3.Connection type; three report tempfile.py line 484 with NoneType source. Observation windows are not allocation causes, and the three tempfile origins remain unknown. At that historical checkpoint, fresh complete source/identity/mode/full bindings, final-revision CI and manually dispatched empty-host acceptance remained required; published 0e745394 CI and Website results retain only their earlier revision scope.
-
-Runbook for the native Linux installation path. The primary container workflow is described in [Install with Docker](docker.md). September workstation and local-VM rehearsals below retain their original scope; they are not fresh production acceptance.
-
-A real server runs main at sbarbase.sbarah.com (Ubuntu 26.04, systemd, the TLS proxy behind Cloudflare), upgraded from 0.2.0 on 2026-10-16; local and R2 restores passed there on one environment without application data. Historical published `0e745394` passed Docker installation CI, while empty-host acceptance was skipped at that checkpoint. No independent public-server pilot is established. Current startup tooling defines only an explicit prepare-only material-handoff status; no actual native material-preparation run is accepted by this guide. The earlier V9 initV2 run passed 52 focused tests but its historical actual 1447-case full regression failed with one failure and 15 errors.
-
-Earlier mode, scratch and warning verification attempts remain historical refusals bound to their own source and date. Resource ownership and fixture diagnostics were repaired, and complete verification of that earlier snapshot passed 1449 tests. This does not transfer native startup or recovery evidence from another run. The [status history](../reference/status.md) preserves the earlier observations and their limits.
+The owner server runs base 0.11.2 with private console revision `53b43da`. The latest public source release is 0.12.2 and its declared PGMQ migration needs a separate supported path. See [current status](../reference/status.md) and [deployment readiness](../reference/deployment-readiness.md). Older rehearsal details are retained in [historical readiness](../reference/deployment-readiness-history-2026-11-13.md).
 
 ## Prerequisites
 
@@ -478,49 +460,12 @@ The step by step versions are [backup and restore](backup-and-restore.md) and [u
   [UPSTREAM-UPDATE-POLICY](../engineering/UPSTREAM-UPDATE-POLICY.md), which records
   the rollback pin and any data migration in a dated entry under `docs/upstream/`.
 
-## Historical rehearsal evidence and current limits
+## Verification scope
 
-- No end-to-end install rehearsal on an independent public server is established. An empty
-  server has been simulated in a local virtual machine (Fedora 44 Cloud, clean
-  clone, `lab/vm-rehearsal.sh`), whose later rehearsal found ten defects the
-  development host could not show; see
-  [deployment readiness](../reference/deployment-readiness.md). The
-  documented command itself completed end to end on the development host at
-  7:25 PM, 13 of 13, including the unit install as root and its restart
-  (`docs/evidence/server-acceptance-latest.json`); what a server adds is root,
-  the service account, a public certificate and the absence of a retained
-  installation. The preflight, the runtime startup, adoption and verification are
-  also each proven separately in the evidence files under `docs/evidence/`.
-- No production capacity claim: 5888 MiB and 5.75 CPUs are configured ceilings,
-  not measured peak demand. Sustained mixed load and 10/100-project capacity are
-  unproven.
-- Realtime, Functions and Studio have optional implementations in the legacy
-  workflow, with separately scoped CI observations. They are not thereby
-  accepted for native-dedicated placement. The connection pooler and exposed
-  operator Cron feature remain unimplemented in that legacy workflow; accepted
-  original-image Cron/HTTP fixtures are a separate bounded prerequisite.
-- Legacy encrypted copy/fetch/restore and second-VM restore have scoped
-  historical observations. Complete fresh-host installation recovery, candidate
-  physical restore and coordinated multi-host operation remain unaccepted.
-- Updates from the console and opt-in automatic updates exist, with a health-gated
-  way back and a start guard ([upgrades](upgrades.md)). They are covered by unit
-  tests plus historical clean-runner CI and local-VM observations summarized in
-  [status](../reference/status.md#update-channel-2026-09-25). On the real server,
-  signed releases from the canonical repository with the maintainer's key were
-  installed from the command line (`lab/upgrade.py start --release`, first 0.3.1);
-  the console's install button, automatic updates and **Roll back** have not run
-  there.
-- After an unclean supervisor stop, `lab/leftover_runtime.py` provides a
-  lock- and receipt-gated stop of owned containers before preflight, retaining
-  volumes. This correction has source regression evidence only; no live kill
-  rehearsal is established. A live owner or pending receipt/journal still
-  refuses reconciliation. Reinstall the unit to gain its documented preflight
-  cleanup step; this does not establish arbitrary crash recovery.
-- Bootstrap creates the first operator; invitations are a separate legacy
-  feature with scoped local-VM evidence. The console has sign-in factors (MFA)
-  and rate limits on its sign-in, which answer `429` when exceeded. See
-  [status](../reference/status.md) for the historical scope.
+The private console update was confirmed on the retained installation without changing images or the database runtime. That does not accept a fresh public installation, PostgreSQL migration or full recovery. Host admission, exact images, service health, authorization, backup and restore remain separate checks. [Deployment readiness](../reference/deployment-readiness.md) records current boundaries; [historical records](../reference/deployment-readiness-history-2026-11-13.md) retain earlier rehearsal evidence and dates.
 
 ## Private directory permissions
 
 Installation and startup create `.secrets` and `.secrets/upstream` with mode `0700`, owned by the account running the service. Symlinks and existing directories with a different owner or mode are refused. The runtime state directory `.lab/upstream` is also kept `0700`: unlike the secrets, one left open by an install under umask 002 is closed at start, because restore refuses its journal in an open directory; a link or another owner is refused. If a new version refuses an older checkout whose parent was created as `0755`, stop the installation normally and verify both directories are real directories owned by the service account before setting only these two directory modes to `0700`. The shipped Docker image runs as root inside the container. This repair does not require changing ownership or internal file modes; retain all secret data and backups. `Runtime private directory ownership or mode refused` and `Runtime private directory identity changed` require correcting permissions or the checkout path before retrying.
+
+<a id="historical-rehearsal-evidence-and-current-limits"></a>

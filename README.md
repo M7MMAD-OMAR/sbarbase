@@ -60,11 +60,11 @@ Reader guides and references are in English and Arabic. The dated engineering no
 
 ## Status
 
-The source package declares version 0.12.2 ([changelog](CHANGELOG.md)). Check [GitHub Releases](https://github.com/M7MMAD-OMAR/sbarbase/releases) for published downloads. Agents use access tokens and the documented [API and MCP interfaces](docs/guides/agents.md); capability discovery describes the supported policy and its limits.
+Latest public source release: [v0.12.2](https://github.com/M7MMAD-OMAR/sbarbase/releases/tag/v0.12.2). The owner server runs base version 0.11.2 with the separately verified private console revision `53b43da`. The dependency lock, service images and database runtime were not upgraded by that revision.
 
-Service container pins remain unchanged. Image upgrades require separate migration validation. Historical server observations and the scope of Docker and VM rehearsals are recorded in [status](docs/reference/status.md). They do not establish independent production acceptance for this source update.
+The console now has elevation surfaces, persistent navigation, direct project and environment selectors, themed menus and project-aware browser tabs. Original Studio remains a full page. Native Studio SMTP saving, the declared PGMQ migration and service-image upgrades remain separate unfinished work.
 
-Current work is the [upstream currency plan](docs/engineering/plans/2026-10-14-upstream-currency.md); longer-term priorities are in the [product and portability plan](docs/engineering/plans/2026-10-03-product-and-portability-plan.md), with the [execution contract](docs/engineering/plans/2026-10-03-gauntlet-execution-method.md) defining how each claim is verified.
+Read [current status](docs/reference/status.md), [upgrade requirements](docs/guides/upgrades.md) and the [API/MCP guide](docs/guides/agents.md). Development metadata and unreleased changelog entries do not identify a published or installed release. Full production qualification remains open.
 
 ## Support
 

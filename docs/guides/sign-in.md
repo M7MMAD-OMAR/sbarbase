@@ -2,6 +2,8 @@
 
 # Sign-in settings and OAuth providers
 
+This guide describes the Sbarbase console. Screenshots can show an earlier visual treatment; current selectors follow the theme and direct workspace switching is available in the sidebar. Mail settings here are separate from the incomplete SMTP form in [original Studio](studio.md#smtp-settings-in-original-studio).
+
 For a click by click walkthrough with screenshots of every page, see [Authentication in the console](authentication.md). This page is the reference.
 
 Each environment has its own sign-in settings: where Auth sends people after they sign in or open an email link, who may sign up, and which providers (Google, GitHub, Apple and others) they can sign in with. Set them in the console: open the environment, then **Sign-in settings**. Only owners and admins of the client see this page.

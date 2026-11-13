@@ -2,6 +2,8 @@
 
 # Console tour
 
+This guide describes the Sbarbase console. Screenshots can show an earlier visual treatment; current selectors follow the theme and direct workspace switching is available in the sidebar. Mail settings here are separate from the incomplete SMTP form in [original Studio](studio.md#smtp-settings-in-original-studio).
+
 One page, every place in an environment, and when to use it. The screenshots come from the console's test pages with example data, not from a real installation, and every caption says so. A number on a screenshot marks what to click.
 
 Start at **Projects**, open a project, then press **Connection details** on an environment. The environment page has seven sections in a row under its name. Owners and admins see all seven; viewers see **Overview**, **Usage** and **API keys**.

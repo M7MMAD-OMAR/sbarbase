@@ -2,9 +2,13 @@
 
 # Upgrades
 
-Sbarbase tells you in the console when a newer signed release exists. A safe release installs with one click, and a release that changes environment databases installs after you confirm a warning. An update from the console, or an automatic one, first lets running work finish; every upgrade backs up your environments. Application traffic waits until the new version passes its health checks, and Sbarbase returns to the previous version by itself if it does not. You can also let safe releases install themselves inside a maintenance window. That is off by default.
+Reviewed 2026-11-13. This guide describes supported update paths and rollback boundaries. Check [current status](../reference/status.md) before selecting a release: a public release, an installed revision and development changes are different facts.
 
-What is proven here is measured, and what is not is named below. The update channel (the release check, the console page, one-click install, automatic updates, the start guard and the drain) was built on 2026-09-25 and is covered by unit tests and by three CI cases, which passed on 2026-09-25 on a clean CI machine, not a real server ([evidence](../evidence/docker-upgrade-checks.json), 45 of 45 checks): a version that migrates the control catalog and then stops, one whose PostgREST never answers and one that never passes its health checks each moved back by themselves, with the catalog snapshot restored and application traffic held with 503 while the health checks waited, and an unsigned tag and a tag signed by an unlisted key were refused with nothing moved. Those runs moved the checkout with `lab/upgrade.py` from the command line. On 2026-09-26 the local rehearsal VM, under systemd, ran the command line cycle and then the channel as an operator uses it: signed releases found and installed through the management API the console uses (the Updates page itself was not driven) and by automatic mode, a broken one moved back by itself, and a release that changes Auth installed after its warning was confirmed. On the real server, 0.3.1 was the first signed release installed from the command line with `lab/upgrade.py start --release`, and v0.7.1 was the first real update through the update channel: it passed its health checks. Which entry point carried it is not recorded here, and automatic updates and Roll back have not been exercised on a real server; see [what has been run](#what-has-been-run).
+## Current release advisory
+
+Public release 0.12.2 declares a manual PGMQ ownership and backup-metadata migration. The ordinary 0.11.2 updater refuses it; acknowledging a console prompt cannot override that classification. A qualified general migration path for this transition is still incomplete. Do not remove the migration from `release.json` or use `--to` to force it.
+
+The owner's private revision `53b43da` changes only the console above base 0.11.2, with no service-image, dependency or PGMQ migration change. Its guarded activation was confirmed. It is not a public downloadable release and does not prove a 0.12.2 migration. API and MCP additions in the newer public source were not included in it.
 
 ## Where you see an update
 
@@ -122,7 +126,7 @@ The console process stops gracefully, by default and with no switch to set. On `
 
 ### What has been proven about this work
 
-**Proven:** unit tests (3535 Python lab tests, plus the Bun suite) against stubbed Docker, stubbed databases and temporary folders; two-process tests of the handover on a workstation; the live measurement of 2026-10-26 on a clean CI runner, fault injection included; and three real updates of the owner's server through the update channel (v0.7.1, v0.9.0, v0.9.1), each confirmed by its health checks. The first two were code only or a rebuild and did not use the handover; v0.9.1 was code only as well.
+Source tests exercise bounded mechanisms with temporary files, stubbed containers/databases and separate-process handover tests. See [current status](../reference/status.md) for the installed candidate and [known limits](../engineering/upgrades-known-limits.md) for historical experiments. Older counts do not qualify a newer source revision.
 
 **Not proven:** none of the three features has been measured under load or by fault injection on a real server, in a container or in the rehearsal VM. The kernel mechanisms the handover stands on were measured on a development host, not through the TLS proxy with real environments. The owner plans to test them locally. The project is not independently accepted for production.
 
@@ -279,17 +283,7 @@ To go back to earlier pins after the automatic way back, when `rollback` says th
 
 The `sbarbase` command passes each of these to `lab/upgrade.py` as separate arguments ([the sbarbase command](cli.md)). It refuses before running anything when a release is not a plain `vX.Y.Z` tag, when `--allow-class` names anything but `rebuild` or `attended`, or when an option does not fit the subcommand; give `--allow-class` twice for a release that needs both.
 
-## Moving onto the first version with the update channel
-
-A version without the update channel (its `lab/upgrade.py` has no `channel` command) cannot see or verify a release. The move onto the first version that has one changes the `Dockerfile`, `compose.yaml`, the container's start script and `deploy/sbarbase.service`, so it is a rebuild and cannot be one click:
-
-1. `python3 lab/upgrade.py start --to <tag or commit>` (this path is not signature checked).
-2. With Docker, `docker compose up -d --build`. Without the rebuild the container has no `ssh-keygen` and no guard in its start script, and every release is refused with "ssh-keygen is not installed, so no release signature can be checked; rebuild the container image".
-3. With systemd, `sudo /usr/bin/python3 lab/install_server.py supervise --apply` with the service's options, then `sudo systemctl restart sbarbase`. Until the new unit is installed, the guard runs from `lab/dev.py` instead of before the preflight.
-
-The new version's first start takes the control snapshot, holds traffic and runs the health checks, even though the older command started the move. If it fails, the way back lands on the older version, which has no guard, confirms its own start without health checks or a hold, and cannot deliver the `update.*` notifications.
-
-## What has been run
+## Historical measurements
 
 - Unit tests on the workstation on 2026-09-26: 214 Python tests in `lab/test_release_channel.py`, `lab/test_updates.py`, `lab/test_upgrade.py`, `lab/test_upgrade_health.py`, `lab/test_upgrade_guard.py`, `lab/test_upgrade_drain.py` and `lab/test_upgrade_check.py` (the upgrade file also holds the older upgrade tests), and 58 Bun tests for the hold, the probe past it, the updates routes and the console page. All pass.
 - The rehearsal VM ran the command line cycle again on 2026-09-26, on the update channel code, under systemd with the start guard first: an upgrade to a newer PostgREST with `start --to`, the operator's rollback while it was confirmed, and a broken version that moved back by itself with the control snapshot restored, with data unchanged at each step (26 of 26 checks, [evidence](../evidence/vm-upgrade-checks.json); the first run of 2026-09-25 ended with a [return](../evidence/vm-upgrade-return.json) to the installed pins). CI records the same `start --to` cycle on a clean machine, with users, files and buckets compared before and after ([evidence](../evidence/docker-upgrade-checks.json)).
@@ -345,6 +339,9 @@ Restore the previous pin recorded in the review entry and ship it as a new versi
 
 ## Database containers are special
 
+The migration tool does not establish compatibility of a new PostgreSQL image. PostgreSQL 17.11 was not qualified or adopted by the console update. Target-image admission, affected-data inventory and an isolated recovery rehearsal are prerequisites before operating on retained data. See [deployment readiness](../reference/deployment-readiness.md).
+
+
 Startup never recreates a database container as an implicit upgrade. A managed database container is pinned by its exact identity, and replacing it (for a new image, for example) goes through `lab/migrate-generation.py`, which is journaled and crash-tested on disposable fixtures. Its first attended run on retained data was made on 2026-09-25 and kept every row count; see [status](../reference/status.md).
 
 ### Moving to another PostgreSQL image
@@ -371,16 +368,23 @@ The way back to the previous image is the same move towards the previous version
 - The forced way back, the 3-move limit and the stopped state live in the guard, and the way back runs the guard copied from the version the upgrade left. So they protect only upgrades started from a version that has them.
 - A guard that cannot write `state.json` at all (a full or read-only disk) cannot count its failures, so the service restarts in a loop until the disk is writable again.
 - Work toward fewer interruptions (kept containers, the rolling replacement, the handover, the database window, the graceful stop) is proven by unit tests and by the first channel update, and has not been measured under load or fault injection on a real server; every recorded gap is in the [known limits](../engineering/upgrades-known-limits.md).
-# Publishing a source release
+## Publishing a source release
 
-Prepare the release with `python3 lab/release.py prepare`, follow its printed signing and push commands, and confirm the signing key is trusted in `deploy/release-signers`. The tag must already exist on the canonical GitHub repository and match the local signed annotated tag. The tag's `release.json` must match its version. The tag workflow runs builds and tests before publication.
+A signed tag and a downloadable GitHub Release are separate objects. Publication verifies the trusted canonical tag, runs checks and builds, creates a draft, uploads the source archive and SHA256SUMS, and downloads them for verification before publication. Pushing a tag alone does not guarantee downloadable assets.
 
-For a manual retry after those checks pass, authenticate `gh` with permission to write releases and run:
+After the required checks and migration review, a maintainer can retry from the exact tagged source:
 
 ```sh
 python3 lab/release.py publish --tag vX.Y.Z
 ```
 
-Add `--latest` only when deliberately making a stable release the latest. The workflow does not request latest. The command creates or reconciles a draft, checks downloaded assets against locally generated bytes, and publishes only after verification. If an existing asset differs, inspect the draft and remove the conflicting asset manually before retrying. A published release is never modified by this command. If a command fails, inspect the draft and rerun the same command after fixing the cause.
+Use `--latest` to request Latest for an eligible stable release; the tag workflow requests it for stable tags. The tool does not promote an older version over a newer eligible published stable version. Assets are source archives and SHA256SUMS, not executable binaries. Latest designation does not change upgrade eligibility or classification.
 
-The assets are a deterministic source archive with a `sbarbase-X.Y.Z/` prefix and `SHA256SUMS`. They are source distribution only, not executable binaries. Upgrade eligibility and migration requirements remain governed by the signed release channel.
+The published 0.12.2 assets passed checksum verification. Its publisher can reject a replay on another host when gzip encoders produce different compressed bytes for identical source. Portable payload comparison is still [unreleased work](../../CHANGELOG.md). Do not describe development behavior as shipped behavior or replace published assets without investigating a mismatch.
+
+## SMTP and image qualification
+
+A confirmed console update does not fix original Studio SMTP saving or qualify a new Supabase image set. These remain separate checks. [Deployment readiness](../reference/deployment-readiness.md) distinguishes observed results from remaining gates.
+
+<a id="moving-onto-the-first-version-with-the-update-channel"></a>
+<a id="what-has-been-run"></a>

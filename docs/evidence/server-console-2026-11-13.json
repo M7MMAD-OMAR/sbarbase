@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "observed_on": "2026-11-13",
+  "scope": "Owner console-only deployment, not complete production qualification",
+  "base_version": "0.11.2",
+  "deployed_commit": "53b43dafa761b1071aa4b36a3cfc92f87965392d",
+  "integration_commit": "5cc5527cf7bd4dca52600aff841bbed7c66c2510",
+  "public_source_release": "v0.12.2",
+  "outcome": "confirmed",
+  "checks": {
+    "bun_tests": 1610,
+    "upgrade_python_tests": 185,
+    "isolated_console_browser_checks": 46,
+    "production_native_studio_identity": true,
+    "environment_count": 4,
+    "public_auth_http": [
+      200,
+      200,
+      200,
+      200
+    ],
+    "public_rest_http": [
+      200,
+      200,
+      200,
+      200
+    ],
+    "verified_backup_scopes": 6,
+    "backup_archive_readability": true,
+    "full_restore_rehearsed": false
+  },
+  "unchanged": {
+    "dependency_lock": true,
+    "image_pins": true,
+    "running_service_images": true,
+    "database_container": true
+  },
+  "not_applied": [
+    "PGMQ ownership adapter migration",
+    "new Supabase SDKs",
+    "new capability-discovery API/MCP resources",
+    "candidate service image upgrades"
+  ],
+  "remaining": [
+    "Native Studio SMTP save integration",
+    "Fresh-host and full offsite recovery qualification",
+    "Representative workload capacity",
+    "Supported attended PGMQ migration and recovery"
+  ],
+  "production_observation": {
+    "kind": "operator-observed deployment",
+    "independent_review_scope": "source candidate and bounded post-deployment metadata; not full product acceptance"
+  }
+}

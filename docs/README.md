@@ -52,7 +52,7 @@ Read these to understand the design. Each page has the same shape: what it is, w
 
 ## Reference: facts to look up
 
-- [Status](reference/status.md): the single place for what works and every number, with dates and commands.
+- [Status](reference/status.md): current versions, observed checks, remaining work and links to dated evidence.
 - [Project layout](reference/project-layout.md): repository folders and the current documentation entry points.
 - [Glossary](reference/glossary.md): every internal term in one or two sentences.
 - [Configuration](reference/configuration.md): files, flags and environment variables an operator touches.
@@ -70,6 +70,8 @@ Read these to understand the design. Each page has the same shape: what it is, w
 
 Also kept here: [evidence](evidence/) (JSON written by live probes, cited by status), [diagrams](diagrams/README.md) and the [console design record](design/CONSOLE.md).
 
-## Current direction
+## Current status and versions
 
-The active work is the [upstream currency plan](engineering/plans/2026-10-14-upstream-currency.md), and a real server runs v0.9.1, installed through the update channel ([status](reference/status.md)). The [project goal](../PROJECT_GOAL.md), [October product plan](engineering/plans/2026-10-03-product-and-portability-plan.md) and [execution method](engineering/plans/2026-10-03-gauntlet-execution-method.md) guide current development. The [native placement contract](engineering/plans/2026-10-03-native-placement-identity.md) separates experimental dedicated placement from the existing shared topology. The [evidence ledger](engineering/gauntlet-ledger.json) records scoped passes and refusals, including local packets that are not distributed with the repository. A source publication is not production release acceptance.
+Start with [current status](reference/status.md) for the public release, the owner's installed revision and the limits of observed checks. The documentation website is [base.sbarah.com](https://base.sbarah.com/en/). A public source release and the owner's private console revision are different distributions.
+
+Reader guides describe current workflows. The engineering notebook and checkpoint records remain dated history; older release descriptions are not current operating instructions.

@@ -75,9 +75,18 @@ CI starts Studio on a clean machine with every change, uses the table list, SQL,
 
 ## Extension prerequisites on shared databases
 
-PGMQ activation needs its fixed `pgmq` schema and database-local ownership. The platform prepares the schema without enabling the extension. Its `lab/postgres/pgmq-after-create.sql` adapter retains the pinned upstream queue backup behavior and assigns extension objects to the environment developer. Startup installs it atomically as a root-owned 0444 file, reads back its checksum and permissions, and rechecks the exact container identity. It does not recreate the HBA-bound database container. Reopening Studio repairs existing pgmq 1.5.1 hosted-role ownership while retaining queues; unexpected versions or schemas are refused for operator review. See [agent capabilities](agents.md#discover-capabilities-before-changing-a-project).
+Public source 0.12.2 contains a PGMQ ownership and backup-metadata adapter. This is a declared manual migration, not part of the owner's private console update above 0.11.2. Do not assume the adapter is installed because Studio lists an extension. Applying it needs a qualified migration and backup/recovery path; see [upgrades](upgrades.md) and [capabilities](agents.md#discover-capabilities-before-changing-a-project).
 
-Query Performance requires shared server statistics and is unavailable on this shared topology. Enabling `pg_stat_statements` is deliberately refused. The console's Services page explains this restriction; the vendor Studio page is preserved unchanged.
+On a qualified installation using that adapter, the provisioner prepares the fixed schema and reconciles pgmq 1.5.1 ownership, refusing unexpected versions or schemas. Backup qualification covers ordinary non-partitioned queues only. Application-code rollback does not undo database ownership or queue backup metadata changes. This describes conditional source behavior, not a migration accepted on every existing installation.
 
+Shared server statistics remain blocked for tenant isolation, so Query Performance requiring `pg_stat_statements` is unavailable on this topology.
 
-PGMQ 1.5.1 reconciliation is a declared manual migration. Review a backup before acknowledging the platform update. It retains existing queues and messages, makes ordinary queues independent logical-dump objects, and records queue discovery metadata as extension configuration data. The patched `pgmq.create(text)` still calls the native non-partitioned queue creator. Partitioned or custom queue creation paths are not covered by this backup qualification. Rolling back application code does not reverse database ownership or queue backup metadata changes.
+## SMTP settings in original Studio
+
+The original Studio SMTP save integration is incomplete and can return an API error. Use [Authentication settings in the Sbarbase console](sign-in.md) to configure mail and inspect its apply status. A successful external SMTP-provider test does not prove that Auth settings were persisted or applied. Re-entering credentials in the native form is not a successful integration test.
+
+## Project names in browser tabs and URLs
+
+The tab prefixes the Studio page title with the project and environment. A safe display label appears in a query such as `?workspace=shop-production`, following navigation and reloads. Arabic names remain text.
+
+The label is not a permanent project locator or an authorization input. The environment's unique hostname and signed session remain authoritative. Do not replace `/project/default` with a project name: the self-hosted Studio expects that reference. Use the console's project/environment selector or the optional Studio workspace selector for an authorized switch.

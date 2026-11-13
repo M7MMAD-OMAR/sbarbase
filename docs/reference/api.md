@@ -2,7 +2,9 @@
 
 # API
 
-Routes served by the loopback server (`lab/upstream-server.ts`). Paths starting with `/management/` are the management API, `/v1/` and `/mcp` are for agents, and everything else is the application gateway. Read from the code on 2026-10-19; the code is authoritative:
+Route availability depends on the installed revision. Public source 0.12.2 contains `GET /v1/capabilities` and MCP resource `sbarbase://capabilities`; the owner's private console-only update above 0.11.2 excludes them. See [current status](status.md) and the [agent guide](../guides/agents.md). The route handlers remain authoritative for request contracts.
+
+Routes served by the loopback server (`lab/upstream-server.ts`). Paths starting with `/management/` are the management API, `/v1/` and `/mcp` are for agents, and everything else is the application gateway. The code is authoritative; the tables below describe the established route groups:
 
 - Routing between the three groups: [src/control/application.ts](../../src/control/application.ts)
 - Management metadata: [src/control/http.ts](../../src/control/http.ts)

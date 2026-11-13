@@ -14,7 +14,8 @@ const read=(path:string)=>readFileSync(new URL(path,ROOT),'utf8');
 
 export function llms(pages:Page[]){
  const en=pages.filter(p=>p.source.lang==='en');
- const group=(prefix:string)=>en.filter(p=>p.source.slug.startsWith(prefix)).map(p=>`- [${p.title}](${SITE}${p.url}index.md): ${p.description}`).join('\n');
+ const history=en.filter(p=>p.source.slug.includes('-history-'));
+ const group=(prefix:string)=>en.filter(p=>!history.includes(p)&&p.source.slug.startsWith(prefix)).map(p=>`- [${p.title}](${SITE}${p.url}index.md): ${p.description}`).join('\n');
  const home=en.find(p=>p.source.slug==='')!,changelog=en.find(p=>p.source.slug==='changelog')!;
  return `# Sbarbase
 
@@ -25,7 +26,10 @@ Every page below is Markdown; the same page as HTML is the URL without index.md.
 ## Start here
 
 - [Documentation map](${SITE}${home.url}index.md): ${home.description}
+- [Current versions and verification scope](${SITE}/en/docs/reference/status/index.md): distinguish public releases, installed revisions and unfinished work before choosing a workflow.
 - [Changelog](${SITE}${changelog.url}index.md): every release, newest first.
+
+Capability discovery is version-specific. A missing /v1/capabilities route or MCP resource on an older installation does not imply that its established project APIs are unavailable. A listed feature does not prove installed extension state or authorize a migration.
 
 ## Explain
 
@@ -43,11 +47,17 @@ ${group('reference/')}
 
 - [All English docs in one file](${SITE}/llms-full.txt)
 - [Changelog feed](${SITE}/en/docs/changelog/feed.xml)
+
+## Historical records
+
+These preserve superseded observations and are excluded from llms-full.txt. They are not current operating instructions.
+
+${history.map(p=>`- [${p.title}](${SITE}${p.url}index.md): archived, source-bound history.`).join('\n')}
 `;
 }
 
 export function llmsFull(pages:Page[]){
- return pages.filter(p=>p.source.lang==='en').map(p=>`<!-- ${SITE}${p.url} -->\n\n${p.markdown.trim()}\n`).join('\n\n');
+ return pages.filter(p=>p.source.lang==='en'&&!p.source.slug.includes('-history-')).map(p=>`<!-- ${SITE}${p.url} -->\n\n${p.markdown.trim()}\n`).join('\n\n');
 }
 
 // One entry per released version: its heading, date and the notes as HTML with absolute links.

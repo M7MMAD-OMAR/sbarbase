@@ -2,6 +2,8 @@
 
 # Authentication in the console
 
+This guide describes the Sbarbase console. Screenshots can show an earlier visual treatment; current selectors follow the theme and direct workspace switching is available in the sidebar. Mail settings here are separate from the incomplete SMTP form in [original Studio](studio.md#smtp-settings-in-original-studio).
+
 Every environment has its own Authentication workspace. This page walks it in the order the console shows it, so you can follow it with the console open and know what to click next. The screenshots come from the console's test pages with example data (`example.com` addresses and made up names), not from a real installation, and every caption says so. Numbers on a screenshot mark where to click, in order.
 
 Open the environment, then **Sign-in settings**. Only owners and admins see it. Everything on it belongs to this environment alone: another environment's providers and secrets never appear here.

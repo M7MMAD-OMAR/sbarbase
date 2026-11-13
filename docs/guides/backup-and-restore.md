@@ -288,3 +288,9 @@ Ubuntu package snapshot as Python and verifies the minimum version during its
 build. The source CI jobs declare Node 22.23.2 explicitly. These runtime changes
 require their actual container/CI checks before production activation; the local
 source suite does not establish that a rebuilt container was deployed.
+
+## Private Storage credentials
+
+Use the [runtime credential guide](fanio-storage-credentials.md) for the bounded server-only issuer available in the published source. Credentials, their custody and scoped policy do not make a private bucket public or qualify complete host recovery.
+
+Local [qualification working notes](../engineering/storage-credentials-qualification-2026-11-08.md) retain the separate attended-minting prototype. That prototype is not distributed in the current public release; do not assume its CLI exists on an installed server. [Current status](../reference/status.md) distinguishes installed code from unpublished development work.

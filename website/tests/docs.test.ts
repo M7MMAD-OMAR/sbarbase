@@ -137,6 +137,10 @@ test('llms.txt lists every English page as Markdown, and every page has one',()=
   expect(page.html).toContain(`<link rel="alternate" type="text/markdown" href="${page.url}index.md">`);
  }
  expect(llmsFull(pages)).toContain('# Install with Docker');
+ for(const page of pages.filter(p=>p.source.lang==='en'&&p.source.slug.includes('-history-'))){
+  expect(text).toContain(`${page.url}index.md`);
+  expect(llmsFull(pages)).not.toContain(`<!-- https://base.sbarah.com${page.url} -->`);
+ }
 });
 
 test('every page carries structured data that parses',()=>{

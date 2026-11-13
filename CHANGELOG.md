@@ -6,13 +6,17 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-The declared package version is 0.12.2. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
+The latest public source release is 0.12.2. Unreleased entries describe development work; [status](docs/reference/status.md) identifies the installed revision and its verification scope.
 
 ## [Unreleased]
 
 ### Still open
 
 - **Purging a deleted environment is refused**, because nothing proves that only that environment wrote the shared PostgreSQL cluster and Storage objects; delete and restore are soft.
+
+### Fixed in development
+
+- Verify the signed source payload and downloaded SHA256SUMS independently of gzip encoding. Published releases can be checked across zlib implementations; partial drafts retain their verified archive and complete its matching checksum.
 
 ## [0.12.2] - 2026-11-13
 
