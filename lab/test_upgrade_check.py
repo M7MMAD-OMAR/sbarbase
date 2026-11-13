@@ -164,6 +164,11 @@ class InstallationTests(unittest.TestCase):
         shutil.copy(ROOT / 'deploy' / 'release-signers', upstream / 'deploy' / 'release-signers')
         for name in ('release.json', 'package.json', '.gitignore'):
             shutil.copy(ROOT / name, upstream / name)
+        # These scenarios publish v0.9.1 and later, so their installed fixture
+        # must remain older even when the real checkout advances beyond them.
+        manifest = json.loads((upstream / 'release.json').read_text())
+        manifest.update(version='0.9.0', minimum_from='0.2.0', migrations=[])
+        (upstream / 'release.json').write_text(json.dumps(manifest) + '\n')
         run_git(upstream, 'init', '-q')
         run_git(upstream, 'add', '-A')
         run_git(upstream, 'commit', '-q', '-m', 'installed')

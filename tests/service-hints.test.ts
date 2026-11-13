@@ -1,3 +1,4 @@
+import {catalogTestDb} from './catalog-test-db';
 import {test,expect} from 'bun:test';
 import {Catalog} from '../src/control/catalog';
 import {NOTIFY_EVERY_MS,UNUSED_DEFAULT_DAYS,checkUnusedServices,unusedDays,unusedHint} from '../src/control/service-hints';
@@ -41,8 +42,8 @@ function ready() {
  return {catalog,environment,runtime:job.runtime};
 }
 const turnOn=(catalog:Catalog,runtime:string,service:'realtime_settings'|'functions_settings',at:number)=>
- catalog.db.query(`INSERT INTO ${service}(runtime,desired,state,failure,actor,updated_at) VALUES (?,'on','on',NULL,'alice',?)`).run(runtime,at);
-const notices=(catalog:Catalog)=>catalog.db.query<{kind:string;dedupe_key:string},[]>("SELECT kind,dedupe_key FROM notification_outbox WHERE kind='service.unused'").all();
+ catalogTestDb(catalog).query(`INSERT INTO ${service}(runtime,desired,state,failure,actor,updated_at) VALUES (?,'on','on',NULL,'alice',?)`).run(runtime,at);
+const notices=(catalog:Catalog)=>catalogTestDb(catalog).query<{kind:string;dedupe_key:string},[]>("SELECT kind,dedupe_key FROM notification_outbox WHERE kind='service.unused'").all();
 
 test('one notice per unused service, repeated at most every 14 days, and the service itself is never changed',()=>{
  const {catalog,runtime}=ready();
@@ -68,11 +69,11 @@ test('a service that was used, that has a socket open, or that is off is not rep
   turnOn(catalog,runtime,'realtime_settings',NOW-30*DAY);
   catalog.saveServiceActivity([{runtime,service:'realtime',at:NOW-DAY}]);
   expect(checkUnusedServices(catalog,activity,NOW)).toEqual([]);
-  catalog.db.query("DELETE FROM service_activity").run();
+  catalogTestDb(catalog).query("DELETE FROM service_activity").run();
   const close=activity.socketOpened(runtime);now=NOW+40*DAY;                                      // opened long ago, still open, nothing recorded since
   expect(checkUnusedServices(catalog,activity,now)).toEqual([]);
   close();now+=DAY;
-  catalog.db.query("UPDATE realtime_settings SET state='off',desired='off'").run();
+  catalogTestDb(catalog).query("UPDATE realtime_settings SET state='off',desired='off'").run();
   expect(checkUnusedServices(catalog,activity,now+30*DAY)).toEqual([]);
   expect(notices(catalog)).toEqual([]);
  }finally{catalog.close();}
@@ -106,11 +107,11 @@ test('the unused period is an installation setting only an operator reads or cha
   expect(catalog.installationServices().unusedDays).toBe(7);
   expect((await call('alice','PUT',{unusedDays:3})).status).toBe(200);
   expect(catalog.installationServices().unusedDays).toBe(3);
-  const audit=catalog.db.query<{actor:string;detail:string},[]>("SELECT actor,detail FROM audit_events WHERE action='services.settings_changed' AND detail LIKE '%unused_days%'").all();
+  const audit=catalogTestDb(catalog).query<{actor:string;detail:string},[]>("SELECT actor,detail FROM audit_events WHERE action='services.settings_changed' AND detail LIKE '%unused_days%'").all();
   expect(audit).toHaveLength(1);expect(audit[0]!.actor).toBe('alice');expect(JSON.parse(audit[0]!.detail)).toEqual({setting:'unused_days',from:7,to:3});
   // The Services route uses the stored period.
   turnOn(catalog,runtime,'realtime_settings',Date.now()-4*DAY);
-  const environment=catalog.db.query<{environment:string},[string]>('SELECT environment FROM provision_jobs WHERE runtime=?').get(runtime)!.environment;
+  const environment=catalogTestDb(catalog).query<{environment:string},[string]>('SELECT environment FROM provision_jobs WHERE runtime=?').get(runtime)!.environment;
   const services=servicesHandler(catalog,async request=>request.headers.get('authorization'),{});
   const body=await (await services(new Request(`http://local/management/v1/environments/${environment}/services`,{headers:{authorization:'alice'}}))).json() as {data:{services:{id:string;unused:unknown}[]}};
   expect(body.data.services.find(item=>item.id==='realtime')!.unused).toMatchObject({days:4});

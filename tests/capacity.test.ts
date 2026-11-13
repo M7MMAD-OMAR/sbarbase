@@ -1,3 +1,4 @@
+import {catalogTestDb} from './catalog-test-db';
 import {test,expect} from 'bun:test';
 import {mkdtempSync,rmSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
@@ -80,10 +81,10 @@ test('the capacity route is for installation operators only, and a build cache r
   const first=await call(handler,'alice','POST','build-cache');
   expect(first.status).toBe(202);expect(((await first.json()) as {data:Capacity}).data.action?.state).toBe('pending');
   expect((await call(handler,'alice','POST','build-cache')).status).toBe(409);
-  const audit=catalog.db.query<{actor:string;action:string},[]>("SELECT actor,action FROM audit_events WHERE action='host.build_cache_clear_requested'").all();
+  const audit=catalogTestDb(catalog).query<{actor:string;action:string},[]>("SELECT actor,action FROM audit_events WHERE action='host.build_cache_clear_requested'").all();
   expect(audit).toEqual([{actor:'alice',action:'host.build_cache_clear_requested'}]);
   // The supervisor finished: another request is allowed.
-  catalog.db.query("UPDATE host_actions SET state='done',reclaimed_bytes=366000000,finished_at=?").run(Date.now());
+  catalogTestDb(catalog).query("UPDATE host_actions SET state='done',reclaimed_bytes=366000000,finished_at=?").run(Date.now());
   expect((await call(handler,'alice','POST','build-cache')).status).toBe(202);
  }finally{catalog.close();}
 });
@@ -93,7 +94,7 @@ test('a request the supervisor never finished stops blocking after half an hour'
  try{
   catalog.requestHostAction('alice','build_cache_clear');
   expect(()=>catalog.requestHostAction('alice','build_cache_clear')).toThrow('Host action in progress');
-  catalog.db.query("UPDATE host_actions SET state='running',requested_at=?").run(Date.now()-31*60_000);
+  catalogTestDb(catalog).query("UPDATE host_actions SET state='running',requested_at=?").run(Date.now()-31*60_000);
   expect(catalog.requestHostAction('alice','build_cache_clear').state).toBe('pending');
   expect(()=>catalog.requestHostAction('alice','image_prune' as never)).toThrow();
   expect(()=>catalog.requestHostAction('carol','build_cache_clear')).toThrow('Forbidden');

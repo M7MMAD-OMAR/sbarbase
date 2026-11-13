@@ -1,3 +1,4 @@
+import {catalogTestDb} from './catalog-test-db';
 import {test,expect} from 'bun:test';
 import {Catalog} from '../src/control/catalog';
 import {KeyStore} from '../src/control/keys';
@@ -26,19 +27,19 @@ function ready(extra=0) {
 }
 const table=(service:OnDemandService)=>service==='realtime'?'realtime_settings':'functions_settings';
 const setState=(catalog:Catalog,runtime:string,service:OnDemandService,desired:'on'|'off',state:string,failure:string|null=null)=>
- catalog.db.query(`INSERT INTO ${table(service)}(runtime,desired,state,failure,actor,updated_at) VALUES (?,?,?,?,'test',1) ON CONFLICT(runtime) DO UPDATE SET desired=excluded.desired,state=excluded.state,failure=excluded.failure,updated_at=excluded.updated_at`).run(runtime,desired,state,failure);
-const row=(catalog:Catalog,runtime:string,service:OnDemandService)=>catalog.db.query<{desired:string;state:string;actor:string;failure:string|null},[string]>(`SELECT desired,state,actor,failure FROM ${table(service)} WHERE runtime=?`).get(runtime);
-const events=(catalog:Catalog,action:string)=>catalog.db.query<{actor:string;detail:string},[string]>('SELECT actor,detail FROM audit_events WHERE action=? ORDER BY rowid').all(action).map(item=>({actor:item.actor,...JSON.parse(item.detail)}));
+ catalogTestDb(catalog).query(`INSERT INTO ${table(service)}(runtime,desired,state,failure,actor,updated_at) VALUES (?,?,?,?,'test',1) ON CONFLICT(runtime) DO UPDATE SET desired=excluded.desired,state=excluded.state,failure=excluded.failure,updated_at=excluded.updated_at`).run(runtime,desired,state,failure);
+const row=(catalog:Catalog,runtime:string,service:OnDemandService)=>catalogTestDb(catalog).query<{desired:string;state:string;actor:string;failure:string|null},[string]>(`SELECT desired,state,actor,failure FROM ${table(service)} WHERE runtime=?`).get(runtime);
+const events=(catalog:Catalog,action:string)=>catalogTestDb(catalog).query<{actor:string;detail:string},[string]>('SELECT actor,detail FROM audit_events WHERE action=? ORDER BY rowid').all(action).map(item=>({actor:item.actor,...JSON.parse(item.detail)}));
 
 /** A supervisor that does what lab/realtime.py does: applies each pending row when asked to tick, and the service is then running or not. */
 function supervisor(catalog:Catalog,running:Set<string>,options:{fail?:string;ticksToStart?:number;now?:()=>number}={}) {
  let ticks=0;const applied:string[]=[];
  return async()=>{
   for(const [service,table_] of [['realtime','realtime_settings'],['functions','functions_settings']] as const){
-   for(const item of catalog.db.query<{runtime:string;desired:string},[]>(`SELECT runtime,desired FROM ${table_} WHERE state='pending'`).all()){
+   for(const item of catalogTestDb(catalog).query<{runtime:string;desired:string},[]>(`SELECT runtime,desired FROM ${table_} WHERE state='pending'`).all()){
     if(item.desired==='on'&&options.ticksToStart&&++ticks<options.ticksToStart)continue;
-    if(item.desired==='on'&&options.fail){catalog.db.query(`UPDATE ${table_} SET state='failed',failure=? WHERE runtime=?`).run(options.fail,item.runtime);continue;}
-    catalog.db.query(`UPDATE ${table_} SET state=?,failure=NULL,updated_at=? WHERE runtime=?`).run(item.desired,(options.now??Date.now)(),item.runtime);
+    if(item.desired==='on'&&options.fail){catalogTestDb(catalog).query(`UPDATE ${table_} SET state='failed',failure=? WHERE runtime=?`).run(options.fail,item.runtime);continue;}
+    catalogTestDb(catalog).query(`UPDATE ${table_} SET state=?,failure=NULL,updated_at=? WHERE runtime=?`).run(item.desired,(options.now??Date.now)(),item.runtime);
     applied.push(`${service}:${item.desired}`);
     if(item.desired==='on')running.add(item.runtime+'|'+service);else running.delete(item.runtime+'|'+service);
    }
@@ -167,7 +168,7 @@ test('the installation settings are validated, audited, and show the read only l
   catalog.setInstallationServices('alice',{killSwitch:true,idleMinutes:{functions:60}});
   expect(catalog.installationServices()).toMatchObject({killSwitch:true,idleMinutes:{realtime:30,functions:60}});
   catalog.setInstallationServices('alice',{killSwitch:true});                                  // no change, no event
-  const audit=catalog.db.query<{detail:string},[]>("SELECT detail FROM audit_events WHERE action='services.settings_changed' AND detail NOT LIKE '%default_mode%' AND detail NOT LIKE '%realtime_on_demand%' ORDER BY rowid").all().map(item=>JSON.parse(item.detail));
+  const audit=catalogTestDb(catalog).query<{detail:string},[]>("SELECT detail FROM audit_events WHERE action='services.settings_changed' AND detail NOT LIKE '%default_mode%' AND detail NOT LIKE '%realtime_on_demand%' ORDER BY rowid").all().map(item=>JSON.parse(item.detail));
   expect(audit).toEqual([{setting:'kill_switch',from:false,to:true},{setting:'idle_functions',from:15,to:60}]);
  }finally{catalog.close();}
 });
@@ -186,7 +187,7 @@ test('a service saved as Off or On is never woken by a request, and one that is 
  try{
   expect(await h.onDemand.ensure(h.runtime,'functions')).toMatchObject({ok:false,status:404});
   h.catalog.setServiceMode('alice',h.environment,'functions','on');
-  h.catalog.db.query("UPDATE functions_settings SET state='off',desired='off'").run();
+  catalogTestDb(h.catalog).query("UPDATE functions_settings SET state='off',desired='off'").run();
   expect(await h.onDemand.ensure(h.runtime,'functions')).toMatchObject({ok:false,status:404});
   expect(row(h.catalog,h.runtime,'functions')).toMatchObject({desired:'off',state:'off'});
   h.catalog.setServiceMode('alice',h.environment,'functions','on_demand');
@@ -248,10 +249,10 @@ test('at most six wakes an hour per service and environment, then a 429; the kil
   h.catalog.setServiceMode('alice',h.environment,'functions','on_demand');
   for(let index=0;index<WAKES_PER_HOUR;index++){
    expect(await h.onDemand.ensure(h.runtime,'functions')).toEqual({ok:true});
-   h.catalog.db.query("UPDATE functions_settings SET state='off',desired='off' WHERE runtime=?").run(h.runtime);h.running.delete(h.runtime+'|functions');
+   catalogTestDb(h.catalog).query("UPDATE functions_settings SET state='off',desired='off' WHERE runtime=?").run(h.runtime);h.running.delete(h.runtime+'|functions');
   }
   // The audit times are real time; align the window with the fake clock.
-  h.catalog.db.query("UPDATE audit_events SET at=?").run(now);
+  catalogTestDb(h.catalog).query("UPDATE audit_events SET at=?").run(now);
   expect(await h.onDemand.ensure(h.runtime,'functions')).toMatchObject({ok:false,status:429});
   expect(events(h.catalog,'functions.wake_requested')).toHaveLength(WAKES_PER_HOUR);
   now+=3_600_001;
@@ -277,7 +278,7 @@ test('one wake at a time on the installation: a second service waits for the fir
   expect(row(h.catalog,other.runtime,'functions')).toBeNull();
   expect(await Promise.all([first,second])).toEqual([{ok:true},{ok:true}]);
   expect(order).toEqual(['first done','second done']);
-  const times=h.catalog.db.query<{action:string},[]>("SELECT action FROM audit_events WHERE action LIKE '%.wake_requested' ORDER BY rowid").all().map(item=>item.action);
+  const times=catalogTestDb(h.catalog).query<{action:string},[]>("SELECT action FROM audit_events WHERE action LIKE '%.wake_requested' ORDER BY rowid").all().map(item=>item.action);
   expect(times).toEqual(['realtime.wake_requested','functions.wake_requested']);
  }finally{h.catalog.close();}
 });
@@ -362,7 +363,7 @@ test('a kill switch does not try a failed start again every sweep, only after te
   h.catalog.setServiceMode('alice',h.environment,'functions','on_demand');
   h.catalog.setInstallationServices('alice',{killSwitch:true});
   expect(h.onDemand.sweep(now)).toEqual({slept:0,woke:1});
-  h.catalog.db.query("UPDATE functions_settings SET state='failed',failure='no room',updated_at=?").run(now);
+  catalogTestDb(h.catalog).query("UPDATE functions_settings SET state='failed',failure='no room',updated_at=?").run(now);
   now+=10_000;expect(h.onDemand.sweep(now)).toEqual({slept:0,woke:0});
   now+=9*MIN;expect(h.onDemand.sweep(now)).toEqual({slept:0,woke:0});
   now+=2*MIN;expect(h.onDemand.sweep(now)).toEqual({slept:0,woke:1});
@@ -520,7 +521,7 @@ test('the Services answer says sleeping and waking in words, and shows the mode,
   setState(catalog,runtime,'realtime','on','on');
   expect(composeServices({state:catalog.servicesOf(runtime),now:Date.now()}).services.find(item=>item.id==='realtime')!.state).toBe('on');
   // An On demand service is never reported as unused: it sleeps by itself.
-  catalog.db.query("UPDATE realtime_settings SET updated_at=1").run();
+  catalogTestDb(catalog).query("UPDATE realtime_settings SET updated_at=1").run();
   expect(composeServices({state:catalog.servicesOf(runtime),now:Date.now()+30*86_400_000,unusedDays:7}).services.find(item=>item.id==='realtime')!.unused).toBeNull();
   expect(composeServices({state:{...catalog.servicesOf(runtime),killSwitch:true},now:Date.now()}).killSwitch).toBe(true);
  }finally{catalog.close();}
@@ -593,7 +594,7 @@ test('a wake that the server cannot hold answers 503 with the reason, and a serv
   expect(response.status).toBe(503);
   expect(((await response.json()) as {message:string}).message).toContain('does not have the room');
   g.catalog.setServiceMode('alice',g.environment,'functions','off');
-  g.catalog.db.query("UPDATE functions_settings SET state='off',desired='off'").run();
+  catalogTestDb(g.catalog).query("UPDATE functions_settings SET state='off',desired='off'").run();
   const before=events(g.catalog,'functions.wake_requested').length;
   const off=await g.gateway(new Request(`http://local/${g.runtime}/functions/v1/hello`,{headers:{apikey:key}}));
   expect(off.status).toBe(404);
@@ -742,7 +743,7 @@ test('a mode changed to On within the two seconds the gateway kept its answer is
   expect(h.onDemand.isOnDemand(h.runtime,'functions')).toBe(true);                   // still the cached answer
   expect(await h.onDemand.ensure(h.runtime,'functions')).toEqual({ok:true});         // and the call is served
   h.running.delete(h.runtime+'|functions');
-  h.catalog.db.query("UPDATE functions_settings SET state='off',desired='off'").run();
+  catalogTestDb(h.catalog).query("UPDATE functions_settings SET state='off',desired='off'").run();
   expect(await h.onDemand.ensure(h.runtime,'functions')).toMatchObject({ok:false,status:404});
  }finally{h.catalog.close();}
 });
@@ -754,7 +755,7 @@ test('a service that came on less than its quiet period ago is not put to sleep,
   h.catalog.setServiceMode('alice',h.environment,'functions','on_demand',5);
   now+=600*MIN;                                                                         // the last use is hours old
   setState(h.catalog,h.runtime,'functions','on','on');h.running.add(h.runtime+'|functions');
-  h.catalog.db.query("UPDATE functions_settings SET updated_at=?").run(now-2*MIN);     // the supervisor finished the start two minutes ago
+  catalogTestDb(h.catalog).query("UPDATE functions_settings SET updated_at=?").run(now-2*MIN);     // the supervisor finished the start two minutes ago
   expect(h.onDemand.sweep(now)).toEqual({slept:0,woke:0});
   now+=4*MIN;                                                                           // past its quiet period since coming on
   expect(h.onDemand.sweep(now)).toEqual({slept:1,woke:0});

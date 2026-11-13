@@ -1,3 +1,4 @@
+import {catalogTestDb} from './catalog-test-db';
 import {test,expect} from 'bun:test';
 import {mkdtempSync,writeFileSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
@@ -40,14 +41,14 @@ test('a request in progress reads as starting or stopping by what was asked for,
   catalog.requestRealtime('alice',environment,true);
   const view=(now=Date.now())=>composeServices({state:catalog.services('alice',environment),stats:stats(runtime,now),now});
   expect(view().services.find(item=>item.id==='realtime')).toMatchObject({state:'starting'});
-  catalog.db.query("UPDATE realtime_settings SET state='on' WHERE runtime=?").run(runtime);
+  catalogTestDb(catalog).query("UPDATE realtime_settings SET state='on' WHERE runtime=?").run(runtime);
   expect(view().services.find(item=>item.id==='realtime')).toMatchObject({state:'on',memoryBytes:183*MIB,memoryLimitBytes:320*MIB,costBytes:320*MIB});
   catalog.requestRealtime('alice',environment,false);
   expect(view().services.find(item=>item.id==='realtime')).toMatchObject({state:'stopping'});
-  catalog.db.query("UPDATE realtime_settings SET state='failed',failure='Not enough room.' WHERE runtime=?").run(runtime);
+  catalogTestDb(catalog).query("UPDATE realtime_settings SET state='failed',failure='Not enough room.' WHERE runtime=?").run(runtime);
   expect(view().services.find(item=>item.id==='realtime')).toMatchObject({state:'failed',failure:'Not enough room.'});
   // A failure text is shown only while the state is failed.
-  catalog.db.query("UPDATE realtime_settings SET state='off' WHERE runtime=?").run(runtime);
+  catalogTestDb(catalog).query("UPDATE realtime_settings SET state='off' WHERE runtime=?").run(runtime);
   expect(view().services.find(item=>item.id==='realtime')!.failure).toBeNull();
  }finally{catalog.close();}
 });
@@ -249,7 +250,7 @@ test('without a gateway counter the page says nothing is known, not zero, and a 
 test('Studio failure text reaches a member only as a fixed sentence, never the exception text behind it',()=>{
  const {catalog,environment,runtime}=ready();
  try{
-  catalog.db.query("INSERT INTO studio_sessions(runtime,desired,state,failure,actor,updated_at) VALUES (?,'running','failed','docker: image sha256:abcdef not found at registry.example',?,?)").run(runtime,'alice',1);
+  catalogTestDb(catalog).query("INSERT INTO studio_sessions(runtime,desired,state,failure,actor,updated_at) VALUES (?,'running','failed','docker: image sha256:abcdef not found at registry.example',?,?)").run(runtime,'alice',1);
   const failure=catalog.services('carol',environment).studio.failure!;
   expect(failure).not.toContain('sha256');
   expect(failure).toContain('Studio could not start');

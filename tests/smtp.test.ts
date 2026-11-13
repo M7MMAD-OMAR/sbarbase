@@ -195,7 +195,8 @@ test('Confirm email and the limits save with custom SMTP off, an old mail file k
  const signIn=mkdtempSync(join(tmpdir(),'smtp-si-')),mail=mkdtempSync(join(tmpdir(),'smtp-ml-'));
  try {
   const org=catalog.createOrganization('alice','A');
-  const [one,two,three]=['P','Q','R'].map(name=>catalog.createEnvironment('alice',catalog.createProject('alice',org,name),'production'));
+  const create=(name:string)=>catalog.createEnvironment('alice',catalog.createProject('alice',org,name),'production');
+  const one=create('P'),two=create('Q'),three=create('R');
   for(let i=0;i<3;i++){const job=catalog.claimProvision()!;catalog.finishProvision(job.environment,job.claim!,true);}
   const handler=smtpHandler(catalog,async request=>request.headers.get('authorization'),signIn,mail,0);
   const call=(id:string,method='GET',body?:unknown)=>handler(new Request(`http://local/management/v1/environments/${id}/smtp`,{method,headers:{authorization:'alice','content-type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)}));

@@ -3,7 +3,7 @@ import {CircleArrowUp,CircleCheck,Download,ExternalLink,Info,OctagonAlert,Refres
 import {UpdateError,type UpdatesApi} from './api';
 import {ErrorMessage,Loading} from './components';
 import {ACKNOWLEDGEMENT,BACKUP_GUIDE,CLASS_WORDS,STAGE_TEXT,UPGRADES_GUIDE,availableText,banners,newestText,describeWindow,dismiss,formatWhen,settingsKey,installState,installable,openRequest,parseClock,readDismissed,
- releaseNotes,startWatch,stepWatch,toClock24,watchStage,windowError,type ClockTime,type NewestRelease,type PollEvent,type ServerZone,type UpdateClass,type UpdateSettings,type UpdatesView,type Watch,type WatchKind} from './releases';
+ checkedText,releaseNotes,startWatch,stepWatch,toClock24,watchStage,windowError,type ClockTime,type NewestRelease,type PollEvent,type ServerZone,type UpdateClass,type UpdateSettings,type UpdatesView,type Watch,type WatchKind} from './releases';
 
 function storage(){try{return window.localStorage;}catch{return undefined;}}
 const message=(error:unknown)=>error instanceof Error?error.message:'The request failed. Refresh and try again.';
@@ -207,7 +207,7 @@ export function Updates(){
  if(!view)return <>{heading}<ErrorMessage message={updates.error}/>{updates.loading?<Loading/>:updates.error&&<button className="secondary" onClick={updates.refresh}><RefreshCw aria-hidden="true"/>Refresh</button>}</>;
  const release=view.available,state=installState(view),watch=updates.progress?.watch;
  const checkRunning=Boolean(checking||watch?.kind==='check'&&updates.progress?.delay!==null);
- const checkDone=watch?.kind==='check'&&updates.progress?.delay===null?(watchStage(watch)==='timed_out'?'The check has not finished yet. Look again later.':release?'Checked. A newer release is available.':'Checked. This is the newest release.'):'';
+ const checkDone=watch?.kind==='check'&&updates.progress?.delay===null?(watchStage(watch)==='timed_out'?'The check has not finished yet. Look again later.':watchStage(watch)==='refused'?'The check failed.':watch.view?checkedText(watch.view):'Check completed. Refresh to see the result.'):'';
  const notes=release?releaseNotes(release.notes,notesLanguage()):undefined;
  const moving=inProgress(updates.progress)||Boolean(openRequest(view)),acknowledgement=Boolean(view.install?.acknowledgement);
  return <>{heading}

@@ -1,10 +1,11 @@
-import {useEffect,useMemo,useRef,useState} from 'react';
+import {Component,lazy,Suspense,useEffect,useMemo,useRef,useState} from 'react';
+import type {ReactNode} from 'react';
 import type {Session} from '@supabase/supabase-js';
 import {Activity as ActivityIcon,Bell,Bot,CircleArrowUp,Folder,LogOut,Plus,Settings,Users,Server} from 'lucide-react';
 import {api,auth,managementPolicy,updatesApi,useData,type Api,type Organization,type Project,type Environment} from './api';
 import {Brand} from './Brand';
 import {Attribution} from './Attribution';
-import {Login} from './Login';import {Projects} from './Projects';import {Environments} from './Environments';import {Connection} from './Connection';import {Activity} from './Activity';import {AcceptInvitation,JoinInvitation,inviteToken} from './Invite';
+import {Login} from './Login';import {Projects} from './Projects';import {Environments} from './Environments';import {Activity} from './Activity';import {AcceptInvitation,JoinInvitation,inviteToken} from './Invite';
 import {MfaGate,MfaSettings} from './Mfa';
 import {createSessionStorage,startingSession} from './session-storage';
 import {notificationText} from './mail';
@@ -24,6 +25,17 @@ function NotificationCount({request}:{request:Api}){
  const count=result.data?.data.undelivered;
  return count===undefined?null:<p className="small muted" role="status">{notificationText(count)}</p>;
 }
+const Connection=lazy(()=>import('./Connection').then(module=>({default:module.Connection})));
+class ConnectionBoundary extends Component<{children:ReactNode},{failed:boolean}>{
+ state={failed:false};
+ static getDerivedStateFromError(){return {failed:true};}
+ render(){return this.state.failed?<section role="alert"><p>The connection workspace could not load. Reload the console to try again.</p><button onClick={()=>location.reload()}>Reload console</button></section>:this.props.children;}
+}
+function navigate(action:()=>void):boolean{
+ if(!window.dispatchEvent(new Event('sbarbase:before-navigate',{cancelable:true})))return false;
+ action();return true;
+}
+
 function Console({session}:{session:Session}){
  const request=useMemo(()=>api(session.access_token),[session.access_token]);
  const organizations=useData<{data:Organization[];operator?:boolean}>(signal=>request('/organizations','GET',undefined,signal),[request]);
@@ -40,20 +52,35 @@ function Console({session}:{session:Session}){
  const [operator,setOperator]=useState(false);
  useEffect(()=>{if(organizations.data)setOperator(Boolean(organizations.data.operator));},[organizations.data]);
  const organization=organizations.data?.data.find(item=>item.id===selected)??organizations.data?.data[0];
- const home=()=>{dashboardTab.current?.close();dashboardTab.current=null;setDashboardEnvironment(undefined);setSetupOpen(false);setProject(undefined);setProjectOrganization('');setEnvironment(undefined);setView('projects');};
+ const resetHome=()=>{dashboardTab.current?.close();dashboardTab.current=null;setDashboardEnvironment(undefined);setSetupOpen(false);setProject(undefined);setProjectOrganization('');setEnvironment(undefined);setView('projects');};
+ const home=()=>navigate(resetHome);
  const canAudit=organization?.role==='owner'||organization?.role==='admin';
  const owner=organization?.role==='owner';
  const unavailableView=((requestedView==='team'||requestedView==='activity')&&!canAudit)||(requestedView==='settings'&&!owner)||((requestedView==='updates'||requestedView==='server'||requestedView==='notifications')&&!operator);
  const view=unavailableView?'projects':requestedView;
  const activeProject=projectOrganization===organization?.id?project:undefined;
  const activeEnvironment=activeProject?environment:undefined;
+ useEffect(()=>{
+  const names=[activeProject?.name??organization?.name,activeEnvironment?.name]
+   .filter((name):name is string=>!!name).map(name=>name.replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g,'').trim()).filter(Boolean);
+  document.title=names.length?names.join(' / ')+' | Sbarbase':'Sbarbase';
+  return()=>{document.title='Sbarbase';};
+ },[organization?.name,activeProject?.name,activeEnvironment?.name]);
+ const switchProjects=useData<{organization:string;items:Project[]}>(async signal=>({organization:organization?.id??'',items:organization?(await request(`/organizations/${organization.id}/projects`,'GET',undefined,signal) as {data:Project[]}).data:[]}),[organization?.id,request]);
+ const switchEnvironments=useData<{project:string;items:Environment[]}>(async signal=>({project:activeProject?.id??'',items:activeProject?(await request(`/projects/${activeProject.id}/environments`,'GET',undefined,signal) as {data:Environment[]}).data:[]}),[activeProject?.id,request]);
+ const projectChoices=switchProjects.data?.organization===organization?.id?switchProjects.data?.items??[]:[];
+ const environmentChoices=switchEnvironments.data?.project===activeProject?.id?switchEnvironments.data?.items??[]:[];
+ useEffect(()=>{if(!environmentChoices.some(item=>['queued','running'].includes(item.state??'')))return;const timer=setTimeout(switchEnvironments.refresh,3000);return()=>clearTimeout(timer);},[switchEnvironments.data]);
  const setupClient=useMemo(()=>activeEnvironment?deploymentSetupClient(activeEnvironment.id,()=>token.current):null,[activeEnvironment?.id]);
  useEffect(()=>setSetupOpen(false),[activeEnvironment?.id]);
- const openView=(next:typeof requestedView)=>{home();setView(next);};
+ const openView=(next:typeof requestedView)=>{if(home())setView(next);};
  const viewLabels={projects:'Projects',team:'Team',settings:'Settings',activity:'Activity',updates:'Updates',server:'Server',notifications:'Notifications',security:'Account security',tokens:'Access tokens'};
  // The update state lives in UpdatesProvider, so its polls render only the banner and the page.
  return <UpdatesProvider client={updatesClient} enabled={operator}><div className="app-shell"><a className="skip" href="#content">Skip to content</a><aside>
- <Brand/><label htmlFor="organization">Organization</label><select id="organization" value={organization?.id??''} disabled={!organizations.data?.data.length} onChange={event=>{setSelected(event.target.value);home();}}>{organizations.data?.data.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select>
+ <Brand/><div className="workspace-picker"><label htmlFor="organization">Organization</label><select id="organization" value={organization?.id??''} disabled={!organizations.data?.data.length} onChange={event=>{const next=event.target.value;if(!navigate(()=>{setSelected(next);resetHome();}))event.target.value=organization?.id??'';}}>{organizations.data?.data.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select>
+ <label htmlFor="project-switch">Project</label><select id="project-switch" value={activeProject?.id??''} disabled={!projectChoices.length} onChange={event=>{const next=projectChoices.find(item=>item.id===event.target.value);if(!next||next.id===activeProject?.id)return;if(!navigate(()=>{dashboardTab.current?.close();dashboardTab.current=null;setDashboardEnvironment(undefined);setProject(next);setProjectOrganization(organization!.id);setEnvironment(undefined);setView('projects');}))event.target.value=activeProject?.id??'';}}><option value="">Select project</option>{projectChoices.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select>
+ <label htmlFor="environment-switch">Environment</label><select id="environment-switch" value={activeEnvironment?.id??''} disabled={!environmentChoices.length} onChange={event=>{const next=environmentChoices.find(item=>item.id===event.target.value&&item.state==='succeeded');if(next&&!navigate(()=>{setEnvironment(next);setView('projects');}))event.target.value=activeEnvironment?.id??'';}}><option value="">Select environment</option>{environmentChoices.map(item=><option key={item.id} value={item.id} disabled={item.state!=='succeeded'}>{item.name}</option>)}</select>
+ <ErrorMessage message={switchProjects.error||switchEnvironments.error}/>{(switchProjects.error||switchEnvironments.error)&&<button onClick={()=>{switchProjects.refresh();switchEnvironments.refresh();}}>Retry workspace</button>}</div>
  {organizations.data?.operator&&(creating?<NameForm label="Organization name" onCancel={()=>setCreating(false)} onSubmit={async name=>{const created=await request('/organizations','POST',{name}) as {id:string};setCreating(false);setSelected(created.id);home();organizations.refresh();}}/>:<button className="new-organization" onClick={()=>setCreating(true)}><Plus aria-hidden="true"/>New organization</button>)}
  <nav aria-label="Main"><div className="nav-group"><p className="nav-group-label">Workspace</p>
  <button className={view==='projects'?'selected':''} aria-current={view==='projects'?'page':undefined} onClick={home}><Folder aria-hidden="true"/>Projects</button>
@@ -64,12 +91,12 @@ function Console({session}:{session:Session}){
  {operator&&<div className="nav-group"><p className="nav-group-label">Installation</p><button className={view==='server'?'selected':''} aria-current={view==='server'?'page':undefined} onClick={()=>openView('server')}><Server aria-hidden="true"/>Server</button>
  {operator&&<button className={view==='updates'?'selected':''} aria-current={view==='updates'?'page':undefined} onClick={()=>openView('updates')}><CircleArrowUp aria-hidden="true"/>Updates</button>}
  {operator&&<button className={view==='notifications'?'selected':''} aria-current={view==='notifications'?'page':undefined} onClick={()=>openView('notifications')}><Bell aria-hidden="true"/>Notifications</button>}</div>}</nav>
- <NotificationCount request={request}/><footer><Attribution/><ThemeControl/><p className="small muted">Local installation</p><button onClick={()=>openView('security')}><Settings aria-hidden="true"/>Account security</button><button onClick={()=>void auth.auth.signOut({scope:'local'})}><LogOut aria-hidden="true"/>Sign out</button></footer></aside>
+ <NotificationCount request={request}/><footer><Attribution/><ThemeControl/><p className="small muted">Local installation</p><button onClick={()=>openView('security')}><Settings aria-hidden="true"/>Account security</button><button onClick={()=>navigate(()=>{void auth.auth.signOut({scope:'local'});})}><LogOut aria-hidden="true"/>Sign out</button></footer></aside>
  <div className="workspace">{operator&&<UpdateBanners onPage={view==='updates'} onOpen={()=>openView('updates')}/>}
  <header><nav className="breadcrumb" aria-label="Breadcrumb"><span>{organization?.name??'Sbarbase'}</span><span aria-hidden="true">/</span>
- {view==='projects'&&activeProject?<><button onClick={home}>Projects</button><span aria-hidden="true">/</span>{activeEnvironment?<><button onClick={()=>setEnvironment(undefined)}>{activeProject.name}</button><span aria-hidden="true">/</span><span aria-current="page">{activeEnvironment.name}</span></>:<span aria-current="page">{activeProject.name}</span>}</>:<span aria-current="page">{viewLabels[view]}</span>}</nav></header>
- <main id="content"><JoinInvitation session={session} onJoined={()=>organizations.refresh()}/><ErrorMessage message={organizations.error}/>{organizations.error&&<Refresh onClick={organizations.refresh}/>}
- {view==='security'?<MfaSettings/>:view==='tokens'?(organizations.loading?<Loading/>:<AccessTokens request={request} organizations={organizations.data?.data??[]}/>):view==='server'&&operator?<ServerHealth request={request}/>:view==='notifications'&&operator?<Notifications client={notificationsClient}/>:view==='updates'&&operator?<Updates/>:organizations.loading?<Loading/>:!organization?<Empty>No organizations are assigned to your account. Contact your installation owner.</Empty>:view==='team'&&canAudit?<Team key={organization.id} organization={organization} request={request}/>:view==='settings'&&owner?<OrganizationSettings key={organization.id} organization={organization} request={request} onChanged={()=>{home();organizations.refresh();}}/>:view==='activity'&&canAudit?<Activity key={organization.id} organization={organization} request={request} self={session.user.id}/>:activeEnvironment?<>{operator&&<button type="button" className="setup-toggle" onClick={()=>setSetupOpen(current=>!current)}>{setupOpen?'Back to connection':'Domain and email setup'}</button>}{setupOpen&&operator&&setupClient?<DeploymentSetup key={activeEnvironment.id} environmentName={activeEnvironment.name} client={setupClient}/>:<Connection key={activeEnvironment.id} environment={activeEnvironment} organization={organization} request={request} onBack={()=>setEnvironment(undefined)}/>}</>:activeProject?<Environments key={activeProject.id} project={activeProject} autoOpenEnvironment={dashboardEnvironment} autoOpenTab={dashboardTab.current} onCancelAutoOpen={()=>{dashboardTab.current=null;setDashboardEnvironment(undefined);}} organization={organization} request={request} onBack={home} onSelect={setEnvironment}/>:<Projects key={organization.id} organization={organization} request={request} onSelect={(next,createdEnvironment,tab)=>{dashboardTab.current=tab??null;setDashboardEnvironment(createdEnvironment);setProject(next);setProjectOrganization(organization.id);setEnvironment(undefined);}}/>}</main></div></div></UpdatesProvider>;
+ {view==='projects'&&activeProject?<><button onClick={home}>Projects</button><span aria-hidden="true">/</span>{activeEnvironment?<><button onClick={()=>navigate(()=>setEnvironment(undefined))}>{activeProject.name}</button><span aria-hidden="true">/</span><span aria-current="page">{activeEnvironment.name}</span></>:<span aria-current="page">{activeProject.name}</span>}</>:<span aria-current="page">{viewLabels[view]}</span>}</nav></header>
+ <main id="content"><Suspense fallback={<Loading/>}><JoinInvitation session={session} onJoined={()=>organizations.refresh()}/><ErrorMessage message={organizations.error}/>{organizations.error&&<Refresh onClick={organizations.refresh}/>}
+ {view==='security'?<MfaSettings/>:view==='tokens'?(organizations.loading?<Loading/>:<AccessTokens request={request} organizations={organizations.data?.data??[]}/>):view==='server'&&operator?<ServerHealth request={request}/>:view==='notifications'&&operator?<Notifications client={notificationsClient}/>:view==='updates'&&operator?<Updates/>:organizations.loading?<Loading/>:!organization?<Empty>No organizations are assigned to your account. Contact your installation owner.</Empty>:view==='team'&&canAudit?<Team key={organization.id} organization={organization} request={request}/>:view==='settings'&&owner?<OrganizationSettings key={organization.id} organization={organization} request={request} onChanged={()=>{home();organizations.refresh();}}/>:view==='activity'&&canAudit?<Activity key={organization.id} organization={organization} request={request} self={session.user.id}/>:activeEnvironment?<>{operator&&<button type="button" className="setup-toggle" onClick={()=>navigate(()=>setSetupOpen(current=>!current))}>{setupOpen?'Back to connection':'Domain and email setup'}</button>}{setupOpen&&operator&&setupClient?<DeploymentSetup key={activeEnvironment.id} environmentName={activeEnvironment.name} client={setupClient}/>:<ConnectionBoundary key={activeEnvironment.id}><Connection key={activeEnvironment.id} environment={activeEnvironment} organization={organization} request={request} onBack={()=>setEnvironment(undefined)}/></ConnectionBoundary>}</>:activeProject?<Environments key={activeProject.id} project={activeProject} autoOpenEnvironment={dashboardEnvironment} autoOpenTab={dashboardTab.current} onCancelAutoOpen={()=>{dashboardTab.current=null;setDashboardEnvironment(undefined);}} organization={organization} request={request} onBack={home} onSelect={setEnvironment}/>:<Projects key={organization.id} organization={organization} request={request} onSelect={(next,createdEnvironment,tab)=>{dashboardTab.current=tab??null;setDashboardEnvironment(createdEnvironment);setProject(next);setProjectOrganization(organization.id);setEnvironment(undefined);switchProjects.refresh();}}/>}</Suspense></main></div></div></UpdatesProvider>;
 }
 function ManagementGate({session}:{session:Session}){
  const policy=useData(signal=>managementPolicy(undefined,signal),[session.access_token]);
