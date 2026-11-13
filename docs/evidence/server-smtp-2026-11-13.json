@@ -1,0 +1,58 @@
+{
+  "observed_on": "2026-11-13",
+  "kind": "source-only-native-studio-smtp-repair",
+  "installed": {
+    "base_version": "0.11.2",
+    "revision": "7f602cdcf00bf9c359c11ec2bb63f58d0910a7bc",
+    "tree": "65086cb21823bb617ccf9370835ccddfac46bf03",
+    "guarded_update_confirmed": true
+  },
+  "studio": {
+    "upstream_commit": "369927892fde63d07b199d4e80fe05ae780573d5",
+    "scope": "SMTP fields only, with hash-bound native modules and versioned browser/CDN asset requests",
+    "public_release_0_12_2_includes_fix": false
+  },
+  "checks": {
+    "bun_tests_passed": 1657,
+    "bun_tests_failed": 0,
+    "native_isolated_browser_checks_passed": 18,
+    "native_isolated_browser_checks_failed": 0,
+    "stale_cdn_asset_hits": 0,
+    "production_browser_checks_passed": 8,
+    "production_auth_config_status": 200,
+    "settings_revision": 3,
+    "settings_applied": 3,
+    "environment_count": 4,
+    "auth_health_statuses": [
+      200,
+      200,
+      200,
+      200
+    ],
+    "rest_statuses": [
+      200,
+      200,
+      200,
+      200
+    ],
+    "service_images_changed": false,
+    "database_container_changed": false,
+    "dependencies_or_release_metadata_changed": false
+  },
+  "mail": {
+    "auth_status": 200,
+    "provider_accepted": true,
+    "temporary_user_removed": true,
+    "inbox_receipt_verified": false
+  },
+  "backup": {
+    "run": "20261113T182543Z",
+    "scopes": 6,
+    "full_restore_rehearsal_performed": false
+  },
+  "limits": [
+    "The installed Studio build is the supported native compatibility target.",
+    "No PostgreSQL, PGMQ or other service-image migration is accepted by these observations.",
+    "SMTP provider acceptance is not confirmation of inbox placement."
+  ]
+}

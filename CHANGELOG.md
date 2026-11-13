@@ -16,6 +16,8 @@ The latest public source release is 0.12.2. Unreleased entries describe developm
 
 ### Fixed in development
 
+- Restore SMTP save and readback in the pinned self-hosted Studio through authorized private environment settings. Retain blank passwords and templates, and version verified native modules through browser/CDN caches. This repair is in development source, not public v0.12.2.
+
 - Verify the signed source payload and downloaded SHA256SUMS independently of gzip encoding. Published releases can be checked across zlib implementations; partial drafts retain their verified archive and complete its matching checksum.
 
 ## [0.12.2] - 2026-11-13

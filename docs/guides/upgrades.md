@@ -8,7 +8,7 @@ Reviewed 2026-11-13. This guide describes supported update paths and rollback bo
 
 Public release 0.12.2 declares a manual PGMQ ownership and backup-metadata migration. The ordinary 0.11.2 updater refuses it; acknowledging a console prompt cannot override that classification. A qualified general migration path for this transition is still incomplete. Do not remove the migration from `release.json` or use `--to` to force it.
 
-The owner's private revision `53b43da` changes only the console above base 0.11.2, with no service-image, dependency or PGMQ migration change. Its guarded activation was confirmed. It is not a public downloadable release and does not prove a 0.12.2 migration. API and MCP additions in the newer public source were not included in it.
+The owner's private revision `7f602cd` includes the console and pinned Studio SMTP repair above base 0.11.2, with no service-image, dependency or PGMQ migration change. Its guarded activation was confirmed. It is not a public downloadable release and does not prove a 0.12.2 migration. API and MCP capability-discovery additions in the newer public source were not included in it.
 
 ## Where you see an update
 
@@ -384,7 +384,7 @@ The published 0.12.2 assets passed checksum verification. Its publisher can reje
 
 ## SMTP and image qualification
 
-A confirmed console update does not fix original Studio SMTP saving or qualify a new Supabase image set. These remain separate checks. [Deployment readiness](../reference/deployment-readiness.md) distinguishes observed results from remaining gates.
+The private SMTP repair has separate save, readback, application and email-submission evidence. It does not qualify another Supabase image set or the declared PGMQ migration. [Deployment readiness](../reference/deployment-readiness.md) distinguishes observed results from remaining gates.
 
 <a id="moving-onto-the-first-version-with-the-update-channel"></a>
 <a id="what-has-been-run"></a>

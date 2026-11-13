@@ -83,7 +83,9 @@ Shared server statistics remain blocked for tenant isolation, so Query Performan
 
 ## SMTP settings in original Studio
 
-The original Studio SMTP save integration is incomplete and can return an API error. Use [Authentication settings in the Sbarbase console](sign-in.md) to configure mail and inspect its apply status. A successful external SMTP-provider test does not prove that Auth settings were persisted or applied. Re-entering credentials in the native form is not a successful integration test.
+In development source and the owner's private 0.11.2 revision `7f602cd`, the pinned Studio SMTP form reads and saves through Sbarbase's existing private environment settings. Public v0.12.2 does not include this repair. Keep the password empty when retaining it. Disabling custom SMTP removes its credentials and keeps email templates and confirmation settings. Saving queues Auth application; inspect the apply state in [the Sbarbase console](sign-in.md). An accepted save does not by itself prove delivery.
+
+Compatibility is bound to original Studio `3699278`. Its verified modules use versioned URLs for browser and CDN caches, with separate query state for SMTP. Unknown module changes are refused; qualify another Studio image before adopting it. The [SMTP observation](../evidence/server-smtp-2026-11-13.json) records native readback, applied configuration and one successful Auth email submission. This does not implement the hosted platform's general auth-configuration API.
 
 ## Project names in browser tabs and URLs
 

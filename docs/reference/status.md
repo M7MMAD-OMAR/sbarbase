@@ -9,12 +9,12 @@ Observed on 2026-11-13. A published source release, an installed revision and a 
 | Item | Current observation |
 |---|---|
 | Public source release | [v0.12.2](https://github.com/M7MMAD-OMAR/sbarbase/releases/tag/v0.12.2), commit `b73d57a`, with a source archive and SHA256SUMS |
-| Owner installation | Base version `0.11.2` with private console revision `53b43dafa761b1071aa4b36a3cfc92f87965392d`; the guarded updater confirmed it |
+| Owner installation | Base version `0.11.2` with private console revision `7f602cdcf00bf9c359c11ec2bb63f58d0910a7bc`; the guarded updater confirmed it |
 | Documentation website | [base.sbarah.com](https://base.sbarah.com/), Arabic at `/docs/`, English at `/en/docs/` |
 | Owner console | `https://sbarbase.sbarah.com`; other installations use their own configured origin |
 | Development checkout | May contain unreleased changes. Read its Git revision and manifest; do not infer an installed version from it |
 
-The private console revision keeps the installed dependency lock, service images and database runtime unchanged. It does not contain the PGMQ adapter, newer SDKs or capability-discovery additions from the public 0.12.2 source.
+The private console and SMTP revision keeps the installed dependency lock, service images and database runtime unchanged. It does not contain the PGMQ adapter, newer SDKs or capability-discovery additions from the public 0.12.2 source.
 
 ## What changed in the console
 
@@ -28,15 +28,17 @@ The private console revision keeps the installed dependency lock, service images
 
 ## Observed checks
 
-The console deployment candidate passed 1610 Bun tests, 185 upgrade-related Python tests, typechecks, the UI and website builds, and 46 isolated console browser checks. A separate browser check used the actual pinned Studio on the owner's public server and confirmed the project title, readable URL, authenticated identity assets and reload behavior. Auth health and REST requests returned HTTP 200 for each of the 4 environments using their existing publishable keys.
+The initial console-only candidate at `53b43da` passed 1610 Bun tests, 185 upgrade-related Python tests, typechecks, the UI and website builds, and 46 isolated console browser checks. A separate browser check used the actual pinned Studio on the owner's public server and confirmed the project title, readable URL, authenticated identity assets and reload behavior. Auth health and REST requests returned HTTP 200 for each of the 4 environments using their existing publishable keys.
 
 Fresh backups were created for the 4 environments, shared Storage metadata and management. Their checksums and archive readability were verified. This was not a full restore rehearsal. The database container and running service image identities remained unchanged; some service containers were recreated on their existing images during restart. The [deployment observation](../evidence/server-console-2026-11-13.json) records this bounded result.
 
 These observations do not certify a new installation, a PostgreSQL image migration, full-host disaster recovery, workload capacity or complete Supabase Cloud feature parity.
 
+The subsequent SMTP repair candidate passed 1657 Bun tests, typechecking and 18 native browser checks including a stale-CDN simulation. The public server restored its native form from applied private settings. One Auth email request returned HTTP 200; the temporary test account was removed. Provider acceptance does not establish inbox placement. See the [SMTP observation](../evidence/server-smtp-2026-11-13.json).
+
 ## Remaining work
 
-- Original Studio SMTP settings do not yet have a working save integration. Use the Sbarbase console's documented [Authentication settings](../guides/sign-in.md); do not treat the Studio form as proof that SMTP was applied.
+- The SMTP bridge is limited to the pinned Studio build and supported SMTP fields. Public v0.12.2 does not include it; other native auth settings need their own compatibility work.
 - The public 0.12.2 source declares a manual PGMQ ownership and backup-metadata migration. A normal 0.11.2 update refuses it. Do not remove that declaration or force the update; see [upgrades](../guides/upgrades.md).
 - Service image upgrades, including PostgreSQL 17.11, remain subject to independent compatibility, migration and recovery checks. No candidate image set was adopted by the private console update.
 - Shared `pg_stat_statements` remains blocked for tenant isolation. Hosted billing, Git branching and other unsupported capabilities are not provided by a self-hosted Studio page.

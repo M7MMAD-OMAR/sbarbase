@@ -60,9 +60,9 @@ Reader guides and references are in English and Arabic. The dated engineering no
 
 ## Status
 
-Latest public source release: [v0.12.2](https://github.com/M7MMAD-OMAR/sbarbase/releases/tag/v0.12.2). The owner server runs base version 0.11.2 with the separately verified private console revision `53b43da`. The dependency lock, service images and database runtime were not upgraded by that revision.
+Latest public source release: [v0.12.2](https://github.com/M7MMAD-OMAR/sbarbase/releases/tag/v0.12.2). The owner server runs base version 0.11.2 with the separately verified private console and SMTP revision `7f602cd`. This revision did not change the dependency lock, service images or PostgreSQL runtime.
 
-The console now has elevation surfaces, persistent navigation, direct project and environment selectors, themed menus and project-aware browser tabs. Original Studio remains a full page. Native Studio SMTP saving, the declared PGMQ migration and service-image upgrades remain separate unfinished work.
+The console uses filled surfaces for elevation, persistent navigation, direct project/environment selectors, themed native pickers and project-labelled browser tabs. Original Studio remains a full page. Native SMTP compatibility is available in development source and the private owner revision, with a pinned-image boundary; it is not included in public v0.12.2. PGMQ migration and service-image upgrades remain separate unfinished work.
 
 Read [current status](docs/reference/status.md), [upgrade requirements](docs/guides/upgrades.md) and the [API/MCP guide](docs/guides/agents.md). Development metadata and unreleased changelog entries do not identify a published or installed release. Full production qualification remains open.
 

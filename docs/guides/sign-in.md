@@ -2,7 +2,7 @@
 
 # Sign-in settings and OAuth providers
 
-This guide describes the Sbarbase console. Screenshots can show an earlier visual treatment; current selectors follow the theme and direct workspace switching is available in the sidebar. Mail settings here are separate from the incomplete SMTP form in [original Studio](studio.md#smtp-settings-in-original-studio).
+This guide describes the Sbarbase console. Screenshots can show an earlier visual treatment; current selectors follow the theme and direct workspace switching is available in the sidebar. Mail settings here are separate from the version-specific SMTP integration in [original Studio](studio.md#smtp-settings-in-original-studio).
 
 For a click by click walkthrough with screenshots of every page, see [Authentication in the console](authentication.md). This page is the reference.
 

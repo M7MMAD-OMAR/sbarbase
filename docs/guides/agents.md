@@ -171,4 +171,4 @@ Environments are independent databases, not Git branches. Hosted billing, free C
 
 The public source's PGMQ adapter requires a declared manual migration. Do not activate it based only on a Studio listing or capability metadata. The operator must first qualify migration, backup and recovery, then inspect `pg_extension` in the intended environment. A source-code rollback does not reverse data-ownership changes. See [upgrades](upgrades.md) and [Studio](studio.md).
 
-Original Studio SMTP saving remains a known integration gap. Use the supported Sbarbase settings interface; an external mail-delivery test does not establish that Auth configuration was applied.
+Native SMTP support depends on the source revision and pinned Studio image; see [Studio](studio.md#smtp-settings-in-original-studio). Public v0.12.2 lacks this repair. The adapter accepts SMTP fields only, and does not make unrelated hosted auth settings writable. Agents can keep using the supported Sbarbase settings interface; verify application state and an actual mail submission separately.

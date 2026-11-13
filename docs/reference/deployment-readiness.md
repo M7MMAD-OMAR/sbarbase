@@ -13,7 +13,7 @@ Updated 2026-11-13. The owner console update is confirmed; full production quali
 | UI | Direct switching, draft protection, theme-aware menus, persistent navigation and tab identity checked | Browser-specific native-picker fallback and broader usability acceptance |
 | Database and images | Existing database container retained; running image identities unchanged | PostgreSQL 17.11 and a newly qualified Supabase image set |
 | Recovery | Fresh backups for 6 scopes, checksums and archive readability verified; upgrade guard confirmed the source revision | Full restore from these backups, complete offsite/fresh-host recovery and disaster drills |
-| Studio email settings | Native form integration gap documented | A successful native SMTP save, readback and applied Auth configuration |
+| Studio email settings | Pinned native form save/readback, applied Auth configuration and one accepted email submission | Other Studio images, unrelated hosted auth settings and inbox placement |
 | PGMQ | Public source contains an adapter and declares a manual migration | A supported attended migration and recovery path from existing installations |
 
 The [deployment observation](../evidence/server-console-2026-11-13.json) records only the console revision and the observations it names. It is not a claim that all original Supabase services or experimental native placement are qualified for production.
