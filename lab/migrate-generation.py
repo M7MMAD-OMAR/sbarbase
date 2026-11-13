@@ -57,6 +57,7 @@ import database_volume
 import hba_migration
 import hba_target
 import image_identity
+import postgres_1711_preflight
 import run as lab
 import upgrade_guard
 
@@ -143,6 +144,12 @@ def _tier_value(tier,field):
     return entry
 
 
+def require_1711_safe(old,image,volume_changed):
+    if image == postgres_1711_preflight.CANDIDATE_IMAGE and (old.image != image or volume_changed):
+        raise RuntimeError('PostgreSQL 17.11 migration requires verified quiescence and target cluster inventory; '
+                           'this migration path cannot establish them')
+
+
 def main():
     parser=argparse.ArgumentParser(description='container generation migration')
     parser.add_argument('--state',required=True)
@@ -186,7 +193,10 @@ def main():
             raise RuntimeError('--reconcile finishes onto the image its intent recorded; drop --image-from-lock')
         if options.to_volume:
             raise RuntimeError('--reconcile finishes onto the volume its intent recorded; drop --to-volume')
-        replacement=plan_for(old,options,hba_migration.target_image(intent))
+        target_image=hba_migration.target_image(intent)
+        if target_image == postgres_1711_preflight.CANDIDATE_IMAGE:
+            require_1711_safe(old,target_image,hba_migration.target_volume(intent)!=intent['volume'])
+        replacement=plan_for(old,options,target_image)
         completed=hba_migration.execute(docker,state,replacement=replacement,desired=desired,worker_fd=options.worker_fd)
         print(json.dumps({'reconciled':True,'completed':completed,'migration':intent['migration'],
                           'retired_generation':intent['generation']}))
@@ -205,6 +215,7 @@ def main():
         # The installation's database mounts the volume the record names; a migration told another
         # one would stop at the retired volume check after its intent, leaving a record to settle.
         raise RuntimeError('--volume must be the volume the installation mounts ('+database_volume.current(state)+')')
+    require_1711_safe(old,image or old.image,bool(options.to_volume))
     if options.to_volume:
         # Before the intent: a volume that cannot take the database leaves no record to reconcile.
         if not database_volume.rebuilt(options.to_volume) or options.to_volume==options.volume:

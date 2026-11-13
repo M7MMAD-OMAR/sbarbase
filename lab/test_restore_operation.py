@@ -194,6 +194,19 @@ class RestoreWorkerAdmissionTests(unittest.TestCase):
         image = 'sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86'
         target = 'e_' + 'a' * 24
         self.assertTrue(admit_workers(native, image=image, database=target))
+        # A second admitted immutable image must match its own server version.
+        candidate = copy.deepcopy(native)
+        candidate['version'] = 170011
+        candidate_image = 'sha256:7374d196da7e301512cc5329e18040e0f7bb856287b323777cdadecccbc6c7e4'
+        self.assertTrue(admit_workers(candidate, image=candidate_image, database=target))
+        with self.assertRaises(OperationError):
+            admit_workers(candidate, image=image, database=target)
+        with self.assertRaises(OperationError):
+            admit_workers(native, image=candidate_image, database=target)
+        candidate['native']['versions']['pg_net'] = '0.99.0'
+        with self.assertRaises(OperationError):
+            admit_workers(candidate, image=candidate_image, database=target)
+
         # Every database a restore scope replaces is admitted on the pinned image, the management one too.
         for database in ('storage_metadata', 'management'):
             self.assertTrue(admit_workers(native, image=image, database=database))

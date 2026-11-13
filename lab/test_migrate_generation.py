@@ -343,6 +343,39 @@ class Main(unittest.TestCase):
         self.assertIsNone(error)
         intent.assert_called_once();execute.assert_called_once()
 
+    def test_candidate_image_change_refuses_before_intent(self):
+        image=command.postgres_1711_preflight.CANDIDATE_IMAGE
+        with patch.object(command,'lock_image',return_value=image):
+            intent,execute,error=self.run_main([*BASE,'--image-from-lock'],target=DISPOSABLE)
+        self.assertIn('requires verified quiescence',str(error))
+        intent.assert_not_called();execute.assert_not_called()
+
+    def test_candidate_stopped_or_rebuilt_source_refuses_before_intent(self):
+        image=command.postgres_1711_preflight.CANDIDATE_IMAGE
+        with patch.object(command,'lock_image',return_value=image):
+            intent,execute,error=self.run_main([*BASE,'--image-from-lock'],target=DISPOSABLE)
+        self.assertIn('requires verified quiescence',str(error))
+        intent.assert_not_called();execute.assert_not_called()
+
+    def test_candidate_reconcile_does_not_bypass_guard(self):
+        image=command.postgres_1711_preflight.CANDIDATE_IMAGE
+        with patch.object(command.hba_migration,'target_image',return_value=image), \
+             patch.object(command.hba_migration,'target_volume',return_value='volume'), \
+             patch.object(command.hba_migration,'load',return_value={'old':DISPOSABLE,'migration':'m',
+                 'generation':PIN['generation'],'volume':'volume'}):
+            state=tempfile.mkdtemp();self.addCleanup(shutil.rmtree,state,True)
+            argv=['migrate-generation.py','--state',state,'--inventory',self.inventory,*BASE,'--reconcile']
+            with patch.object(sys,'argv',argv), patch.object(command.hba_migration,'execute') as execute:
+                with self.assertRaisesRegex(RuntimeError,'requires verified quiescence'):
+                    command.main()
+            execute.assert_not_called()
+        with patch.object(command,'lock_image',return_value=image), \
+             patch.object(command.hba_migration,'require_cluster_volume'):
+            intent,execute,error=self.run_main([*BASE,'--image-from-lock','--to-volume',
+                                               'sbarbase-durable-pgdata-0123456789ab'],target=DISPOSABLE)
+        self.assertIn('requires verified quiescence',str(error))
+        intent.assert_not_called();execute.assert_not_called()
+
 
 if __name__=='__main__':
     unittest.main()

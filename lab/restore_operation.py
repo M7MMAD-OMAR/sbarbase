@@ -241,25 +241,32 @@ NATIVE_PRELOADS = {'pg_stat_statements', 'pgaudit', 'plpgsql', 'plpgsql_check', 
                    'pgsodium', 'auto_explain', 'pg_tle', 'plan_filter', 'supabase_vault'}
 NATIVE_VERSIONS = {'pg_cron': '1.6.4', 'pg_net': '0.20.4', 'pgsodium': '3.1.8',
                    'pg_stat_statements': '1.11', 'pgaudit': '17.1'}
+# Profiles bind an immutable image, server version, extension versions and worker policy.
+# Candidate observation: postgres-1711-native-profile.json in the renewal evidence.
+NATIVE_PROFILES = {
+    (NATIVE_IMAGE, 170006): NATIVE_VERSIONS,
+    ('sha256:7374d196da7e301512cc5329e18040e0f7bb856287b323777cdadecccbc6c7e4', 170011): NATIVE_VERSIONS,
+}
 
 
 def admit_native_defaults(value, image, database, preloads):
     # Preflight binds the running DB to the distributed image before this call.
     # Client-mode cron and pg_net remain attached to postgres, never the replaced
     # environment or Storage database. Their libraries connect with flags zero.
-    if value['version'] != 170006 or image != NATIVE_IMAGE or not isinstance(database, str) or not (re.fullmatch(r'e_[a-f0-9]{24}', database) or database in DATABASES.values()) \
+    versions = NATIVE_PROFILES.get((image, value['version']))
+    if versions is None or not isinstance(database, str) or not (re.fullmatch(r'e_[a-f0-9]{24}', database) or database in DATABASES.values()) \
             or set(preloads) != NATIVE_PRELOADS or len(preloads) != len(NATIVE_PRELOADS) \
             or value['session'].strip() != 'supautils' or value['local'].strip():
         raise OperationError('Unclassified privileged PostgreSQL preload refuses restore')
     profile = value.get('native')
     if not isinstance(profile, dict) or set(profile) != {'cron_database', 'cron_background', 'net_database', 'versions', 'installed', 'workers', 'scopes'} \
             or profile['cron_database'] != 'postgres' or profile['cron_background'] != 'off' \
-            or profile['net_database'] != 'postgres' or profile['versions'] != NATIVE_VERSIONS:
+            or profile['net_database'] != 'postgres' or profile['versions'] != versions:
         raise OperationError('Pinned native PostgreSQL worker configuration differs')
     setting = 'session_preload_libraries=supautils, safeupdate'
     if value['scoped_preloads'] != [setting] or profile['scopes'] != [{'role': 'authenticator', 'database': None, 'setting': setting}]:
         raise OperationError('Pinned native scoped preload identity differs')
-    if not isinstance(profile['installed'], dict) or any(profile['installed'].get(name, version) != version for name, version in NATIVE_VERSIONS.items()):
+    if not isinstance(profile['installed'], dict) or any(profile['installed'].get(name, version) != version for name, version in versions.items()):
         raise OperationError('Pinned native PostgreSQL extension version differs')
     workers = profile['workers']
     expected = {'pg_cron launcher', 'pg_net 0.20.4 worker'} & set(value['workers']) if isinstance(value['workers'], list) else set()
