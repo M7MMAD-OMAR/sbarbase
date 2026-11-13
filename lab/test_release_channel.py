@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import textwrap
 import time
 import unittest
 from contextlib import redirect_stdout
@@ -899,6 +900,51 @@ class PrepareTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class WorkflowCheckoutTests(Fixture):
+    def run_checkout(self, tag='v0.1.0', expected=None):
+        workflow = (ROOT / '.github/workflows/release.yml').read_text()
+        body = workflow.split("python3 - <<'PYCODE'\n", 1)[1].split('\n          PYCODE', 1)[0]
+        source = textwrap.dedent(body)
+        with patch.object(channel, 'CANONICAL', str(self.releases.remote)), \
+                patch.dict(os.environ, {'RELEASE_TAG': tag, 'RELEASE_COMMIT': expected or self.first}), \
+                redirect_stdout(io.StringIO()):
+            exec(compile(source, 'release-workflow-checkout', 'exec'), {})
+
+    def test_repairs_checkout_peeled_tag_from_verified_canonical_object(self):
+        annotated = self.local('rev-parse', 'refs/tags/v0.1.0')
+        self.local('update-ref', 'refs/tags/v0.1.0', self.first)
+        self.run_checkout()
+        self.assertEqual(self.local('rev-parse', 'refs/tags/v0.1.0'), annotated)
+        self.assertIsNone(channel.verify(annotated, name='v0.1.0'))
+        self.assertEqual(self.local('rev-parse', 'HEAD'), self.first)
+
+    def test_mismatched_workflow_commit_does_not_repair_or_switch_checkout(self):
+        self.local('update-ref', 'refs/tags/v0.1.0', self.first)
+        with self.assertRaisesRegex(SystemExit, 'differs from the workflow checkout'):
+            self.run_checkout(expected='0' * 40)
+        self.assertEqual(self.local('rev-parse', 'refs/tags/v0.1.0'), self.first)
+        self.assertEqual(self.local('rev-parse', 'HEAD'), self.first)
+
+    def test_unsigned_canonical_tag_is_refused_before_local_ref_repair(self):
+        second = self.releases.release('0.2.0', key='unsigned')
+        self.follow()
+        self.local('update-ref', 'refs/tags/v0.2.0', second)
+        before = self.local('rev-parse', 'refs/tags/v0.2.0')
+        with self.assertRaises(SystemExit):
+            self.run_checkout('v0.2.0', second)
+        self.assertEqual(self.local('rev-parse', 'refs/tags/v0.2.0'), before)
+
+    def test_unexpected_local_ref_is_not_overwritten(self):
+        other = self.releases.set_and_commit('other commit', {'src/code.ts': 'different\n'})
+        self.releases.publish()
+        self.local('fetch', '-q', str(self.releases.remote), 'main')
+        self.local('update-ref', 'refs/tags/v0.1.0', other)
+        with self.assertRaisesRegex(SystemExit, 'Local release tag differs'):
+            self.run_checkout()
+        self.assertEqual(self.local('rev-parse', 'refs/tags/v0.1.0'), other)
+        self.assertEqual(self.local('rev-parse', 'HEAD'), self.first)
+
 
 class PublisherTests(unittest.TestCase):
     def test_refuses_bad_tag_and_missing_signature(self):
