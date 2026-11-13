@@ -5,7 +5,7 @@ import {Catalog,type StudioNavigation,type StudioSession} from './catalog';
 import {authenticate,reply,type ManagementIdentity} from './auth';
 import {studioWorkspaceAsset} from './studio-workspace';
 import {identifyStudioDocument} from './studio-identity';
-import {isStudioSmtpAsset,transformStudioSmtpAsset,STUDIO_SMTP_ASSET_VERSION} from './studio-smtp-assets';
+import {isStudioSmtpAsset,transformStudioSmtpAsset,STUDIO_SMTP_ASSET_VERSION,studioSmtpCacheJs} from './studio-smtp-assets';
 import {studioHosts,type StudioHosts} from './studio-host';
 import {publicUrl} from './sign-in';
 
@@ -329,6 +329,8 @@ export function studioProxy(options:{key:()=>Buffer;allowed:(actor:string,runtim
     }catch(error){return reply(error instanceof Error&&error.message==='Forbidden'?403:409,{message:error instanceof Error&&error.message==='Forbidden'?'Forbidden':'Environment is unavailable'});}
    }
    if(!['GET','HEAD'].includes(request.method))return reply(405,{message:'Method not allowed'});
+   if(url.pathname==='/__sbarbase/smtp-cache.js'&&options.authConfig)return new Response(request.method==='HEAD'?null:studioSmtpCacheJs,
+    {headers:{'content-type':'application/javascript; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'}});
    if(url.pathname==='/__sbarbase/navigation') {
     try{const organization=url.searchParams.get('organization')??undefined,project=url.searchParams.get('project')??undefined;
      const data=options.navigation(claim.actor,runtime,organization,project),snapshot=JSON.stringify(data);
@@ -396,7 +398,7 @@ export function studioProxy(options:{key:()=>Buffer;allowed:(actor:string,runtim
      // rewritten response through its own reader before publishing ordinary bytes.
      const input=await studioBody(new Request('http://studio-document.internal',{method:'POST',body:response.body,signal:request.signal}),2*1024*1024,bodyTimeout);
      if(!allowed()||request.signal.aborted)return page(403,'Studio access is no longer available.');
-     const identified=identifyStudioDocument(new Response(input,{status:response.status,headers:response.headers}));
+     const identified=identifyStudioDocument(new Response(input,{status:response.status,headers:response.headers}),options.authConfig?selfOrigin(url):undefined);
      response=new Response(await identified.arrayBuffer(),{status:identified.status,headers:identified.headers});
     }catch{return page(request.signal.aborted?400:502,'Unable to read the Studio document.');}
    }

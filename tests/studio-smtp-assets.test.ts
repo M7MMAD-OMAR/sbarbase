@@ -3,7 +3,7 @@ import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 import {gzipSync} from 'node:zlib';
 import manifest from './fixtures/studio-smtp/manifest.json';
-import {isStudioSmtpAsset,transformStudioSmtpAsset} from '../src/control/studio-smtp-assets';
+import {isStudioSmtpAsset,transformStudioSmtpAsset,versionStudioSmtpAsset,studioSmtpCacheJs,STUDIO_SMTP_ASSET_VERSION} from '../src/control/studio-smtp-assets';
 
 const fixtures=new Map(manifest.map(record=>[record.path,readFileSync(new URL('./fixtures/studio-smtp/'+record.fixture,import.meta.url),'utf8')]));
 const queryRecords=manifest.filter(record=>record.kind==='query');
@@ -128,5 +128,102 @@ describe('asset binding and HTTP representation',()=>{
  test('decoded upstream errors keep their status without stale representation headers',async()=>{
   const response=await transformStudioSmtpAsset(queryRecords[0]!.path,new Response('unavailable',{status:502,headers:{'content-encoding':'gzip','etag':'old'}}));
   expect(response.status).toBe(502);expect(await response.text()).toBe('unavailable');expect(response.headers.has('content-encoding')).toBe(false);expect(response.headers.has('etag')).toBe(false);
+ });
+});
+
+function cacheDom(){
+ const origin='https://studio.example.test',network:{kind:string;url:string}[]=[],calls:{kind:string;value:unknown}[]=[];
+ class Element {
+  baseURI=origin+'/project/default/auth/smtp';attributes:Record<string,string>={};
+  getAttribute(name:string){if(arguments.length<1||typeof name==='symbol')throw new TypeError('DOMString required');return this.attributes[String(name).toLowerCase()]??null;}
+  setAttribute(name:string,value:unknown){
+   if(typeof name==='symbol'||typeof value==='symbol')throw new TypeError('DOMString required');
+   const key=String(name).toLowerCase(),text=String(value);calls.push({kind:'attribute',value});this.attributes[key]=text;
+   if((this instanceof HTMLScriptElement&&key==='src')||(this instanceof HTMLLinkElement&&key==='href'))network.push({kind:'attribute',url:text});
+  }
+ }
+ class HTMLScriptElement extends Element {
+  get src():string{return this.attributes.src??'';}
+  set src(value:unknown){if(typeof value==='symbol')throw new TypeError('DOMString required');calls.push({kind:'src',value});this.attributes.src=String(value);network.push({kind:'script',url:this.attributes.src});}
+ }
+ class HTMLLinkElement extends Element {
+  rel='';as='';
+  get href():string{return this.attributes.href??'';}
+  set href(value:unknown){if(typeof value==='symbol')throw new TypeError('DOMString required');calls.push({kind:'href',value});this.attributes.href=String(value);network.push({kind:'link',url:this.attributes.href});}
+ }
+ const context={URL,Symbol,location:{origin,href:origin+'/project/default/auth/smtp'},Element,HTMLScriptElement,HTMLLinkElement};
+ const evaluate=()=>runInNewContext(studioSmtpCacheJs,context);
+ return{origin,network,calls,Element,HTMLScriptElement,HTMLLinkElement,evaluate};
+}
+
+describe('scoped native Studio CDN cache versioning',()=>{
+ test('known same-origin chunks get one current version, preserving other values and hash',()=>{
+  const origin='https://studio.example.test';
+  for(const record of manifest){
+   const updated=new URL(versionStudioSmtpAsset(record.path+'?existing=a%20b&sbarbase_smtp=old&sbarbase_smtp=duplicate#part',origin));
+   expect(updated.origin).toBe(origin);expect(updated.pathname).toBe(record.path);expect(updated.searchParams.get('existing')).toBe('a b');expect(updated.hash).toBe('#part');
+   expect(updated.searchParams.getAll('sbarbase_smtp')).toEqual([STUDIO_SMTP_ASSET_VERSION]);
+   expect(versionStudioSmtpAsset(updated.href,origin)).toBe(updated.href);
+  }
+ });
+ test('API, unrelated, other-origin, credentialed and non-HTTP URLs stay unchanged',()=>{
+  const origin='https://studio.example.test',path=manifest[0]!.path;
+  for(const value of ['/api/platform/auth/default/config','/_next/static/chunks/unrelated.js','/style.css','https://another.example.test'+path,
+   'http://studio.example.test'+path,'https://user:password@studio.example.test'+path,'javascript:alert(1)','data:text/javascript,alert(1)','blob:https://studio.example.test/test'])
+   expect(versionStudioSmtpAsset(value,origin)).toBe(value);
+  expect(versionStudioSmtpAsset(path,'https://user:password@studio.example.test')).toBe(path);
+  expect(versionStudioSmtpAsset(path,'file:///tmp/')).toBe(path);
+  expect(versionStudioSmtpAsset(path,'not a URL')).toBe(path);
+ });
+ test('bootstrap versions script.src before the native setter starts its request',()=>{
+  const dom=cacheDom(),native=Object.getOwnPropertyDescriptor(dom.HTMLScriptElement.prototype,'src')!;
+  dom.evaluate();const script=new dom.HTMLScriptElement();script.src=manifest[0]!.path+'?existing=1#part';
+  expect(dom.network).toHaveLength(1);expect(new URL(dom.network[0]!.url).searchParams.get('sbarbase_smtp')).toBe(STUDIO_SMTP_ASSET_VERSION);
+  expect(new URL(String(script.src)).searchParams.get('existing')).toBe('1');expect(new URL(String(script.src)).hash).toBe('#part');
+  expect(dom.calls[0]?.kind).toBe('src');expect(Object.getOwnPropertyDescriptor(dom.HTMLScriptElement.prototype,'src')!.get).toBe(native.get);
+  expect(Object.getOwnPropertyDescriptor(dom.HTMLScriptElement.prototype,'src')!.enumerable).toBe(native.enumerable);
+ });
+ test('bootstrap versions script attributes and both preload assignment orders before network',()=>{
+  const dom=cacheDom();dom.evaluate();
+  const script=new dom.HTMLScriptElement();script.setAttribute('SRC',manifest[1]!.path);
+  const first=new dom.HTMLLinkElement();first.rel='preload';first.as='script';first.href=manifest[2]!.path;
+  const second=new dom.HTMLLinkElement();second.href=manifest[3]!.path;second.rel='modulepreload';
+  const third=new dom.HTMLLinkElement();third.setAttribute('href',manifest[4]!.path);third.rel='preload';third.as='script';
+  expect(dom.network).toHaveLength(4);
+  for(const request of dom.network)expect(new URL(request.url).searchParams.get('sbarbase_smtp')).toBe(STUDIO_SMTP_ASSET_VERSION);
+  expect(dom.calls.map(call=>call.kind)).toEqual(['attribute','href','href','attribute']);
+ });
+ test('bootstrap leaves unrelated URLs, API attributes and other-origin base resolution alone',()=>{
+  const dom=cacheDom();dom.evaluate();const script=new dom.HTMLScriptElement(),link=new dom.HTMLLinkElement(),element=new dom.Element();
+  script.src='https://elsewhere.example.test'+manifest[0]!.path;script.setAttribute('src','/api/config');link.href='/style.css';element.setAttribute('src',manifest[0]!.path);
+  script.baseURI='https://elsewhere.example.test/project/default/';script.src=manifest[0]!.path;
+  expect(dom.network.map(request=>request.url)).toEqual(['https://elsewhere.example.test'+manifest[0]!.path,'/api/config','/style.css',manifest[0]!.path]);
+  expect(element.attributes.src).toBe(manifest[0]!.path);
+ });
+ test('bootstrap is duplicate-safe and retains original native coercion and errors',()=>{
+  const dom=cacheDom();dom.evaluate();const src=Object.getOwnPropertyDescriptor(dom.HTMLScriptElement.prototype,'src')!.set,href=Object.getOwnPropertyDescriptor(dom.HTMLLinkElement.prototype,'href')!.set,attribute=dom.Element.prototype.setAttribute;
+  dom.evaluate();expect(Object.getOwnPropertyDescriptor(dom.HTMLScriptElement.prototype,'src')!.set).toBe(src);expect(Object.getOwnPropertyDescriptor(dom.HTMLLinkElement.prototype,'href')!.set).toBe(href);expect(dom.Element.prototype.setAttribute).toBe(attribute);
+  const script=new dom.HTMLScriptElement();let coerced=0;const value={toString(){coerced++;return manifest[0]!.path;}};
+  script.src=value;expect(dom.calls[0]!.value).toBe(value);expect(coerced).toBe(1);
+  expect(()=>{script.src=Symbol('invalid');}).toThrow(TypeError);expect(()=>script.setAttribute('src',Symbol('invalid'))).toThrow(TypeError);
+  expect(()=>attribute.call({},'src','/file')).toThrow();
+ });
+ test('native Turbopack registration resolves its canonical key while network stays versioned',()=>{
+  const dom=cacheDom(),original=dom.Element.prototype.getAttribute;dom.evaluate();const script=new dom.HTMLScriptElement();script.src=manifest[0]!.path;
+  const expected=manifest[0]!.path;
+  // Pinned runtime registerChunk resolves D(t.src); otherChunks waits for the canonical /_next path.
+  const registration={src:script.getAttribute('src')};const pending=new Map([[expected,false]]);pending.set(registration.src!,true);
+  expect(pending.get(expected)).toBe(true);expect(pending.size).toBe(1);
+  expect(new URL(script.src).searchParams.get('sbarbase_smtp')).toBe(STUDIO_SMTP_ASSET_VERSION);
+  expect(new URL(original.call(script,'src')!).searchParams.get('sbarbase_smtp')).toBe(STUDIO_SMTP_ASSET_VERSION);
+  const getter=dom.Element.prototype.getAttribute;dom.evaluate();expect(dom.Element.prototype.getAttribute).toBe(getter);
+ });
+ test('canonical registration strips only our parameter from known script attributes',()=>{
+  const dom=cacheDom();dom.evaluate();const script=new dom.HTMLScriptElement();script.src=manifest[1]!.path+'?existing=a%20b#part';
+  const canonical=new URL(script.getAttribute('SRC')!,dom.origin);expect(canonical.pathname).toBe(manifest[1]!.path);expect(canonical.searchParams.get('existing')).toBe('a b');expect(canonical.hash).toBe('#part');expect(canonical.searchParams.has('sbarbase_smtp')).toBe(false);
+  const link=new dom.HTMLLinkElement();link.href=manifest[2]!.path;expect(new URL(link.getAttribute('href')!).searchParams.get('sbarbase_smtp')).toBe(STUDIO_SMTP_ASSET_VERSION);
+  script.src='https://elsewhere.example.test'+manifest[0]!.path+'?sbarbase_smtp=other';expect(script.getAttribute('src')).toBe('https://elsewhere.example.test'+manifest[0]!.path+'?sbarbase_smtp=other');
+  script.src='/api/config?sbarbase_smtp=other';expect(script.getAttribute('src')).toBe('/api/config?sbarbase_smtp=other');
+  expect(script.getAttribute('absent')).toBeNull();expect(()=>script.getAttribute(Symbol('invalid') as unknown as string)).toThrow(TypeError);
  });
 });

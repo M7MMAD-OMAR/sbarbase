@@ -6,6 +6,7 @@ import {Catalog} from '../src/control/catalog';
 import {studioSmtpConfig} from '../src/control/studio-smtp';
 import {studioProxy,studioHost,signStudio,STUDIO_COOKIE} from '../src/control/studio';
 import {STUDIO_SMTP_ASSET_VERSION} from '../src/control/studio-smtp-assets';
+import {identifyStudioDocument} from '../src/control/studio-identity';
 
 const input={SMTP_ADMIN_EMAIL:'noreply@example.com',SMTP_SENDER_NAME:'Example',SMTP_HOST:'smtp.example.com',SMTP_PORT:'587',SMTP_USER:'apikey',SMTP_PASS:'smtp-private-password',SMTP_MAX_FREQUENCY:60,RATE_LIMIT_EMAIL_SENT:30};
 function fixture(){
@@ -140,4 +141,15 @@ test('the actual Studio proxy binds session epoch across the internal PUT body a
   const response=await f.proxy(f.request('PATCH',input));expect(response.status).toBe(403);
   expect(existsSync(join(f.directory,f.runtime+'-mail.json'))).toBe(false);expect(f.catalog.signIn('alice',f.environment).revision).toBe(0);
  }finally{Request.prototype.json=original;f.close();}
+});
+
+test('SMTP documents version pinned script and preload URLs before cached CDN assets can load',async()=>{
+ const original='<html><head><link rel="preload" as="script" href="/_next/static/chunks/08dh2y9gjjf0f.js"><script src="/_next/static/chunks/08dh2y9gjjf0f.js"></script><script src="https://other.example/_next/static/chunks/08dh2y9gjjf0f.js"></script><script src="/untouched.js"></script></head></html>';
+ const response=identifyStudioDocument(new Response(original,{headers:{'content-type':'text/html','content-security-policy':"script-src 'nonce-test'; frame-ancestors 'none'"}}),'https://studio.example');
+ const html=await response.text();expect(html.match(new RegExp('sbarbase_smtp='+STUDIO_SMTP_ASSET_VERSION,'g'))).toHaveLength(2);
+ expect(html).toContain('/__sbarbase/smtp-cache.js?v='+STUDIO_SMTP_ASSET_VERSION+'" nonce="test"');
+ expect(html.indexOf('/__sbarbase/smtp-cache.js')).toBeLessThan(html.indexOf('<link'));
+ expect(html).toContain('src="https://other.example/_next/static/chunks/08dh2y9gjjf0f.js"');expect(html).toContain('src="/untouched.js"');
+ const denied=await identifyStudioDocument(new Response(original,{headers:{'content-security-policy':"script-src 'none'"}}),'https://studio.example').text();
+ expect(denied).not.toContain('/__sbarbase/smtp-cache.js');
 });

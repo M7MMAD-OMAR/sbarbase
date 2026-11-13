@@ -1,3 +1,5 @@
+import {STUDIO_SMTP_ASSET_VERSION,versionStudioSmtpAsset} from './studio-smtp-assets';
+
 /** Display identity only. Runtime hosts and signed sessions remain the routing authority. */
 export const studioIdentityJs=String.raw`'use strict';
 (async()=>{
@@ -29,7 +31,7 @@ export const studioIdentityJs=String.raw`'use strict';
 })();`;
 
 /** The upstream document has already been decompressed by fetch. Assets remain byte-for-byte. */
-export function identifyStudioDocument(response:Response):Response {
+export function identifyStudioDocument(response:Response,smtpOrigin?:string):Response {
  const headers=new Headers(response.headers);
  const policy=headers.get('content-security-policy')??'';
  const script=policy.match(/(?:^|;)\s*script-src-elem\s+([^;]+)/)?.[1]
@@ -42,7 +44,15 @@ export function identifyStudioDocument(response:Response):Response {
  headers.set('cache-control','no-store');
  const plain=new Response(response.body,{status:response.status,headers});
  if(!permitted)return plain;
- return new HTMLRewriter().on('head',{element(head){
+ const rewrite=new HTMLRewriter().on('head',{element(head){
+  // This executes before native dynamic chunk loaders. Parser-loaded chunks are
+  // versioned below as well, so neither browser nor CDN immutable caches win.
+  if(smtpOrigin)head.prepend('<script src="/__sbarbase/smtp-cache.js?v='+STUDIO_SMTP_ASSET_VERSION+'"'+(nonce?' nonce="'+nonce+'"':'')+'></script>',{html:true});
   head.append('<script src="/__sbarbase/identity.js" defer'+(nonce?' nonce="'+nonce+'"':'')+'></script>',{html:true});
- }}).transform(plain);
+ }});
+ if(smtpOrigin)for(const [selector,attribute] of [['script[src]','src'],['link[href]','href']])rewrite.on(selector!,{element(element){
+  const value=element.getAttribute(attribute!);if(value===null)return;
+  const next=versionStudioSmtpAsset(value,smtpOrigin);if(next!==value)element.setAttribute(attribute!,next);
+ }});
+ return rewrite.transform(plain);
 }
