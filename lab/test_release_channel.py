@@ -1015,6 +1015,51 @@ class PublisherReconciliationTests(unittest.TestCase):
         self.assertIn('draft=true', calls[0])
         self.assertFalse(any('/releases/tags/' in str(value) for call in calls for value in call))
 
+    def test_source_verification_accepts_other_encoders_and_rejects_changed_payload_or_checksum(self):
+        import gzip, hashlib
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            name, raw = 'sbarbase-1.2.3.tar.gz', b'canonical git archive payload'
+            def write(payload, level=1):
+                blob = gzip.compress(payload, compresslevel=level, mtime=0)
+                (folder / name).write_bytes(blob)
+                (folder / 'SHA256SUMS').write_text(hashlib.sha256(blob).hexdigest() + '  ' + name + '\n')
+            for level in (0, 1, 9):
+                write(raw, level)
+                release.verify_source_download(folder, name, raw)
+            write(b'changed source')
+            with self.assertRaisesRegex(release.PrepareError, 'differs from the signed commit'):
+                release.verify_source_download(folder, name, raw)
+            write(raw)
+            (folder / 'SHA256SUMS').write_text('0' * 64 + '  ' + name + '\n')
+            with self.assertRaisesRegex(release.PrepareError, 'does not match SHA256SUMS'):
+                release.verify_source_download(folder, name, raw)
+
+    def test_partial_draft_reuses_verified_archive_and_completes_its_own_checksum(self):
+        import gzip, hashlib
+        raw = b'canonical git archive payload'
+        original = gzip.compress(raw, compresslevel=1, mtime=0)
+        uploads, calls = {'sbarbase-1.2.3.tar.gz': original}, []
+        def fake_gh(*args, **kwargs):
+            calls.append(args)
+            if args[0] == 'api':
+                return SimpleNamespace(stdout=json.dumps([[dict(tag_name='v1.2.3', draft=True, prerelease=False,
+                    assets=[{'name': name} for name in uploads])]]))
+            if args[:2] == ('release', 'download'):
+                for name, content in uploads.items():
+                    (Path(args[args.index('--dir') + 1]) / name).write_bytes(content)
+            if args[:2] == ('release', 'upload'):
+                path = Path(args[3]); uploads[path.name] = path.read_bytes()
+            return SimpleNamespace(returncode=0, stdout='', stderr='')
+        with patch.object(channel, 'object_of', return_value='abc'), patch.object(channel, 'verify', return_value=None), \
+             patch.object(channel, 'commit_of', return_value='commit'), patch.object(channel, 'manifest', return_value={'notes': {'en': 'notes'}}), \
+             patch.object(release, 'remote_tag'), patch.object(release, 'gh', side_effect=fake_gh), \
+             patch.object(release.subprocess, 'run', return_value=SimpleNamespace(stdout=raw)):
+            release.publish('v1.2.3')
+        self.assertEqual(uploads['sbarbase-1.2.3.tar.gz'], original)
+        self.assertEqual(uploads['SHA256SUMS'], (hashlib.sha256(original).hexdigest()+'  sbarbase-1.2.3.tar.gz\n').encode())
+        self.assertEqual([Path(c[3]).name for c in calls if c[:2] == ('release', 'upload')], ['SHA256SUMS'])
+
     def test_newest_stable_uses_all_pages_and_ignores_drafts_and_prereleases(self):
         history = [[{'tag_name': 'v1.2.3', 'draft': False, 'prerelease': False}],
                    [{'tag_name': 'v1.2.4', 'draft': False, 'prerelease': False},
@@ -1040,7 +1085,7 @@ class PublisherReconciliationTests(unittest.TestCase):
                     return SimpleNamespace(returncode=0, stdout='', stderr='')
                 raw = b'tar'
                 import gzip, hashlib
-                archive = gzip.compress(raw, mtime=0)
+                archive = gzip.compress(raw, compresslevel=1, mtime=0)
                 if already_published:
                     uploads = {'sbarbase-1.2.3.tar.gz': archive, 'SHA256SUMS': (hashlib.sha256(archive).hexdigest()+'  sbarbase-1.2.3.tar.gz\n').encode()}
                 with patch.object(channel, 'object_of', return_value='abc'), patch.object(channel, 'verify', return_value=None), \

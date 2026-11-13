@@ -14,6 +14,7 @@ import contextlib
 import gzip
 import hashlib
 import tempfile
+import zlib
 from pathlib import Path
 import json
 import os
@@ -197,6 +198,26 @@ def newest_stable(tag):
     return True
 
 
+def verify_source_archive(path, raw):
+    """Bind source payload to the signed commit independently of gzip's encoder."""
+    if path.stat().st_size > len(raw) + 1024 * 1024:
+        raise PrepareError('Downloaded source archive exceeds its source bound')
+    try:
+        with gzip.open(path, 'rb') as stream:
+            actual = stream.read(len(raw) + 1)
+    except (OSError, EOFError, zlib.error) as error:
+        raise PrepareError('Downloaded source archive is invalid') from error
+    if actual != raw:
+        raise PrepareError('Downloaded source payload differs from the signed commit')
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def verify_source_download(folder, name, raw):
+    digest = verify_source_archive(folder / name, raw)
+    if (folder / 'SHA256SUMS').read_bytes() != f'{digest}  {name}\n'.encode('utf-8'):
+        raise PrepareError('Downloaded archive checksum does not match SHA256SUMS')
+
+
 def publish(tag, latest=False):
     version = channel.tag_version(tag)
     if version is None:
@@ -215,7 +236,7 @@ def publish(tag, latest=False):
         base = Path(directory)
         name = f'sbarbase-{version}.tar.gz'
         archive = base / name
-        raw = subprocess.run(['git', 'archive', '--format=tar', f'--prefix=sbarbase-{version}/', commit],
+        raw = subprocess.run(['git', '-c', 'tar.umask=0002', 'archive', '--format=tar', f'--prefix=sbarbase-{version}/', commit],
                              cwd=ROOT, capture_output=True, check=True).stdout
         with archive.open('wb') as out:
             with gzip.GzipFile(filename='', mode='wb', fileobj=out, mtime=0) as zipped:
@@ -223,7 +244,7 @@ def publish(tag, latest=False):
         digest = hashlib.sha256(archive.read_bytes()).hexdigest()
         checksum = base / 'SHA256SUMS'
         checksum.write_text(f'{digest}  {name}\n', encoding='utf-8')
-        expected = {name: archive.read_bytes(), checksum.name: checksum.read_bytes()}
+        expected = (name, checksum.name)
         release = release_for_tag(tag)
         if release is None:
             created = gh('api', '--method', 'POST', f'repos/{REPOSITORY}/releases',
@@ -241,6 +262,20 @@ def publish(tag, latest=False):
         names = [a['name'] for a in assets]
         if len(names) != len(set(names)):
             raise PrepareError('Draft has duplicate asset names')
+        if not release['draft'] and set(names) != set(expected):
+            raise PrepareError('Published release is missing an expected asset; inspect it manually')
+        if checksum.name in names and name not in names:
+            raise PrepareError('Draft checksum has no source archive; inspect it manually')
+        if name in names and checksum.name not in names:
+            # A previous uploader may use another zlib encoder. Keep its verified
+            # archive and generate the missing checksum from those exact bytes.
+            existing = base / 'existing'
+            existing.mkdir()
+            gh('release', 'download', tag, '--repo', REPOSITORY, '--dir', str(existing))
+            if {p.name for p in existing.iterdir()} != {name}:
+                raise PrepareError('Partial draft assets changed during inspection')
+            digest = verify_source_archive(existing / name, raw)
+            checksum.write_text(f'{digest}  {name}\n', encoding='utf-8')
         for asset in expected:
             if asset not in names:
                 if not release['draft']:
@@ -251,9 +286,7 @@ def publish(tag, latest=False):
         gh('release', 'download', tag, '--repo', REPOSITORY, '--dir', str(downloaded))
         if {p.name for p in downloaded.iterdir()} != set(expected):
             raise PrepareError('Downloaded assets do not match the expected set')
-        for asset, content in expected.items():
-            if hashlib.sha256((downloaded / asset).read_bytes()).digest() != hashlib.sha256(content).digest():
-                raise PrepareError(f'Downloaded asset checksum mismatch: {asset}')
+        verify_source_download(downloaded, name, raw)
         remote_tag(tag, oid)
         mark_latest = latest and newest_stable(tag)
         if release['draft'] or mark_latest:
