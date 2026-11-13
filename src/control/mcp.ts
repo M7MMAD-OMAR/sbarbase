@@ -5,6 +5,7 @@ import {createMcpHandler} from '@modelcontextprotocol/server';
 import {reply} from './auth';
 import type {AccessToken} from './access-tokens';
 import {bounded} from './supabase-api';
+import {agentMcpHandler,isAgentMcpTool} from './agent-mcp';
 
 /** The MCP endpoint, `POST /mcp` (docs/guides/agents.md): Supabase's own MCP server, from the
  * official `@supabase/mcp-server-supabase` package, run here so an agent needs only this address
@@ -39,7 +40,13 @@ export function mcpEndpoint(options:McpOptions) {
   const caller=context.authInfo?.extra?.caller as Caller|undefined;
   if(!caller)throw new Error('Unauthenticated MCP request');
   const platform=createSupabaseApiPlatform({accessToken:caller.bearer,apiUrl:caller.loopback});
-  platform.development={...platform.development!,getProjectUrl:ref=>options.projectUrl(caller.token,ref)};
+  platform.development={...platform.development!,getProjectUrl:async ref=>{
+   const live=options.resolve(caller.bearer);
+   if(!live||live.id!==caller.token.id)throw new Error('The access token is no longer valid');
+   const url=await options.projectUrl(live,ref);
+   if(options.resolve(caller.bearer)?.id!==live.id)throw new Error('The access token is no longer valid');
+   return url;
+  }};
   // Two tools this server cannot answer: free ClickHouse log queries (get_logs, which it can, is
   // listed instead) and the health advisors on Supabase's v2 API.
   platform.debugging={...platform.debugging!,queryLogs:undefined,getHealthAdvisors:undefined};
@@ -52,6 +59,7 @@ export function mcpEndpoint(options:McpOptions) {
   });
   return server;
  },{legacy:'stateless'});
+ const administration=agentMcpHandler(handler);
  return async(request:Request):Promise<Response>=>{
   const bearer=/^Bearer (\S+)$/i.exec(request.headers.get('authorization')??'')?.[1]??'';
   const token=options.resolve(bearer);
@@ -65,9 +73,14 @@ export function mcpEndpoint(options:McpOptions) {
   let body:Buffer;
   try{body=await bounded(request,10*1024*1024,'Request too large');}
   catch(error){const status=(error as {status?:number}).status??400;return reply(status,{message:error instanceof Error?error.message:'Request body unavailable'});}
+  // A token can expire or be revoked while a slow client sends the body. No tool, including
+  // local callbacks that do not make an authenticated loopback request, may use that old grant.
+  if(options.resolve(bearer)?.id!==token.id)return reply(401,{message:'The access token is no longer valid'});
   const copy=new Request(request.url,{method:request.method,headers:request.headers,signal:request.signal,
    ...(request.method==='GET'||request.method==='HEAD'?{}:{body:new Uint8Array(body)})});
-  return handler.fetch(copy,{authInfo:{token:bearer,clientId:token.id,scopes:token.read_only?['read']:['read','write'],
-   expiresAt:Math.floor(token.expires_at/1000),extra:{caller:{bearer,token,loopback} satisfies Caller}}});
+  let supplemental=false;
+  try{const message=JSON.parse(body.toString('utf8'));supplemental=message.method==='tools/list'||message.method==='tools/call'&&isAgentMcpTool(message.params?.name);}catch{}
+  return (supplemental?administration:handler).fetch(copy,{authInfo:{token:bearer,clientId:token.id,scopes:token.read_only?['read']:['read','write'],
+   expiresAt:Math.floor(token.expires_at/1000),extra:{caller:{bearer,token,loopback} satisfies Caller,agentCaller:{bearer,loopback,request:copy.clone()}}}});
  };
 }

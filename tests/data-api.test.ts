@@ -61,7 +61,7 @@ function setup() {
   headers:{authorization:'Bearer '+token,...(body===undefined||body instanceof FormData?{}:{'content-type':'application/json'}),...headers},
   ...(body===undefined?{}:{body:body instanceof FormData?body:JSON.stringify(body)})}));
  const mint=async(input:Record<string,unknown>={},who=human)=>{
-  const response=await manage('POST','/access-tokens',{name:'agent',...input},who);
+  const response=await manage('POST','/access-tokens',{name:'agent',permissions:['projects.read','database.read',...(input.read_only?[]:['database.configure'])],...input},who);
   expect(response.status).toBe(201);return (await response.json()).token as string;
  };
  const setDatabase=(state:'on'|'off')=>(catalog as any).db.query(`INSERT INTO database_access(runtime,desired,state,failure,actor,updated_at) VALUES (?,?,?,NULL,'owner',0)

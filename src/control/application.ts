@@ -23,6 +23,7 @@ import {accessTokenHandler} from './access-token-http';
 import {supabaseApi,refOf,inScope} from './supabase-api';
 import {developerSql,type SqlRunner} from './agent-sql';
 import {mcpEndpoint} from './mcp';
+import {hasAgentPermission} from './agent-permissions';
 import {publicUrl} from './sign-in';
 import {authAdminThrough} from './auth-admin';
 import type {StorageCredentialIssuer} from './storage-credentials';
@@ -106,15 +107,21 @@ export function application(catalog:Catalog,keys:KeyStore,realm:ManagementRealm,
    const route=routeWithPlacement(resolve(runtime),routing,resolveRuntimePlacement(runtime,routing));
    if(!route||!route.enabled||routing.maintenance)throw new PlacementUnavailable();
    return [...(route.storage?['auth','rest','storage'] as const:['auth','rest'] as const),...(route.realtime?['realtime'] as const:[]),...(route.functions?['functions'] as const:[])];
-  },studioKey,requests,containers,accounts,direct);
+  },studioKey,requests,containers,accounts,direct,functionsBoot,functionsUsage,authAdmin,serviceOptions);
   const dispatch=async(token:AccessToken,method:string,path:string,body?:unknown)=>{
    const internal=new Request('http://sbarbase.internal'+path,{method,
     ...(body===undefined?{}:{headers:{'content-type':'application/json'},body:JSON.stringify(body)})});
    callers.set(internal,token);
-   const current=()=>tokens.alive(token.id,epoch);
+   const target=new URL(internal.url).pathname.match(/^\/management\/v1\/(organizations|projects|environments)\/([a-f0-9-]{36})(?:\/|$)/);
+   const current=()=>{
+    if(!tokens.alive(token.id,epoch)||!target)return false;
+    try{return catalog.agentScopeCurrent(token.actor,token.scope,target[1]!,target[2]!);}catch{return false;}
+   };
+   if(!tokens.alive(token.id,epoch))return reply(401,{message:'The access token is no longer valid'});
+   if(!current())return reply(403,{message:'The request is outside the access token scope'});
    const response=await withManagementAuthorization(current,()=>tokenControl(internal),async()=>{if(!current())throw new Error('Forbidden');});
    return current()?withManagementAuthorization(current,()=>publishManagementResponse(catalog,publishReadyEnvironmentResponse(catalog,publishDatabaseResponse(catalog,response))))
-    :reply(401,{message:'The access token is no longer valid'});
+    :tokens.alive(token.id,epoch)?reply(403,{message:'The request is outside the access token scope'}):reply(401,{message:'The access token is no longer valid'});
   };
   const base=agents.publicUrl??publicUrl;
   v1=supabaseApi({catalog,tokens,dispatch,sql:agents.sql??developerSql(),publicUrl:base,functionsRoot:agents.functionsRoot});
@@ -122,6 +129,7 @@ export function application(catalog:Catalog,keys:KeyStore,realm:ManagementRealm,
   mcp=mcpEndpoint({loopback,resolve:bearer=>tokens.resolve(bearer,epoch),
    admit:token=>token?catalog.managementSecurity.rate('agent:token:'+token.id,300,60_000):catalog.managementSecurity.rate('agent:invalid',600,60_000),
    projectUrl:async(token,ref)=>{
+    if(!hasAgentPermission(token,'projects.read'))throw new Error('The access token requires projects.read');
     const entry=catalog.agentDirectory(token.actor).find(item=>inScope(token,item)&&refOf(item.environment)===ref);
     if(!entry?.runtime)throw new Error('Project not found');
     return `${base().replace(/\/+$/,'')}/${entry.runtime}`;

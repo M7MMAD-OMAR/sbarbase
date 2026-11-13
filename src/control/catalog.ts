@@ -675,6 +675,14 @@ export class Catalog {
     this.environmentProject(actor,environment,['owner','admin']);
     this.record(actor,action,environment,detail);
   }
+  /** Attribute an admitted administrative attempt to its token without saving request data. */
+  recordAgentOperation(actor:string,organization:string,subject:string,token:string,operation:string):void {
+    this.require(actor,organization,['owner','admin']);
+    if(!/^[a-f0-9-]{36}$/.test(token)||!(/^[a-z][a-z0-9_.]{1,100}$/).test(operation))throw new Error('Invalid agent operation');
+    if(subject!==organization&&!this.db.query(`SELECT 1 FROM projects p LEFT JOIN environments e ON e.project=p.id
+      WHERE p.organization=? AND (p.id=? OR e.id=?) LIMIT 1`).get(organization,subject,subject))throw new Error('Forbidden');
+    this.record(actor,'agent.operation_requested',subject,{token,operation});
+  }
   /** A management account's password was set from the server's shell (lab/operator-password.ts). */
   recordOperatorPasswordReset(target:string):void {
     this.record('system:host','management.password_reset',target,{});
@@ -761,6 +769,7 @@ export class Catalog {
           // An access token or API key by its id, a query by its digest, a migration by its version.
           ((key==='token'||key==='key'||key==='provider')&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value))||
           (key==='query'&&/^[0-9a-f]{16}$/.test(value))||(key==='version'&&/^[0-9]{14}$/.test(value))||
+          (row.action==='agent.operation_requested'&&key==='operation'&&/^[a-z][a-z0-9_.]{1,100}$/.test(value))||
           // The platform key names a sign-in save changed (values are never recorded).
           (row.action==='sign_in.saved'&&key==='changed'&&/^[A-Z0-9_,]{1,2000}$/.test(value))||
           (row.action==='database.agent_migration'&&key==='name'&&/^[A-Za-z0-9_.-]{1,100}$/.test(value))))detail[key]=value;
@@ -948,6 +957,20 @@ export class Catalog {
       JOIN environments e ON e.project=p.id LEFT JOIN provision_jobs j ON j.environment=e.id
       WHERE m.actor=? AND NOT EXISTS (SELECT 1 FROM environment_lifecycle l WHERE l.environment=e.id AND l.state!='active')
       ORDER BY o.id,p.id,e.id`).all(actor);
+  }
+  /** A side-effect-free authorization predicate, used from inside the management guard.
+   * Do not call actor()/require() here: those invoke that same guard recursively. */
+  agentScopeCurrent(actor:string,scope:{kind:string;id?:string},kind:string,id:string):boolean {
+    if(kind==='organizations')return scope.kind!=='project'&&(scope.kind==='all'||scope.kind==='organization'&&scope.id===id)&&
+      !!this.db.query('SELECT 1 FROM memberships WHERE actor=? AND organization=?').get(actor,id);
+    let row:{organization:string;project:string}|null;
+    if(kind==='projects')row=this.db.query<{organization:string;project:string},[string,string]>(`SELECT p.organization,p.id AS project
+      FROM projects p JOIN memberships m ON m.organization=p.organization WHERE m.actor=? AND p.id=?`).get(actor,id);
+    else if(kind==='environments')row=this.db.query<{organization:string;project:string},[string,string]>(`SELECT p.organization,p.id AS project
+      FROM environments e JOIN projects p ON p.id=e.project JOIN memberships m ON m.organization=p.organization
+      WHERE m.actor=? AND e.id=? AND NOT EXISTS (SELECT 1 FROM environment_lifecycle l WHERE l.environment=e.id AND l.state!='active')`).get(actor,id);
+    else return false;
+    return !!row&&(scope.kind==='all'||scope.kind==='organization'&&row.organization===scope.id||scope.kind==='project'&&row.project===scope.id);
   }
   withReadyEnvironment<T>(actor:string,environment:string,write:boolean,operation:(job:ProvisionJob)=>T):T {
     return this.db.transaction(()=>{

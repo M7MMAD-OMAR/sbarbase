@@ -2,6 +2,7 @@ import {Database} from 'bun:sqlite';
 import {createHash,randomBytes,randomUUID} from 'node:crypto';
 import {chmodSync} from 'node:fs';
 import {hasSchema,migrateStore,refuseNewer} from './store-version';
+import {parseAgentPermissions,READ_PERMISSIONS,type AgentPermission} from './agent-permissions';
 
 /** Personal access tokens for agents and tools (docs/guides/agents.md).
  *
@@ -11,8 +12,9 @@ import {hasSchema,migrateStore,refuseNewer} from './store-version';
  * membership checks as the console, narrowed by what the token says:
  *
  * - its scope: every organization that person belongs to, one organization, or one project;
- * - read only, or read and write;
+ * - explicit domain capabilities, with read-only mode as an additional ceiling;
  * - an expiry of at most a year.
+ * Existing schema 0 tokens migrate to explicit reads. A person reissues any needed write grants.
  *
  * It stops working when it expires, when it is revoked, when that person's password is reset or
  * an authenticator is recovered (their token epoch moves on), and when the installation's sign-in
@@ -25,11 +27,11 @@ export const ACCESS_TOKEN=/^sbp_[a-f0-9]{40}$/;
 export const TOKEN_NAME=/^[\p{L}\p{N} ._()'@:\/+-]{1,64}$/u;
 export const MAX_TOKEN_DAYS=365;
 /** Bumped with each step of the access token store ladder (src/control/store-version.ts). */
-export const ACCESS_TOKEN_SCHEMA_VERSION=0;
+export const ACCESS_TOKEN_SCHEMA_VERSION=1;
 const MAX_LIVE=50;
 export type TokenScope={kind:'all'}|{kind:'organization';id:string}|{kind:'project';id:string};
-export type AccessToken={id:string;name:string;actor:string;scope:TokenScope;read_only:boolean;created_at:number;expires_at:number;last_used_at:number|null;revoked_at:number|null};
-type Row={id:string;name:string;actor:string;scope_kind:string;scope_id:string|null;read_only:number;created_at:number;expires_at:number;last_used_at:number|null;revoked_at:number|null;epoch:string};
+export type AccessToken={id:string;name:string;actor:string;scope:TokenScope;read_only:boolean;permissions:AgentPermission[];created_at:number;expires_at:number;last_used_at:number|null;revoked_at:number|null};
+type Row={id:string;name:string;actor:string;scope_kind:string;scope_id:string|null;read_only:number;permissions:string;created_at:number;expires_at:number;last_used_at:number|null;revoked_at:number|null;epoch:string};
 const digest=(token:string)=>createHash('sha256').update(token).digest('hex');
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -42,7 +44,9 @@ export function tokenEpoch(security:{tokenEpoch(actor:string):number;policy():{e
 
 function record(row:Row):AccessToken {
  const scope:TokenScope=row.scope_kind==='organization'?{kind:'organization',id:row.scope_id!}:row.scope_kind==='project'?{kind:'project',id:row.scope_id!}:{kind:'all'};
- return {id:row.id,name:row.name,actor:row.actor,scope,read_only:row.read_only===1,created_at:row.created_at,expires_at:row.expires_at,last_used_at:row.last_used_at,revoked_at:row.revoked_at};
+ let permissions:AgentPermission[]=[];
+ try{permissions=parseAgentPermissions(JSON.parse(row.permissions),row.read_only===1);}catch{}
+ return {id:row.id,name:row.name,actor:row.actor,scope,read_only:row.read_only===1,permissions,created_at:row.created_at,expires_at:row.expires_at,last_used_at:row.last_used_at,revoked_at:row.revoked_at};
 }
 
 export class AccessTokenStore {
@@ -58,30 +62,38 @@ export class AccessTokenStore {
   } catch(error) {this.db.close();throw error;}
  }
  private migrate() {
-  const ready=()=>hasSchema(this.db,{access_tokens:['epoch','revoked_at']},['access_tokens_actor']);
-  migrateStore(this.db,'Access token store',ACCESS_TOKEN_SCHEMA_VERSION,ready,()=>this.db.exec(`CREATE TABLE IF NOT EXISTS access_tokens(
+  const ready=()=>hasSchema(this.db,{access_tokens:['epoch','revoked_at','permissions']},['access_tokens_actor']);
+  migrateStore(this.db,'Access token store',ACCESS_TOKEN_SCHEMA_VERSION,ready,()=>{this.db.exec(`CREATE TABLE IF NOT EXISTS access_tokens(
     id TEXT PRIMARY KEY, name TEXT NOT NULL, actor TEXT NOT NULL, digest TEXT NOT NULL UNIQUE,
     scope_kind TEXT NOT NULL CHECK(scope_kind IN ('all','organization','project')), scope_id TEXT,
     read_only INTEGER NOT NULL CHECK(read_only IN (0,1)), epoch TEXT NOT NULL,
     created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, last_used_at INTEGER, revoked_at INTEGER,
     CHECK((scope_kind='all')=(scope_id IS NULL))
    );
-   CREATE INDEX IF NOT EXISTS access_tokens_actor ON access_tokens(actor);`));
+   CREATE INDEX IF NOT EXISTS access_tokens_actor ON access_tokens(actor);`);
+   if(!hasSchema(this.db,{access_tokens:['permissions']})){
+    this.db.exec("ALTER TABLE access_tokens ADD COLUMN permissions TEXT NOT NULL DEFAULT '[]'");
+    // Existing broad tokens become read-capable only. A person must explicitly issue new grants.
+    this.db.query('UPDATE access_tokens SET permissions=?').run(JSON.stringify(READ_PERMISSIONS));
+   }
+  });
  }
 
  /** A new token for `actor`, whose authority epoch is `epoch` now (tokenEpoch). The token is returned once. */
- issue(actor:string,epoch:string,input:{name:string;scope:TokenScope;read_only:boolean;days:number}):{token:string;data:AccessToken} {
+ issue(actor:string,epoch:string,input:{name:string;scope:TokenScope;read_only:boolean;days:number;permissions?:unknown}):{token:string;data:AccessToken} {
   if(!actor||actor.length>200)throw new TokenRefusal('Invalid actor');
   if(!TOKEN_NAME.test(input.name))throw new TokenRefusal("A token name has 1 to 64 letters, digits, spaces and . _ ( ) ' @ : / + -");
   if(!Number.isInteger(input.days)||input.days<1||input.days>MAX_TOKEN_DAYS)throw new TokenRefusal(`A token lasts 1 to ${MAX_TOKEN_DAYS} days`);
   if(input.scope.kind!=='all'&&!UUID.test(input.scope.id))throw new TokenRefusal('Invalid scope');
+  let permissions:AgentPermission[];
+  try{permissions=parseAgentPermissions(input.permissions,input.read_only);}catch(error){throw new TokenRefusal((error as Error).message);}
   const now=this.now();
   const live=this.db.query<{n:number},[string,number]>('SELECT count(*) AS n FROM access_tokens WHERE actor=? AND revoked_at IS NULL AND expires_at>?').get(actor,now)!.n;
   if(live>=MAX_LIVE)throw new TokenRefusal(`You have ${MAX_LIVE} active tokens; revoke one first`);
   const token='sbp_'+randomBytes(20).toString('hex'),id=randomUUID();
-  this.db.query(`INSERT INTO access_tokens(id,name,actor,digest,scope_kind,scope_id,read_only,epoch,created_at,expires_at,last_used_at,revoked_at)
-   VALUES (?,?,?,?,?,?,?,?,?,?,NULL,NULL)`).run(id,input.name,actor,digest(token),input.scope.kind,input.scope.kind==='all'?null:input.scope.id,
-   input.read_only?1:0,epoch,now,now+input.days*86_400_000);
+  this.db.query(`INSERT INTO access_tokens(id,name,actor,digest,scope_kind,scope_id,read_only,epoch,created_at,expires_at,last_used_at,revoked_at,permissions)
+   VALUES (?,?,?,?,?,?,?,?,?,?,NULL,NULL,?)`).run(id,input.name,actor,digest(token),input.scope.kind,input.scope.kind==='all'?null:input.scope.id,
+   input.read_only?1:0,epoch,now,now+input.days*86_400_000,JSON.stringify(permissions));
   return {token,data:this.get(actor,id)!};
  }
 

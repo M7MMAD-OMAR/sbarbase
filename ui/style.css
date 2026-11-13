@@ -498,3 +498,24 @@ th,td{padding:12px}
  .table-wrap{position:relative}
  .table-wrap::after{content:'Scroll horizontally for all actions';display:block;font-size:12px;padding:8px 12px;color:var(--muted);background:var(--surface-2)}
 }
+
+/* Agent capabilities keep narrow forms readable in both console themes. */
+.agent-access{max-width:1100px;text-align:start}
+.agent-access .agent-token-fields{padding:0;margin:0;background:none;box-shadow:none}
+.agent-access .agent-form-grid,.agent-access .agent-permission-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 24px}
+.agent-access .agent-token-fields>label:first-child{margin-top:0}
+.agent-access .agent-permissions{padding:16px;margin:20px 0 0;border:1px solid var(--border);box-shadow:none;background:var(--surface)}
+.agent-access .agent-permissions legend{padding:0 6px;font-weight:500}
+.agent-access .agent-permissions p{margin:0 0 14px}
+.agent-access .agent-permissions .check{display:flex;align-items:flex-start;gap:8px;margin:0;line-height:1.6;min-width:0}
+.agent-access .agent-permissions .check input{margin-top:5px;flex-shrink:0}
+.agent-access .agent-permissions .check span{min-width:0}
+.agent-access .agent-permissions code{display:block;color:var(--muted);font-size:11px;overflow-wrap:anywhere;background:none;padding:0;text-align:start}
+.agent-access .agent-sensitive{border-color:var(--notice-border);background:var(--notice-bg)}
+.agent-access .agent-risk-ack{padding-top:16px;margin-top:16px!important;border-top:1px solid var(--notice-border)}
+.agent-access .agent-token-grants{padding-inline-start:18px;margin:8px 0;min-width:190px;white-space:normal}
+.agent-access textarea[dir=ltr],.agent-access input[dir=ltr]{text-align:left;font-family:var(--mono-font);font-size:12px}
+.agent-access .table-wrap th,.agent-access .table-wrap td{text-align:start}
+.agent-access .confirm{white-space:normal;min-width:200px}
+@media(max-width:640px){.agent-access .agent-form-grid,.agent-access .agent-permission-grid{grid-template-columns:1fr}.agent-access .agent-permissions{padding:12px}.agent-access .details{min-width:0}}
+.agent-access .table-wrap::after{content:'مرّر الجدول أفقيًا لعرض كلّ الإجراءات'}

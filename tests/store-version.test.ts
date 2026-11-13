@@ -23,7 +23,7 @@ const CURRENT_KEYS=ORIGINAL_KEYS+`ALTER TABLE api_keys ADD COLUMN runtime_epoch 
  ALTER TABLE api_keys ADD COLUMN name TEXT NOT NULL DEFAULT 'default';
  ALTER TABLE api_keys ADD COLUMN token TEXT CHECK(token IS NULL OR kind='publishable');`;
 
-test('a fresh store of each kind stays at the baseline, version 0, that every earlier release opens',()=>{
+test('a fresh store of each kind matches its current schema ladder version',()=>{
  const dir=directory();
  new KeyStore(join(dir,'keys.sqlite')).close();
  new AccessTokenStore(join(dir,'tokens.sqlite')).close();
@@ -31,8 +31,8 @@ test('a fresh store of each kind stays at the baseline, version 0, that every ea
  expect(version(join(dir,'keys.sqlite'))).toBe(KEY_STORE_SCHEMA_VERSION);
  expect(version(join(dir,'tokens.sqlite'))).toBe(ACCESS_TOKEN_SCHEMA_VERSION);
  expect(version(join(dir,'setup.sqlite'))).toBe(DEPLOYMENT_SETUP_SCHEMA_VERSION);
- // lab/upgrade.py reads a release without these constants as 0; a rollback to it needs the store at 0.
- expect([KEY_STORE_SCHEMA_VERSION,ACCESS_TOKEN_SCHEMA_VERSION,DEPLOYMENT_SETUP_SCHEMA_VERSION]).toEqual([0,0,0]);
+ // Access token grants introduced schema 1; upgrade gates must not roll it back to baseline.
+ expect([KEY_STORE_SCHEMA_VERSION,ACCESS_TOKEN_SCHEMA_VERSION,DEPLOYMENT_SETUP_SCHEMA_VERSION]).toEqual([0,1,0]);
 });
 
 test('a key store of the original shape gains its columns and keeps its keys, still at the baseline',()=>{
@@ -93,7 +93,7 @@ test('opening a current store reads past another process holding the write lock'
 test('a refused open closes its database handle',()=>{
  const dir=directory();
  seed(join(dir,'keys.sqlite'),'CREATE TABLE marker(x)',1);
- seed(join(dir,'tokens.sqlite'),'CREATE TABLE marker(x)',1);
+ seed(join(dir,'tokens.sqlite'),'CREATE TABLE marker(x)',ACCESS_TOKEN_SCHEMA_VERSION+1);
  seed(join(dir,'setup.sqlite'),'CREATE TABLE marker(x)',1);
  const close=spyOn(Database.prototype,'close');
  try {

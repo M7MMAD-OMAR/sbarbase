@@ -85,10 +85,20 @@ Shared server statistics remain blocked for tenant isolation, so Query Performan
 
 In development source and the owner's private 0.11.2 revision `7f602cd`, the pinned Studio SMTP form reads and saves through Sbarbase's existing private environment settings. Public v0.12.2 does not include this repair. Keep the password empty when retaining it. Disabling custom SMTP removes its credentials and keeps email templates and confirmation settings. Saving queues Auth application; inspect the apply state in [the Sbarbase console](sign-in.md). An accepted save does not by itself prove delivery.
 
-Compatibility is bound to original Studio `3699278`. Its verified modules use versioned URLs for browser and CDN caches, with separate query state for SMTP. Unknown module changes are refused; qualify another Studio image before adopting it. The [SMTP observation](../evidence/server-smtp-2026-11-13.json) records native readback, applied configuration and one successful Auth email submission. This does not implement the hosted platform's general auth-configuration API.
+Compatibility is bound to original Studio `3699278`. Its verified modules use versioned URLs to separate adapter revisions, with separate query state for SMTP. Successfully verified current-version assets may be cached privately by the browser; shared CDN caching is forbidden. Unknown module changes are refused; qualify another Studio image before adopting it. The [SMTP observation](../evidence/server-smtp-2026-11-13.json) records native readback, applied configuration and one successful Auth email submission. This does not implement the hosted platform's general auth-configuration API.
 
 ## Project names in browser tabs and URLs
 
 The tab prefixes the Studio page title with the project and environment. A safe display label appears in a query such as `?workspace=shop-production`, following navigation and reloads. Arabic names remain text.
 
 The label is not a permanent project locator or an authorization input. The environment's unique hostname and signed session remain authoritative. Do not replace `/project/default` with a project name: the self-hosted Studio expects that reference. Use the console's project/environment selector or the optional Studio workspace selector for an authorized switch.
+
+## Diagnosing slow page loads
+
+Measure the authenticated Studio document, a large JavaScript asset and a small API response separately. Compare the direct upstream, console proxy and public address before changing resource limits. A slow browser can have a fast backend: inspect transferred bytes, queued asset requests and cold versus warm reloads in browser network tools.
+
+The November 14, 2026 investigation found no host resource pressure. The direct Studio document took about 3-5 ms, the console proxy 4-12 ms and the public path 24-87 ms in the sampled requests. Isolated Chromium page loads took 4.171 seconds cold, then 2.202 and 0.759 seconds on reload; transferred bytes fell from about 4.12 MB to 374 KB and 21 KB. These are observations from one installation, not performance targets. The reported persistent severe slowdown was not reproduced and remains unresolved.
+
+One cache regression was reproduced and repaired: six modified SMTP JavaScript assets were sent with `no-store` on every load. Only recognized, successfully rewritten assets with exactly the current adapter version in their URL may now use private immutable caching. Canonical URLs, old or duplicate version parameters, unrecognized files and errors remain uncached. Documents, authenticated API results and secrets do not gain this asset cache policy. Session and origin authorization still run before asset responses.
+
+In an isolated Chromium fixture, three loads requested the adapted asset upstream three times before the change and once afterward; warm transfers for that asset became 0 bytes. This proves the narrow cache repair, not a cure for every slow Studio screen. If severe latency continues, record the affected route, cold/warm network timings and browser errors, and investigate that boundary instead of increasing server capacity without evidence.

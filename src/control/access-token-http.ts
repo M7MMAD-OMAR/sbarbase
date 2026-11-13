@@ -36,8 +36,8 @@ export function accessTokenHandler(catalog:Catalog,tokens:AccessTokenStore,ident
     return reply(200,{revoked:true});
    }
    let input:Record<string,unknown>;
-   try{input=await boundedJsonBody(request,['name'],['scope','read_only','days']);}
-   catch(error){if(error instanceof InputError)return reply(400,{message:'Send JSON with a "name", and "scope", "read_only" and "days" if you want them'});throw error;}
+   try{input=await boundedJsonBody(request,['name'],['scope','read_only','days','permissions']);}
+   catch(error){if(error instanceof InputError)return reply(400,{message:'Send JSON with a "name", and "scope", "read_only", "days" and "permissions" if you want them'});throw error;}
    const scope=(input.scope??{kind:'all'}) as Record<string,unknown>;
    if(!scope||typeof scope!=='object'||!['all','organization','project'].includes(scope.kind as string)||
      scope.kind==='all'&&scope.id!==undefined||scope.kind!=='all'&&typeof scope.id!=='string')
@@ -53,7 +53,7 @@ export function accessTokenHandler(catalog:Catalog,tokens:AccessTokenStore,ident
    }
    requireCurrentManagement();
    const issued=tokens.issue(actor,tokenEpoch(catalog.managementSecurity)(actor),{name:String(input.name).trim(),scope:scope as TokenScope,
-    read_only:input.read_only===true,days:days as number});
+    read_only:input.read_only===true,days:days as number,permissions:input.permissions});
    try{
     catalog.recordAccessToken(actor,'access_token.created',scope.kind==='all'?actor:scope.id as string,
      {token:issued.data.id,scope:scope.kind as string,read_only:issued.data.read_only,days:days as number});

@@ -1,3 +1,5 @@
+import {hasAgentPermission,type AgentPermission} from './agent-permissions';
+import {AGENT_OPERATIONS,availableAgentOperations} from './agent-admin';
 import {CAPABILITIES} from './capabilities';
 import {createHash} from 'node:crypto';
 import {existsSync,readdirSync,readFileSync,statSync} from 'node:fs';
@@ -73,7 +75,7 @@ export function refOf(environment:string):string {
  return environment.replace(/-/g,'').slice(0,20).replace(/[0-9a-f]/g,digit=>String.fromCharCode(97+parseInt(digit,16)));
 }
 
-class Refusal extends Error {constructor(readonly status:number,message:string){super(message);}}
+class Refusal extends Error {constructor(readonly status:number,message:string,readonly permission?:AgentPermission){super(message);}}
 const refuse=(status:number,message:string):never=>{throw new Refusal(status,message);};
 
 function status(entry:AgentDirectoryEntry):string {
@@ -154,6 +156,11 @@ export function supabaseApi(options:SupabaseApiOptions) {
   return matches[0]!;
  }
  const writer=(entry:AgentDirectoryEntry)=>{if(entry.role==='viewer')refuse(403,'Your role in this organization is viewer; an owner or admin can change it');};
+ const currentDatabase=(token:AccessToken,entry:AgentDirectoryEntry)=>{
+  if(!tokens.alive(token.id,tokenEpoch(catalog.managementSecurity)))refuse(401,'The access token is no longer valid');
+  const current=find(token,refOf(entry.environment));writer(current);
+  if(current.runtime!==entry.runtime||current.state!=='succeeded')refuse(409,'The environment changed during this request');
+ };
  const ready=(entry:AgentDirectoryEntry)=>{if(entry.state!=='succeeded'||!entry.runtime)refuse(409,'The project is still being created; try again in a minute');return entry.runtime!;};
 
  function project(entry:AgentDirectoryEntry) {
@@ -181,6 +188,7 @@ export function supabaseApi(options:SupabaseApiOptions) {
   const runtime=ready(entry);
   writer(entry);
   const state=(await call(token,'GET',`/environments/${entry.environment}/database`)).data as {desired?:string;state?:string;connection?:{host?:string;port?:number}};
+  currentDatabase(token,entry);
   if(state?.desired==='on'&&state.state==='on')return {runtime,host:state.connection?.host,port:state.connection?.port};
   if(state?.desired==='on')refuse(409,'Database access is being turned on; try again in a minute');
   if(token.read_only||!enable)refuse(409,'Database access is off for this project. Turn it on in the console (Database connection), or run SQL with a token that can write, which turns it on');
@@ -265,14 +273,72 @@ export function supabaseApi(options:SupabaseApiOptions) {
   // Public tables without row level security: anyone with the publishable key reads them. Needs
   // database access; without it the list is empty and says why.
   let target:SqlTarget;
-  try{target=await databaseReady(token,entry);}catch(error){return {lints:[],message:error instanceof Error?error.message:''};}
+  try{target=await databaseReady(token,entry);}catch(error){
+   if(error instanceof Refusal&&[401,403].includes(error.status))throw error;
+   return {lints:[],message:error instanceof Error?error.message:''};
+  }
   const rows=await sql.query(target,{readOnly:true,query:`SELECT c.relname AS name FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
    WHERE n.nspname='public' AND c.relkind IN ('r','p') AND NOT c.relrowsecurity ORDER BY 1`}) as {name:string}[];
+  currentDatabase(token,entry);
   return {lints:rows.map(row=>({name:'rls_disabled_in_public',title:'RLS Disabled in Public',level:'ERROR',facing:'EXTERNAL',categories:['SECURITY'],
    description:'Detects cases where row level security (RLS) has not been enabled on tables in schemas exposed to the API',
    detail:`Table \`public.${row.name}\` is public, but RLS has not been enabled.`,
    remediation:'https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public',
    metadata:{schema:'public',name:row.name,type:'table'},cache_key:`rls_disabled_in_public_public_${row.name}`}))};
+ }
+
+ const requirePermission=(token:AccessToken,permission:AgentPermission)=>{
+  if(!tokens.alive(token.id,tokenEpoch(catalog.managementSecurity)))refuse(401,'The access token is no longer valid');
+  if(!hasAgentPermission(token,permission))throw new Refusal(403,`This access token requires ${permission}`,permission);
+ };
+ async function executeOperation(token:AccessToken,input:unknown):Promise<Response>{
+  if(!input||typeof input!=='object'||Array.isArray(input))refuse(400,'Send an operation object');
+  const value=input as Record<string,unknown>;
+  if(Object.keys(value).some(key=>!['operation','project_ref','organization_id','input','dry_run'].includes(key)))refuse(400,'Unknown operation field');
+  const operation=AGENT_OPERATIONS.find(item=>item.name===value.operation);
+  if(!operation)refuse(404,'Unknown agent operation');
+  const item=operation!;
+  requirePermission(token,item.permission);
+  if(value.dry_run!==undefined&&typeof value.dry_run!=='boolean')refuse(400,'dry_run must be true or false');
+  let path=item.route,subject:string,organizationId:string;
+  if(item.target==='project'){
+   if(typeof value.project_ref!=='string'||value.organization_id!==undefined)refuse(400,'Give project_ref, without organization_id');
+   const entry=find(token,value.project_ref as string);
+   if(item.risk==='write')writer(entry);
+   subject=entry.environment;organizationId=entry.organization;
+   path=path.replace('{environment}',entry.environment).replace('{project}',entry.project);
+  }else{
+   if(token.scope.kind==='project')refuse(403,'A project token cannot administer its organization');
+   if(typeof value.organization_id!=='string'||value.project_ref!==undefined)refuse(400,'Give organization_id, without project_ref');
+   const organization=organizations(token).find(entry=>entry.id===value.organization_id);
+   if(!organization)refuse(404,'Organization not found');
+   if(item.risk==='write'&&organization!.role==='viewer')refuse(403,'Your organization role cannot change these settings');
+   subject=organization!.id;organizationId=organization!.id;path=path.replace('{organization}',subject);
+  }
+  let body=value.input;
+  if(body!==undefined&&(!body||typeof body!=='object'||Array.isArray(body)))refuse(400,'input must be a JSON object');
+  if(item.name==='auth.sso.delete'||item.name==='keys.revoke'){
+   const key=item.name==='auth.sso.delete'?'provider_id':'key_id';
+   const fields=body as Record<string,unknown>|undefined;
+   if(!fields||Object.keys(fields).length!==1||typeof fields[key]!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(fields[key] as string))refuse(400,`Give ${key} as a UUID`);
+   path=path.replace(item.name==='auth.sso.delete'?'{provider}':'{key}',fields![key] as string);body=undefined;
+  }
+  if(item.method==='GET'&&body!==undefined){
+   if(item.name!=='logs.read')refuse(400,'This read operation does not accept input');
+   const fields=body as Record<string,unknown>;
+   if(Object.keys(fields).some(key=>!['source','lines','errors'].includes(key)))refuse(400,'Unknown log option');
+   const query=new URLSearchParams();
+   if(fields.source!==undefined){if(typeof fields.source!=='string'||!['requests','auth','rest','storage','realtime','functions'].includes(fields.source))refuse(400,'Invalid log source');query.set('source',fields.source as string);}
+   if(fields.lines!==undefined){if(!Number.isInteger(fields.lines)||Number(fields.lines)<1||Number(fields.lines)>1000)refuse(400,'lines must be 1 to 1000');query.set('lines',String(fields.lines));}
+   if(fields.errors!==undefined){if(typeof fields.errors!=='boolean')refuse(400,'errors must be true or false');query.set('errors',fields.errors?'1':'0');}
+   if(query.size)path+='?'+query.toString();
+  }
+  // A preview is admission only, not an assertion that asynchronous runtime validation passed.
+  // Mutations must explicitly request dry_run:false, so an omitted flag cannot change state.
+  if(value.dry_run===true||item.risk==='write'&&value.dry_run!==false)return reply(200,{dry_run:true,operation:item.name,target:subject,permission:item.permission,
+   input_keys:body?Object.keys(body):[],message:'Permission and target checked. No change applied; runtime input validation happens on execution.'});
+  if(item.risk==='write')catalog.recordAgentOperation(token.actor,organizationId!,subject!,token.id,item.name);
+  return dispatch(token,item.method,'/management/v1'+path,item.method==='GET'||item.method==='DELETE'?undefined:body??{});
  }
 
  async function route(token:AccessToken,request:Request,url:URL):Promise<Response> {
@@ -281,20 +347,26 @@ export function supabaseApi(options:SupabaseApiOptions) {
    const text=await bounded(request,MAX_JSON,'Request too large');
    try{return text.length?JSON.parse(text.toString('utf8')):{};}catch{return refuse(400,'Send JSON');}
   };
+  if(path==='/v1/agent/operations'&&method==='GET')return reply(200,{permissions:token.permissions,scope:token.scope,read_only:token.read_only,operations:availableAgentOperations(token)});
+  if(path==='/v1/agent/execute'&&method==='POST')return executeOperation(token,await json());
   const writes=method!=='GET'&&method!=='HEAD';
   // A read-only token reads; SQL is the one write-shaped call it may make, and it runs read only.
   if(writes&&token.read_only&&!/\/database\/query$/.test(path))refuse(403,'This access token is read only');
 
+  if(path==='/v1/organizations'&&method==='GET'){requirePermission(token,'organization.read');}
   if(path==='/v1/organizations'&&method==='GET')return reply(200,organizations(token).map(item=>({id:item.id,slug:item.id,name:item.name})));
   let match=path.match(/^\/v1\/organizations\/([a-f0-9-]{36})$/);
   if(match&&method==='GET'){
+   requirePermission(token,'organization.read');
    const organization=organizations(token).find(item=>item.id===match![1]);
    if(!organization)refuse(404,'Organization not found');
    return reply(200,{id:organization!.id,slug:organization!.id,name:organization!.name,plan:'free',allowed_release_channels:['ga'],opt_in_tags:[]});
   }
   if(path==='/v1/capabilities'&&method==='GET')return reply(200,CAPABILITIES);
+  if(path==='/v1/projects'&&method==='GET'){requirePermission(token,'projects.read');}
   if(path==='/v1/projects'&&method==='GET')return reply(200,directory(token).map(project));
   if(path==='/v1/projects'&&method==='POST'){
+   requirePermission(token,'projects.write');
    const input=await json() as {name?:unknown;organization_slug?:unknown;organization_id?:unknown};
    const organization=String(input.organization_slug??input.organization_id??'');
    if(token.scope.kind==='project')refuse(403,'This access token is for one project; it cannot create another');
@@ -308,6 +380,18 @@ export function supabaseApi(options:SupabaseApiOptions) {
   match=path.match(/^\/v1\/projects\/([a-z]{20})(\/.*)?$/);
   if(!match)return reply(404,{message:'Not available on Sbarbase'});
   const entry=find(token,match[1]!),rest=match[2]??'';
+  // Every existing Supabase-compatible route is narrowed too, including implicit writes.
+  let permission:AgentPermission='projects.read';
+  if(rest.startsWith('/database/query'))permission='database.read';
+  else if(rest.startsWith('/database/migrations'))permission=method==='GET'?'database.read':'database.write';
+  else if(rest.startsWith('/api-keys'))permission=method==='DELETE'?'keys.delete':method==='GET'?'keys.read':'keys.write';
+  else if(rest.startsWith('/functions'))permission=method==='DELETE'?'functions.delete':method==='GET'?'functions.read':'functions.write';
+  else if(rest==='/secrets')permission=method==='GET'?'functions.read':method==='DELETE'?'functions.delete':'functions.write';
+  else if(rest==='/postgrest')permission=method==='GET'?'database.read':'database.configure';
+  else if(rest.startsWith('/config/storage'))permission='storage.read';
+  else if(rest.startsWith('/analytics')||rest.startsWith('/logs'))permission='logs.read';
+  else if(rest.startsWith('/advisors')||rest.startsWith('/types')||rest.startsWith('/config/database'))permission='database.read';
+  requirePermission(token,permission);
 
   if(rest===''&&method==='GET')return reply(200,project(entry));
   if(rest===''&&method==='DELETE')refuse(501,'Delete projects in the Sbarbase console; deletion needs a person there');
@@ -325,7 +409,7 @@ export function supabaseApi(options:SupabaseApiOptions) {
    // An app needs a publishable key and a new project has none: a token that may write gets one
    // made, named "default", as the console's Create key would. One at a time per environment, so
    // two calls at once make one key.
-   if(!keys.some(key=>key.kind==='publishable')&&!token.read_only&&entry.role!=='viewer'){
+   if(!keys.some(key=>key.kind==='publishable')&&hasAgentPermission(token,'keys.write')&&entry.role!=='viewer'){
     const previous=issuing.get(entry.environment)??Promise.resolve();
     const turn=previous.then(async()=>{
      if(!(await list()).some(key=>key.kind==='publishable'))
@@ -352,20 +436,24 @@ export function supabaseApi(options:SupabaseApiOptions) {
 
   if(rest==='/database/query'&&method==='POST'){
    const input=await json() as {query?:unknown;parameters?:unknown;read_only?:unknown};
-   const readOnly=token.read_only||input.read_only===true;
+   const readOnly=token.read_only||input.read_only===true||!hasAgentPermission(token,'database.write');
    const target=await databaseReady(token,entry,!readOnly);
    // Recorded before it runs: a write that commits and then fails (too large an answer, the
    // deadline) is still in the log.
    if(!readOnly)catalog.recordAgentSql(token.actor,entry.environment,'database.agent_query',
     {token:token.id,query:createHash('sha256').update(String(input.query)).digest('hex').slice(0,16)});
-   return reply(201,await sql.query(target,{query:input.query as string,parameters:input.parameters as unknown[]|undefined,readOnly}));
+   const result=await sql.query(target,{query:input.query as string,parameters:input.parameters as unknown[]|undefined,readOnly});
+   currentDatabase(token,entry);return reply(201,result);
   }
-  if(rest==='/database/migrations'&&method==='GET')return reply(200,await sql.migrations(await databaseReady(token,entry)));
+  if(rest==='/database/migrations'&&method==='GET'){
+   const result=await sql.migrations(await databaseReady(token,entry));currentDatabase(token,entry);return reply(200,result);
+  }
   if(rest==='/database/migrations'&&method==='POST'){
    const input=await json() as {name?:unknown;query?:unknown};
    const target=await databaseReady(token,entry,true);
    catalog.recordAgentSql(token.actor,entry.environment,'database.agent_migration',{token:token.id,name:String(input.name??'').slice(0,100)});
-   return reply(200,await sql.migrate(target,{name:String(input.name??''),query:input.query as string}));
+   const result=await sql.migrate(target,{name:String(input.name??''),query:input.query as string});
+   currentDatabase(token,entry);return reply(200,result);
   }
   if(rest==='/types/typescript')refuse(501,'Type generation is not available on Sbarbase yet. Run `supabase gen types typescript --db-url "<connection string>"` with the project\'s database connection string');
   if(rest==='/advisors/security'&&method==='GET')return reply(200,await securityLints(token,entry));
@@ -456,9 +544,11 @@ export function supabaseApi(options:SupabaseApiOptions) {
     return reply(401,{message:'Unauthorized: send a Sbarbase access token (sbp_...) as Authorization: Bearer'});
    }
    if(!catalog.managementSecurity.rate('agent:token:'+token.id,300,60_000))return reply(429,{message:'Too many requests for this access token'});
-   return await route(token,request,url);
+   const response=await route(token,request,url);
+   if(!tokens.alive(token.id,tokenEpoch(catalog.managementSecurity)))refuse(401,'The access token is no longer valid');
+   return response;
   } catch(error) {
-   if(error instanceof Refusal)return reply(error.status,{message:error.message});
+   if(error instanceof Refusal)return reply(error.status,{message:error.message,...(error.permission?{code:'permission_required',permission:error.permission}:{})});
    if(error instanceof SqlRefusal)return reply(error.status,{message:error.message});
    const message=error instanceof Error?error.message:'';
    if(message==='Forbidden')return reply(403,{message:'Forbidden'});

@@ -9,6 +9,7 @@ import {KeyStore} from '../src/control/keys';
 import {AccessTokenStore,ACCESS_TOKEN} from '../src/control/access-tokens';
 import {refOf,splitDeployFiles} from '../src/control/supabase-api';
 import type {SqlRunner} from '../src/control/agent-sql';
+import {AGENT_PERMISSIONS,READ_PERMISSIONS,SAFE_ADMIN_PERMISSIONS} from '../src/control/agent-permissions';
 import {serveLocal} from '../src/http/local-server';
 import {managementToken,sessionId,factorId,verifiedFactor} from './management-fixture';
 const viewerSession='55555555-5555-4555-8555-555555555555';
@@ -21,7 +22,7 @@ beforeAll(()=>{work=mkdtempSync(join(tmpdir(),'sbarbase-agents-'));process.chdir
 afterAll(()=>{process.chdir(original);rmSync(work,{recursive:true,force:true});});
 
 type Call={kind:string;runtime:string;input?:any};
-function setup() {
+function setup(containers?:any) {
  const catalog=new Catalog(':memory:'),keys=new KeyStore(':memory:'),tokens=new AccessTokenStore(':memory:');
  const org=catalog.createOrganization('owner','Acme'),other=catalog.createOrganization('stranger','Other');
  catalog.setMember('owner',org,'viewer','viewer');
@@ -49,7 +50,7 @@ function setup() {
     return Response.json({message:'invalid JWT'},{status:401});
    }
    return Response.json({message:'unexpected'},{status:500});
-  }) as typeof fetch,undefined,undefined,undefined,undefined,undefined,
+  }) as typeof fetch,undefined,undefined,containers,undefined,undefined,
   {tokens,sql,publicUrl:()=>'https://sb.example',loopback:()=>loopback});
  const manage=(method:string,path:string,body?:unknown,who=human)=>handler(new Request('http://local/management/v1'+path,{method,
   headers:{authorization:'Bearer '+who,...(body===undefined?{}:{'content-type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})}));
@@ -57,12 +58,12 @@ function setup() {
   headers:{authorization:'Bearer '+token,...(body===undefined||body instanceof FormData?{}:{'content-type':'application/json'}),...headers},
   ...(body===undefined?{}:{body:body instanceof FormData?body:JSON.stringify(body)})}));
  const mint=async(input:Record<string,unknown>={},who=human)=>{
-  const response=await manage('POST','/access-tokens',{name:'agent',...input},who);
+  const response=await manage('POST','/access-tokens',{name:'agent',permissions:input.read_only?READ_PERMISSIONS:[...AGENT_PERMISSIONS],...input},who);
   expect(response.status).toBe(201);return (await response.json()).token as string;
  };
  const setDatabase=(state:'on'|'off')=>(catalog as any).db.query(`INSERT INTO database_access(runtime,desired,state,failure,actor,updated_at) VALUES (?,?,?,NULL,'owner',0)
   ON CONFLICT(runtime) DO UPDATE SET desired=excluded.desired,state=excluded.state`).run(runtime,state,state);
- return {catalog,keys,tokens,org,other,created,runtime,ref:refOf(created.environment),handler,manage,api,mint,sqlCalls,setDatabase,
+ return {catalog,keys,tokens,org,other,created,runtime,ref:refOf(created.environment),handler,manage,api,mint,sql,sqlCalls,setDatabase,
   setLoopback:(value:string)=>{loopback=value;},close(){catalog.close();keys.close();tokens.close();}};
 }
 
@@ -427,5 +428,183 @@ test('capability policy is authenticated, read-only and does not claim installed
   expect(value.extensions.pgmq.installed).toContain('does not report installed state');
   expect(s.sqlCalls).toHaveLength(0);
   expect((await s.api(token,'PUT','/v1/capabilities',{})).status).toBe(403);
+ }finally{s.close();}
+});
+
+test('tokens issued without grants default to reads and cannot silently write or mint tokens',async()=>{
+ const s=setup();
+ try{
+  const issued=await (await s.manage('POST','/access-tokens',{name:'safe-default'})).json();
+  expect(issued.data.permissions).toEqual(READ_PERMISSIONS);
+  const token=issued.token;
+  expect((await s.api(token,'POST','/v1/projects',{name:'Denied',organization_id:s.org})).status).toBe(403);
+  expect((await s.api(token,'POST',`/v1/projects/${s.ref}/api-keys`,{type:'secret'})).status).toBe(403);
+  expect((await s.api(token,'POST',`/v1/projects/${s.ref}/database/migrations`,{name:'drop',query:'DROP TABLE important'})).status).toBe(403);
+  expect((await s.api(token,'GET',`/v1/projects/${s.ref}/api-keys`)).status).toBe(200);
+  expect(s.keys.list(s.runtime)).toEqual([]);
+  expect((await s.api(token,'GET','/management/v1/access-tokens')).status).toBe(401);
+  s.setDatabase('on');
+  expect((await s.api(token,'POST',`/v1/projects/${s.ref}/database/query`,{query:'DELETE FROM important',read_only:false})).status).toBe(201);
+  expect(s.sqlCalls.at(-1)?.input.readOnly).toBe(true);
+ }finally{s.close();}
+});
+
+test('operation discovery is scoped to explicit grants and cannot reveal organization operations to project tokens',async()=>{
+ const s=setup();
+ try{
+  const token=await s.mint({scope:{kind:'project',id:s.created.id},permissions:['auth.read','auth.write','organization.write']});
+  const result=await (await s.api(token,'GET','/v1/agent/operations')).json();
+  expect(result.operations.some((item:any)=>item.name==='auth.settings.update')).toBe(true);
+  expect(result.operations.some((item:any)=>item.name.startsWith('organization.'))).toBe(false);
+  expect((await s.api(token,'GET','/v1/projects')).status).toBe(403);
+  expect((await s.api(token,'POST','/v1/agent/execute',{operation:'organization.rename',organization_id:s.org,input:{name:'No'},dry_run:false})).status).toBe(403);
+  const denied=await s.api(token,'POST','/v1/agent/execute',{operation:'database.data_api.update',project_ref:s.ref,input:{schemas:['public']},dry_run:false});
+  expect(denied.status).toBe(403);expect(await denied.json()).toMatchObject({code:'permission_required',permission:'database.configure'});
+ }finally{s.close();}
+});
+
+test('administration previews never apply changes, require scoped targets and never echo secrets',async()=>{
+ const s=setup();
+ try{
+  const token=await s.mint({scope:{kind:'project',id:s.created.id},permissions:SAFE_ADMIN_PERMISSIONS});
+  const input={operation:'auth.settings.update',project_ref:s.ref,input:{site_url:'https://app.example',redirect_urls:['https://app.example/callback'],providers:{github:{secret:'do-not-echo'}}}};
+  const preview=await s.api(token,'POST','/v1/agent/execute',input);
+  expect(preview.status).toBe(200);
+  const text=await preview.text();expect(text).not.toContain('do-not-echo');expect(JSON.parse(text).dry_run).toBe(true);
+  const before=await (await s.api(token,'POST','/v1/agent/execute',{operation:'auth.settings.read',project_ref:s.ref})).json();
+  expect(before.data.settings).toBeNull();
+  expect((await s.api(token,'POST','/v1/agent/execute',{...input,project_ref:'a'.repeat(20),dry_run:false})).status).toBe(404);
+  expect((await s.api(token,'POST','/v1/agent/execute',{...input,path:'/management/v1/access-tokens',dry_run:false})).status).toBe(400);
+  expect((await s.api(token,'POST','/v1/agent/execute',{operation:'environment.purge',project_ref:s.ref,dry_run:false})).status).toBe(404);
+  const applied=await s.api(token,'POST','/v1/agent/execute',{operation:'auth.settings.update',project_ref:s.ref,dry_run:false,input:{site_url:'https://app.example',redirect_urls:['https://app.example/callback']}});
+  expect(applied.status).toBe(202);
+  const after=await (await s.api(token,'POST','/v1/agent/execute',{operation:'auth.settings.read',project_ref:s.ref})).json();
+  expect(after.data.settings).toMatchObject({site_url:'https://app.example',redirect_urls:['https://app.example/callback']});
+  const stale=await s.api(token,'POST','/v1/agent/execute',{operation:'auth.settings.update',project_ref:s.ref,dry_run:false,input:{site_url:'https://bad.example',redirect_urls:[],base_revision:0}});
+  expect(stale.status).toBe(409);
+ }finally{s.close();}
+});
+
+test('revocation and lowered membership apply to the administrative operation API',async()=>{
+ const s=setup();
+ try{
+  const token=await s.mint({permissions:['projects.write']});
+  s.catalog.setMember('owner',s.org,'second-owner','owner');
+  s.catalog.setMember('owner',s.org,'owner','viewer');
+  expect((await s.api(token,'POST','/v1/agent/execute',{operation:'project.rename',project_ref:s.ref,input:{name:'No'},dry_run:false})).status).toBe(403);
+  const id=s.tokens.list('owner')[0]!.id;s.tokens.revoke('owner',id);
+  expect((await s.api(token,'GET','/v1/agent/operations')).status).toBe(401);
+ }finally{s.close();}
+});
+
+test('dangerous API actions require a separate explicit grant even with safe administration',async()=>{
+ const s=setup();
+ try{
+  const token=await s.mint({permissions:SAFE_ADMIN_PERMISSIONS});
+  for(const [method,path,body] of [
+   ['DELETE',`/v1/projects/${s.ref}/api-keys/11111111-1111-4111-8111-111111111111`,undefined],
+   ['DELETE',`/v1/projects/${s.ref}/functions/test`,undefined],
+   ['DELETE',`/v1/projects/${s.ref}/secrets`,['SECRET']],
+   ['POST',`/v1/projects/${s.ref}/database/migrations`,{name:'drop',query:'DROP SCHEMA public CASCADE'}],
+  ] as const)expect((await s.api(token,method,path,body)).status).toBe(403);
+ }finally{s.close();}
+});
+
+test('registered administrative read operations reach supported console handlers',async()=>{
+ const s=setup();
+ try{
+  const token=await s.mint();
+  const registry=await (await s.api(token,'GET','/v1/agent/operations')).json();
+  for(const operation of registry.operations.filter((item:any)=>item.risk==='read'&&item.name!=='metrics.read')){
+   const response=await s.api(token,'POST','/v1/agent/execute',{operation:operation.name,...(operation.target==='project'?{project_ref:s.ref}:{organization_id:s.org})});
+   expect({name:operation.name,status:response.status}).not.toMatchObject({status:404});
+   expect({name:operation.name,status:response.status}).not.toMatchObject({status:405});
+  }
+ }finally{s.close();}
+});
+
+test('API key issuance and database credentials remain explicit dangerous grants',async()=>{
+ const s=setup();
+ try{
+  const token=await s.mint({permissions:SAFE_ADMIN_PERMISSIONS});
+  expect((await s.api(token,'POST','/v1/agent/execute',{operation:'keys.create',project_ref:s.ref,input:{type:'secret',name:'bad'},dry_run:false})).status).toBe(403);
+  expect((await s.api(token,'POST','/v1/agent/execute',{operation:'database.connection.update',project_ref:s.ref,input:{enabled:true},dry_run:false})).status).toBe(403);
+  expect(s.keys.list(s.runtime)).toEqual([]);
+  const state=await (await s.manage('GET',`/environments/${s.created.environment}/database`)).json();
+  expect(state.data.desired).not.toBe('on');
+ }finally{s.close();}
+});
+
+test('actual administrative changes are attributed to a token without inputs or previews in the audit log',async()=>{
+ const s=setup();
+ try{
+  const token=await s.mint({permissions:['projects.write']});
+  const operation={operation:'project.rename',project_ref:s.ref,input:{name:'confidential label'}};
+  expect((await s.api(token,'POST','/v1/agent/execute',operation)).status).toBe(200);
+  expect(s.catalog.auditEvents('owner',s.org).some(item=>item.action==='agent.operation_requested')).toBe(false);
+  expect((await s.api(token,'POST','/v1/agent/execute',{...operation,dry_run:false})).status).toBe(200);
+  const event=s.catalog.auditEvents('owner',s.org).find(item=>item.action==='agent.operation_requested');
+  expect(event?.detail).toEqual({token:s.tokens.list('owner')[0]!.id,operation:'project.rename'});
+  expect(JSON.stringify(event?.detail)).not.toContain('confidential');
+ }finally{s.close();}
+});
+
+test('revocation while an operation body is arriving prevents SQL execution',async()=>{
+ const s=setup();
+ try{
+  const token=await s.mint();s.setDatabase('on');
+  let controller:ReadableStreamDefaultController<Uint8Array>;
+  const body=new ReadableStream<Uint8Array>({start(value){controller=value;}});
+  const pending=s.handler(new Request(`http://local/v1/projects/${s.ref}/database/query`,{method:'POST',headers:{authorization:'Bearer '+token,'content-type':'application/json'},body}));
+  s.tokens.revoke('owner',s.tokens.list('owner')[0]!.id);
+  controller!.enqueue(new TextEncoder().encode(JSON.stringify({query:'DROP TABLE important'})));controller!.close();
+  expect((await pending).status).toBe(401);
+  expect(s.sqlCalls).toEqual([]);
+ }finally{s.close();}
+});
+
+test('a query result is withheld when current membership changes during SQL',async()=>{
+ const s=setup();
+ try{
+  const token=await s.mint();s.setDatabase('on');
+  s.catalog.setMember('owner',s.org,'second-owner','owner');
+  let entered!:()=>void,release!:()=>void;
+  const started=new Promise<void>(resolve=>{entered=resolve;}),ready=new Promise<void>(resolve=>{release=resolve;});
+  s.sql.query=async()=>{entered();await ready;return [{sensitive:'never publish'}];};
+  const pending=s.api(token,'POST',`/v1/projects/${s.ref}/database/query`,{query:'SELECT sensitive',read_only:true});
+  await started;
+  s.catalog.setMember('owner',s.org,'owner','viewer');release();
+  const response=await pending;expect(response.status).toBe(403);expect(await response.text()).not.toContain('never publish');
+ }finally{s.close();}
+});
+
+for(const change of ['demote','revoke'] as const)test(`security advisor results are withheld after ${change} during SQL`,async()=>{
+ const s=setup();
+ try{
+  const token=await s.mint();s.setDatabase('on');
+  s.catalog.setMember('owner',s.org,'second-owner','owner');
+  s.sql.query=async()=>{
+   if(change==='demote')s.catalog.setMember('owner',s.org,'owner','viewer');
+   else s.tokens.revoke('owner',s.tokens.list('owner')[0]!.id);
+   return [{name:'private_table_never_publish'}];
+  };
+  const response=await s.api(token,'GET',`/v1/projects/${s.ref}/advisors/security`);
+  expect(response.status).toBe(change==='demote'?403:401);
+  expect(await response.text()).not.toContain('private_table_never_publish');
+ }finally{s.close();}
+});
+
+
+test('an organization token cannot publish logs after the project leaves its scope',async()=>{
+ let started!:()=>void,release!:()=>void;
+ const entered=new Promise<void>(resolve=>{started=resolve;}),ready=new Promise<void>(resolve=>{release=resolve;});
+ const s=setup({logs:async()=>{started();await ready;return 'never-publish-after-transfer';},stats:async()=>[]});
+ try{
+  const destination=s.catalog.createOrganization('owner','Destination');
+  const token=await s.mint({scope:{kind:'organization',id:s.org},permissions:['logs.read']});
+  const pending=s.api(token,'POST','/v1/agent/execute',{operation:'logs.read',project_ref:s.ref,input:{source:'auth'}});
+  await entered;s.catalog.transferProject('owner',s.created.id,destination);release();
+  const response=await pending;expect(response.status).not.toBe(200);
+  expect(await response.text()).not.toContain('never-publish-after-transfer');
  }finally{s.close();}
 });

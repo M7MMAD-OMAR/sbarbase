@@ -405,7 +405,16 @@ export function studioProxy(options:{key:()=>Buffer;allowed:(actor:string,runtim
    else{const decoded=new Headers(response.headers);decoded.delete('content-encoding');decoded.delete('content-length');
     response=new Response(response.body,{status:response.status,headers:decoded});}
   }
-  if(smtpAsset)response=await transformStudioSmtpAsset(url.pathname,response);
+  if(smtpAsset){
+   response=await transformStudioSmtpAsset(url.pathname,response);
+   // These six modules contain only version-bound application code. The explicit adapter
+   // version changes with their representation, so a private browser cache can reuse them.
+   // Canonical URLs, old versions and failures stay no-store; authorization above still
+   // applies to every network request. Never share a cached representation through a CDN.
+   const versions=url.searchParams.getAll('sbarbase_smtp');
+   if(response.status===200&&versions.length===1&&versions[0]===STUDIO_SMTP_ASSET_VERSION)
+    response.headers.set('cache-control','private, max-age=31536000, immutable');
+  }
   if(!allowed()||request.signal.aborted){if(response.body)void response.body.cancel().catch(()=>{});return page(request.signal.aborted?400:403,'Studio access is no longer available.');}
   const out=new Headers();
   for(const [name,value] of response.headers)if(!HOP.has(name)&&name!=='set-cookie')out.set(name,value);
