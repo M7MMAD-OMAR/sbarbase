@@ -94,6 +94,29 @@ input,select,textarea{width:100%;min-height:var(--control);padding:7px 12px;bord
 input:hover,textarea:hover{border-color:var(--control-hover)}
 select{background:var(--surface);border-color:var(--control-border);cursor:pointer;padding-right:8px}
 select:hover{border-color:var(--control-hover)}
+select{accent-color:var(--accent)}
+select option,select optgroup{background:var(--surface-2);color:var(--text)}
+/* Keep native selection semantics while styling the browser's top-layer picker. */
+@supports(appearance:base-select){
+ select:not([multiple]):not([size]),select:not([multiple]):not([size])::picker(select){appearance:base-select}
+ select:not([multiple]):not([size]){display:inline-flex;align-items:center;gap:8px;text-align:start;padding-inline:12px}
+ select::picker-icon{color:var(--muted);margin-inline-start:auto;flex-shrink:0}
+ select:open{background:var(--selected)}
+ select::picker(select){background:var(--surface-2);color:var(--text);border:0;border-radius:8px;padding:4px;margin-block:6px;box-shadow:0 12px 32px var(--shadow-strong);max-block-size:min(320px,70dvh);max-inline-size:calc(100dvw - 16px);overflow:auto;overscroll-behavior:contain}
+ select option{display:flex;align-items:center;gap:10px;min-block-size:32px;padding:7px 10px;border:0;border-radius:4px;background:transparent;white-space:normal;overflow-wrap:anywhere}
+ select option:checked{background:var(--selected);color:var(--text);font-weight:600}
+ select option:not(:disabled):hover,select option:not(:disabled):focus{background:var(--hover);color:var(--text)}
+ select option:focus-visible{outline:2px solid var(--ring);outline-offset:-2px}
+ select option::checkmark{color:var(--accent);margin-inline-start:auto;order:1}
+ select option:disabled{color:var(--subtle);cursor:not-allowed}
+ @media(forced-colors:active){
+ select::picker(select){forced-color-adjust:none;background:CanvasText;color:Canvas;box-shadow:none}
+ select option,select option:checked{background:CanvasText;color:Canvas}
+ select option:not(:disabled):hover,select option:not(:disabled):focus{background:Highlight;color:HighlightText}
+ select option::checkmark{color:currentColor}
+ select option:disabled{color:GrayText}
+ }
+}
 input:disabled,select:disabled,textarea:disabled{opacity:.6;cursor:not-allowed}
 input::placeholder,textarea::placeholder{color:var(--subtle);opacity:1}
 textarea{min-height:88px;overflow-wrap:anywhere;resize:vertical;font-family:var(--mono-font);font-size:13px;line-height:1.55}

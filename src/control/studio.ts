@@ -4,6 +4,7 @@ import {chmodSync,existsSync,readFileSync,writeFileSync} from 'node:fs';
 import {Catalog,type StudioNavigation,type StudioSession} from './catalog';
 import {authenticate,reply,type ManagementIdentity} from './auth';
 import {studioWorkspaceAsset} from './studio-workspace';
+import {identifyStudioDocument} from './studio-identity';
 import {studioHosts,type StudioHosts} from './studio-host';
 import {publicUrl} from './sign-in';
 
@@ -354,20 +355,28 @@ export function studioProxy(options:{key:()=>Buffer;allowed:(actor:string,runtim
   if(cookies)headers.set('cookie',cookies);else headers.delete('cookie');
   const destination=new URL(target);
   destination.pathname=url.pathname;destination.search=url.search;
+  // The readable label is display metadata, never an upstream project selector.
+  if(url.pathname.startsWith('/project/'))destination.searchParams.delete('workspace');
   let body:Uint8Array<ArrayBuffer>|undefined;
   try{if(!['GET','HEAD'].includes(request.method))body=await studioBody(request,bodyLimit,bodyTimeout);}
   catch(error){const status=error instanceof StudioBodyError?error.status:400;
    return page(status,status===413?'Studio request is too large.':status===408?'Studio request body timed out.':'Invalid Studio request body.');}
   if(!allowed())return page(403,'Studio access has been revoked. Open Studio again from the Sbarbase console.');
   let response:Response;
-  // decompress:false keeps Studio's bytes and its content-encoding header together. Bun's fetch otherwise decodes the
-  // body but keeps the header, so the next hop or the browser fails to decode a body that is no longer compressed.
-  try{response=await transport(destination,{method:request.method,headers,redirect:'manual',signal:request.signal,decompress:false,
+  // Assets retain their encoded bytes. HTML documents are decoded for the identity script,
+  // then have encoding and length headers removed so the next hop cannot decode them twice.
+  const document=!!options.navigation&&request.method==='GET'&&url.pathname.startsWith('/project/')&&!!request.headers.get('accept')?.includes('text/html');
+  try{response=await transport(destination,{method:request.method,headers,redirect:'manual',signal:request.signal,decompress:document,
    ...(['GET','HEAD'].includes(request.method)?{}:{body})} as RequestInit);}
   catch{return page(request.signal.aborted?400:502,'Unable to reach Studio.');}
   if(!allowed()||request.signal.aborted){
    if(response.body)void response.body.cancel().catch(()=>{});
    return page(request.signal.aborted?400:403,'Studio access is no longer available.');
+  }
+  if(document){
+   if(response.ok&&response.headers.get('content-type')?.split(';')[0]?.trim()==='text/html')response=identifyStudioDocument(response);
+   else{const decoded=new Headers(response.headers);decoded.delete('content-encoding');decoded.delete('content-length');
+    response=new Response(response.body,{status:response.status,headers:decoded});}
   }
   const out=new Headers();
   for(const [name,value] of response.headers)if(!HOP.has(name)&&name!=='set-cookie')out.set(name,value);

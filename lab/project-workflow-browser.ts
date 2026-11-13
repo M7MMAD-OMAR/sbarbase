@@ -67,6 +67,8 @@ try{
  check('project form explains automatic production',await page.getByText('Production is created automatically. Your Supabase dashboard opens in a new tab when ready.').isVisible());
  await page.getByLabel('Project name',{exact:true}).fill('Tdabar');const createdTabPromise=context.waitForEvent('page');await page.getByLabel('Project name',{exact:true}).press('Enter');const createdTab=await createdTabPromise;
  await page.getByRole('heading',{name:'Tdabar',exact:true}).waitFor();
+ await page.waitForFunction(()=>document.title==='Tdabar | Sbarbase');
+ check('console tab identifies the selected project',await page.title()==='Tdabar | Sbarbase');
  const project=catalog.listProjects(owner,organization)[0]!,environment=catalog.listEnvironments(owner,project.id)[0]!;
  check('created project is selected and production exists',environment.name==='production'&&environment.state==='queued');
  const dashboard=page.getByRole('button',{name:'Open Supabase dashboard',exact:true});await dashboard.waitFor();
@@ -89,6 +91,8 @@ try{
  await popup.close();await page.screenshot({path:join(artifacts,'production-ready.png'),fullPage:true});
  await page.getByRole('button',{name:'Connection details',exact:true}).click();
  await page.getByRole('heading',{name:'Supabase dashboard',exact:true}).waitFor();
+ await page.waitForFunction(()=>document.title==='Tdabar / production | Sbarbase');
+ check('console tab identifies the selected environment',await page.title()==='Tdabar / production | Sbarbase');
  check('environment connection also exposes dashboard access',await page.getByRole('button',{name:'Open Supabase dashboard',exact:true}).isVisible());
  await page.getByRole('button',{name:'Database connection',exact:true}).click();
  await page.getByRole('button',{name:'Stop dashboard',exact:true}).click();

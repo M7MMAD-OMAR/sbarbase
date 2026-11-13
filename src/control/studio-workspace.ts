@@ -1,7 +1,29 @@
+import {studioIdentityJs} from './studio-identity';
 /** An optional environment selector. Native Studio always opens as a full page. */
 export const studioWorkspaceHtml=`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Switch environment | Sbarbase</title><link rel="stylesheet" href="/__sbarbase/workspace.css"><script src="/__sbarbase/workspace.js" defer></script></head><body><header aria-label="Workspace navigation"><a id="console" aria-label="Back to Sbarbase console">sbarbase</a><span class="divider" aria-hidden="true">/</span><label><span class="sr-only">Organization</span><select id="organization" aria-label="Organization" disabled></select></label><span class="divider" aria-hidden="true">/</span><label><span class="sr-only">Project</span><select id="project" aria-label="Project" disabled></select></label><span class="divider" aria-hidden="true">/</span><label><span class="sr-only">Environment</span><select id="environment" aria-label="Environment" disabled></select></label><span id="state" class="badge"></span><button id="open" disabled>Open Studio</button><button id="refresh" aria-label="Refresh workspace">Refresh</button></header><div id="status" role="status">Loading workspace…</div><main><p>Choose an environment to open its original Supabase dashboard. Use the console to start a stopped dashboard.</p></main></body></html>`;
 
-export const studioWorkspaceCss=`:root{color-scheme:light dark;font:12px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;--page:#fafafa;--surface:#fff;--border:#e4e4e7;--text:#18181b;--muted:#666;--accent:#3ecf8e}*{box-sizing:border-box}body{margin:0;background:var(--page);color:var(--text);height:100dvh;display:flex;flex-direction:column}header{display:flex;align-items:center;gap:8px;padding:8px 12px;border:0;background:var(--surface);flex-shrink:0}a{color:inherit;text-decoration:none;font-weight:600;cursor:pointer}select,button{font:inherit;color:inherit;border:0;border-radius:6px;background:var(--page);height:28px;padding:3px 8px;min-width:0}select{max-width:220px;cursor:pointer}button{cursor:pointer;white-space:nowrap}button:disabled,select:disabled{opacity:.5;cursor:default}button:hover:enabled{background:var(--page)}button#open:enabled{background:var(--accent);color:#062518;border-color:var(--accent)}a:focus-visible,button:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.divider{color:var(--muted)}.badge{font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-left:auto}.sr-only{position:absolute;width:1px;height:1px;clip-path:inset(50%);overflow:hidden;white-space:nowrap}#status{padding:5px 12px;color:var(--muted);border:0}#status:empty{display:none}main{position:relative;flex:1;min-height:0}main{padding:24px;color:var(--muted)}@media(prefers-color-scheme:dark){:root{--page:#171717;--surface:#1c1c1c;--border:#303030;--text:#ededed;--muted:#a0a0a0}}@media(max-width:720px){header{flex-wrap:wrap;gap:6px}header>a{width:100%}header label{flex:1;min-width:90px}select{width:100%;max-width:none;height:34px}button{height:34px}.divider{display:none}.badge{margin-left:0}}`;
+const studioSelectCss=`select option{background:var(--page);color:var(--text)}
+@supports(appearance:base-select){
+select,select::picker(select){appearance:base-select}
+select{display:inline-flex;align-items:center;gap:8px;text-align:start}
+select::picker-icon{color:var(--muted);margin-inline-start:auto;flex-shrink:0}
+select::picker(select){background:var(--surface);color:var(--text);border:0;border-radius:8px;padding:4px;margin-block:6px;box-shadow:0 12px 32px #0003;max-block-size:min(320px,70dvh);max-inline-size:calc(100dvw - 16px);overflow:auto;overscroll-behavior:contain}
+select option{display:flex;align-items:center;gap:10px;min-block-size:32px;padding:7px 10px;border:0;border-radius:4px;background:transparent;white-space:normal;overflow-wrap:anywhere}
+select option:checked{background:var(--page);font-weight:600}
+select option:not(:disabled):hover,select option:not(:disabled):focus{background:var(--page)}
+select option:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+select option::checkmark{color:var(--accent);margin-inline-start:auto;order:1}
+select option:disabled{color:var(--muted);cursor:not-allowed}
+ @media(forced-colors:active){
+ select::picker(select){forced-color-adjust:none;background:CanvasText;color:Canvas;box-shadow:none}
+ select option,select option:checked{background:CanvasText;color:Canvas}
+ select option:not(:disabled):hover,select option:not(:disabled):focus{background:Highlight;color:HighlightText}
+ select option::checkmark{color:currentColor}
+ select option:disabled{color:GrayText}
+ }
+}`;
+
+export const studioWorkspaceCss=`:root{color-scheme:light dark;font:12px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;--page:#fafafa;--surface:#fff;--border:#e4e4e7;--text:#18181b;--muted:#666;--accent:#3ecf8e}*{box-sizing:border-box}body{margin:0;background:var(--page);color:var(--text);height:100dvh;display:flex;flex-direction:column}header{display:flex;align-items:center;gap:8px;padding:8px 12px;border:0;background:var(--surface);flex-shrink:0}a{color:inherit;text-decoration:none;font-weight:600;cursor:pointer}select,button{font:inherit;color:inherit;border:0;border-radius:6px;background:var(--page);height:28px;padding:3px 8px;min-width:0}select{max-width:220px;cursor:pointer}button{cursor:pointer;white-space:nowrap}button:disabled,select:disabled{opacity:.5;cursor:default}button:hover:enabled{background:var(--page)}button#open:enabled{background:var(--accent);color:#062518;border-color:var(--accent)}a:focus-visible,button:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.divider{color:var(--muted)}.badge{font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-left:auto}.sr-only{position:absolute;width:1px;height:1px;clip-path:inset(50%);overflow:hidden;white-space:nowrap}#status{padding:5px 12px;color:var(--muted);border:0}#status:empty{display:none}main{position:relative;flex:1;min-height:0}main{padding:24px;color:var(--muted)}@media(prefers-color-scheme:dark){:root{--page:#171717;--surface:#1c1c1c;--border:#303030;--text:#ededed;--muted:#a0a0a0}}@media(max-width:720px){header{flex-wrap:wrap;gap:6px}header>a{width:100%}header label{flex:1;min-width:90px}select{width:100%;max-width:none;height:34px}button{height:34px}.divider{display:none}.badge{margin-left:0}}`+studioSelectCss;
 
 export const studioWorkspaceJs=`'use strict';
 const org=document.getElementById('organization'),project=document.getElementById('project'),environment=document.getElementById('environment'),open=document.getElementById('open'),refresh=document.getElementById('refresh'),status=document.getElementById('status'),state=document.getElementById('state');
@@ -18,7 +40,8 @@ load();`;
 export function studioWorkspaceAsset(path:string):Response|undefined {
  const asset=path==='/__sbarbase/workspace'?{body:studioWorkspaceHtml,type:'text/html; charset=utf-8'}:
   path==='/__sbarbase/workspace.css'?{body:studioWorkspaceCss,type:'text/css; charset=utf-8'}:
-  path==='/__sbarbase/workspace.js'?{body:studioWorkspaceJs,type:'text/javascript; charset=utf-8'}:undefined;
+  path==='/__sbarbase/workspace.js'?{body:studioWorkspaceJs,type:'text/javascript; charset=utf-8'}:
+  path==='/__sbarbase/identity.js'?{body:studioIdentityJs,type:'text/javascript; charset=utf-8'}:undefined;
  if(!asset)return;
  return new Response(asset.body,{headers:{'content-type':asset.type,'cache-control':'no-store','x-content-type-options':'nosniff',
   'content-security-policy':"default-src 'self'; script-src 'self'; style-src 'self'; frame-src 'none'; frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'self'",'referrer-policy':'no-referrer'}});

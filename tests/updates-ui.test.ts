@@ -2,7 +2,7 @@ import {test,expect,describe} from 'bun:test';
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {ACKNOWLEDGEMENT,CLASS_WORDS,STAGE_TEXT,availableText,banners,newestText,classifyStatus,describeWindow,dismiss,formatClock,formatWhen,installState,installable,openRequest,parseClock,readDismissed,
- releaseNotes,settingsKey,startWatch,stepWatch,toClock24,watchStage,windowError,zoneText,type UpdatesView,type Watch} from '../ui/releases';
+ checkedText,releaseNotes,settingsKey,startWatch,stepWatch,toClock24,watchStage,windowError,zoneText,type UpdatesView,type Watch} from '../ui/releases';
 
 const ui=join(import.meta.dir,'..','ui');
 const app=readFileSync(join(ui,'App.tsx'),'utf8');
@@ -81,6 +81,14 @@ describe('settings form',()=>{
 });
 
 describe('release wording',()=>{
+ test('a blocked newer release is never described as already current',()=>{
+  const blocked=view({available:null,newest:{version:'0.12.2',tag:'v0.12.2',class:'manual',signed:true,reasons:['PGMQ migration']}});
+  expect(checkedText(blocked)).toContain('cannot install');
+  expect(checkedText({...blocked,newest:null,skipped:['v0.12.2 was passed over']})).toContain('cannot install');
+  expect(checkedText(view({available:null}))).toBe('Checked. This is the newest release.');
+  expect(checkedText(view())).toBe('Checked. A newer release is available.');
+  expect(checkedText({...blocked,checkError:'Source unavailable'})).toContain('failed');
+ });
  test('each class names its status in words',()=>{
   expect(availableText({version:'1.2.0',class:'safe'})).toBe('Sbarbase 1.2.0 ready to install.');
   expect(availableText({version:'1.2.0',class:'rebuild'})).toBe('Sbarbase 1.2.0 needs a manual rebuild.');

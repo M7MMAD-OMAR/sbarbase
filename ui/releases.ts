@@ -61,6 +61,14 @@ export function newestText(release:Pick<NewestRelease,'version'|'class'>){
   :`Sbarbase ${release.version} is released, but this installation cannot install it yet.`;
 }
 
+/** A successful check can find a newer release without finding an installable one. */
+export function checkedText(view:UpdatesView){
+ if(view.checkError)return 'The check failed.';
+ if(view.available)return 'Checked. A newer release is available.';
+ if(view.newest||view.skipped.length)return 'Checked. Newer releases exist, but this installation cannot install them yet.';
+ return 'Checked. This is the newest release.';
+}
+
 /** Release notes in the reader's language, falling back to English. */
 export function releaseNotes(notes:{en:string;ar:string},language:string){
  return language.toLowerCase().startsWith('ar')&&notes.ar.trim()?{text:notes.ar,language:'ar'}:{text:notes.en,language:'en'};

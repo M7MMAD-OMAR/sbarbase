@@ -60,6 +60,12 @@ function Console({session}:{session:Session}){
  const view=unavailableView?'projects':requestedView;
  const activeProject=projectOrganization===organization?.id?project:undefined;
  const activeEnvironment=activeProject?environment:undefined;
+ useEffect(()=>{
+  const names=[activeProject?.name??organization?.name,activeEnvironment?.name]
+   .filter((name):name is string=>!!name).map(name=>name.replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g,'').trim()).filter(Boolean);
+  document.title=names.length?names.join(' / ')+' | Sbarbase':'Sbarbase';
+  return()=>{document.title='Sbarbase';};
+ },[organization?.name,activeProject?.name,activeEnvironment?.name]);
  const switchProjects=useData<{organization:string;items:Project[]}>(async signal=>({organization:organization?.id??'',items:organization?(await request(`/organizations/${organization.id}/projects`,'GET',undefined,signal) as {data:Project[]}).data:[]}),[organization?.id,request]);
  const switchEnvironments=useData<{project:string;items:Environment[]}>(async signal=>({project:activeProject?.id??'',items:activeProject?(await request(`/projects/${activeProject.id}/environments`,'GET',undefined,signal) as {data:Environment[]}).data:[]}),[activeProject?.id,request]);
  const projectChoices=switchProjects.data?.organization===organization?.id?switchProjects.data?.items??[]:[];
