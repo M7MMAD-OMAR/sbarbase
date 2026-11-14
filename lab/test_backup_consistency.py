@@ -44,7 +44,7 @@ class BackupFileRace(unittest.TestCase):
                     stack.enter_context(patch.object(backup, name, value))
                 stack.enter_context(patch.object(backup.pgmq_legacy, 'capture', capture))
                 try:
-                    result = backup.create(E)
+                    result = backup.create(E, reason='upgrade')
                 except backup.BackupError:
                     self.assertEqual(list((root / 'backups').rglob('manifest.json')), [])
                     return False
@@ -71,7 +71,16 @@ class BackupFileRace(unittest.TestCase):
             self.assertTrue(self.run_backup(lambda obj: None, capture))
         self.assertIsNone(self.manifest['pgmq']['file'])
         self.assertIn('OSError', self.manifest['pgmq']['unsupported'][0])
+        self.assertTrue(self.manifest['pgmq']['failed'])
         self.assertNotIn('pgmq.sql', self.files)
+        # The backup's own reason survives the failure, and older releases refuse the manifest.
+        self.assertEqual(self.manifest['reason'], 'upgrade')
+        self.assertEqual(self.manifest['version'], 2)
+
+    def test_a_backup_without_legacy_queues_keeps_manifest_version_one(self):
+        self.assertTrue(self.run_backup(lambda obj: None))
+        self.assertEqual(self.manifest['version'], 1)
+        self.assertNotIn('pgmq', self.manifest)
 
 class ArchiveContract(unittest.TestCase):
     def test_real_archive_preserves_native_attributes_and_restores_them(self):

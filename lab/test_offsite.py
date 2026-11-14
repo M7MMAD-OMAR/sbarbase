@@ -344,6 +344,36 @@ class PushAndFetchTests(unittest.TestCase):
         with self.assertRaises(offsite.OffsiteError):
             offsite.fetch(E, '20260901T030000Z', self.config)
 
+    def legacy(self, stamp, entry, supplement=None):
+        path = self.make(stamp)
+        manifest = json.loads((path / 'manifest.json').read_text())
+        if supplement is not None:
+            (path / 'pgmq.sql').write_bytes(supplement)
+            entry = {**entry, 'bytes': len(supplement), 'sha256': hashlib.sha256(supplement).hexdigest()}
+        manifest.update(version=2, pgmq=entry)
+        (path / 'manifest.json').write_text(json.dumps(manifest))
+        return path
+
+    def test_a_backup_whose_queues_were_not_kept_comes_back_without_a_supplement(self):
+        stamp = '20260901T030000Z'
+        path = self.legacy(stamp, backup.pgmq_legacy.not_kept('the legacy queues could not be read (OSError)'))
+        offsite.push([E], self.config)
+        import shutil
+        shutil.rmtree(path)
+        manifest = offsite.fetch(E, stamp, self.config)
+        self.assertIsNone(manifest['pgmq']['file'])
+        self.assertFalse((path / 'pgmq.sql').exists())
+
+    def test_a_legacy_supplement_is_copied_and_comes_back(self):
+        stamp = '20260901T030000Z'
+        entry = {'format': 2, 'file': 'pgmq.sql', 'version': '1.5.1', 'queues': [], 'unsupported': [], 'roles': []}
+        path = self.legacy(stamp, entry, b'SELECT 1;\n')
+        offsite.push([E], self.config)
+        import shutil
+        shutil.rmtree(path)
+        offsite.fetch(E, stamp, self.config)
+        self.assertEqual((path / 'pgmq.sql').read_bytes(), b'SELECT 1;\n')
+
     def test_an_interrupted_upload_is_never_fetched(self):
         self.make('20260901T030000Z')
         offsite.push([E], self.config)

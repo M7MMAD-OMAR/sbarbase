@@ -68,7 +68,7 @@ try:
  stage=e+'_stage_x'
  generated=subprocess.run(['docker','exec','-i',db,'pg_restore','--create','--exit-on-error','--file=-'],input=dump,capture_output=True,timeout=90)
  assert not generated.stderr,generated.stderr
- body=io.StringIO();plan=plan_archive(io.StringIO(generated.stdout.decode()),body,e,stage)
+ body=io.StringIO();plan=plan_archive(io.StringIO(generated.stdout.decode()),body,e,stage,pgmq_legacy.replay_omits(toc))
  sql(plan.create)
  sql(body.getvalue()+'\n'+(folder/pgmq_legacy.FILE).read_text()+'\n'+'\n'.join(plan.metadata),stage)
  assert sql("SELECT message FROM pgmq.q_existing;",stage).stdout.strip()=='{"retained": true}'

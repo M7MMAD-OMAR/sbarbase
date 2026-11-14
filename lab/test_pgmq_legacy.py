@@ -22,8 +22,13 @@ NATIVE_TOC = LEGACY_TOC + '6; 0 16500 TABLE DATA pgmq meta e_developer\n7; 0 165
 class FakeDatabase:
     """Answers the inventory queries the way a legacy database does."""
 
-    def __init__(self, owner='postgres', queues=None, columns=None, version='1.5.1'):
+    def __init__(self, owner='postgres', queues=None, columns=None, version='1.5.1', extras=None, access=None,
+                 sequence='7|1', highest='2'):
         self.owner, self.version = owner, version
+        self.extras = extras or {}
+        self.access = access or {'statements': [], 'roles': []}
+        self.sequence, self.highest = sequence, highest
+        self.moved = False
         self.queues = [{'name': 'jobs', 'partitioned': False, 'unlogged': False, 'created_at': '2026-11-14T10:00:00+00:00'}] \
             if queues is None else queues
         self.columns = {'q_jobs': ['msg_id', 'read_ct', 'enqueued_at', 'vt', 'message', 'headers'],
@@ -33,12 +38,26 @@ class FakeDatabase:
 
     def sql(self, query, database):
         self.seen.append(query)
+        if 'c.oid::text' in query:
+            moved = self.moved and 'SET TRANSACTION SNAPSHOT' not in query
+            return json.dumps({'q_jobs': '9' if moved else '1', 'a_jobs': '2', 'q_jobs_msg_id_seq': '3'})
         if 'pg_extension e JOIN' in query:
             return '' if self.owner is None else json.dumps({'version': self.version, 'owner': self.owner, 'schema': 'pgmq'})
         if 'FROM pgmq.meta m' in query:
             return json.dumps(self.queues)
         if 'json_object_agg' in query:
             return json.dumps(self.columns)
+        if "'triggers'" in query:
+            indexes = ['q_jobs_pkey', 'q_jobs_vt_idx', 'a_jobs_pkey', 'archived_at_idx_jobs']
+            return json.dumps({'triggers': [], 'rules': [], 'indexes': indexes, 'publications': [], **self.extras})
+        if "'statements'" in query:
+            return json.dumps(self.access)
+        if 'pg_sequences' in query:
+            return self.sequence
+        if 'greatest(' in query:
+            return self.highest
+        if 'count(*)' in query:
+            return '2' if 'q_jobs' in query else '0'
         raise AssertionError(query)
 
 
@@ -65,6 +84,16 @@ class InventoryTests(unittest.TestCase):
         found = pgmq_legacy.inventory(FakeDatabase(queues=queues, columns={'q_stray': ['msg_id']}).sql, E)
         self.assertEqual(found['queues'], [])
         self.assertEqual(len(found['unsupported']), 3)
+
+    def test_definitions_neither_dump_nor_supplement_keeps_are_unsupported(self):
+        for extras, word in (({'triggers': ['q_jobs.notify']}, 'trigger q_jobs.notify'),
+                             ({'rules': ['q_jobs.r']}, 'rule q_jobs.r'),
+                             ({'indexes': ['q_jobs_pkey', 'q_jobs_vt_idx', 'a_jobs_pkey', 'archived_at_idx_jobs', 'mine']},
+                              'index mine'),
+                             ({'publications': ['supabase_realtime:q_jobs']}, 'publication supabase_realtime:q_jobs')):
+            found = pgmq_legacy.inventory(FakeDatabase(extras=extras).sql, E)
+            self.assertEqual(found['queues'], [])
+            self.assertIn(word, found['unsupported'][0])
 
     def test_another_version_is_unsupported(self):
         found = pgmq_legacy.inventory(FakeDatabase(version='1.4.4').sql, E)
@@ -100,6 +129,39 @@ class ArchiveTests(unittest.TestCase):
             with self.assertRaisesRegex(pgmq_legacy.LegacyError, 'format'):
                 pgmq_legacy.verify({**entry, 'file': '../x'}, path)
 
+    def test_format_two_needs_its_roles_and_format_one_is_still_read(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)
+            data = b'SELECT 1;\n'
+            (path / pgmq_legacy.FILE).write_bytes(data)
+            entry = {'format': 2, 'file': pgmq_legacy.FILE, 'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest()}
+            with self.assertRaisesRegex(pgmq_legacy.LegacyError, 'roles'):
+                pgmq_legacy.verify(entry, path)
+            self.assertEqual(pgmq_legacy.verify({**entry, 'roles': ['authenticated']}, path), data)
+            self.assertEqual(pgmq_legacy.verify({**entry, 'format': 1}, path), data)
+            with self.assertRaisesRegex(pgmq_legacy.LegacyError, 'format'):
+                pgmq_legacy.verify({**entry, 'format': 3, 'roles': []}, path)
+
+    def test_replay_leaves_out_grants_on_queue_tables_the_archive_does_not_create(self):
+        toc = LEGACY_TOC + ('3471; 0 0 ACL pgmq TABLE meta postgres\n'
+                            '3472; 0 0 ACL pgmq TABLE q_jobs supabase_admin\n'
+                            '3473; 0 0 ACL pgmq TABLE a_jobs supabase_admin\n'
+                            '3474; 0 0 ACL pgmq SEQUENCE q_jobs_msg_id_seq supabase_admin\n'
+                            '3475; 0 0 ACL pgmq COLUMN q_other.message supabase_admin\n'
+                            '20; 1259 16600 TABLE pgmq q_mine e_developer\n'
+                            '3476; 0 0 ACL pgmq TABLE q_mine e_developer\n'
+                            '2100; 826 16521 DEFAULT ACL pgmq DEFAULT PRIVILEGES FOR TABLES supabase_admin\n'
+                            ';3477; 0 0 ACL pgmq TABLE q_commented supabase_admin\n')
+        self.assertEqual(pgmq_legacy.replay_omits(toc),
+                         {'q_jobs', 'a_jobs', 'q_jobs_msg_id_seq', 'q_other'})
+
+    def test_a_format_one_restore_says_its_queues_come_back_closed(self):
+        queue = [{'name': 'jobs', 'messages': 1, 'archived': 0, 'unlogged': False}]
+        self.assertIn('closed', pgmq_legacy.restore_notice({'pgmq': {'format': 1, 'queues': queue}}))
+        self.assertIsNone(pgmq_legacy.restore_notice({'pgmq': {'format': 2, 'queues': queue}}))
+        self.assertIsNone(pgmq_legacy.restore_notice({'pgmq': {'format': 1, 'queues': []}}))
+        self.assertIsNone(pgmq_legacy.restore_notice({}))
+
     def test_a_backup_that_could_not_keep_its_queues_says_so(self):
         entry = pgmq_legacy.not_kept('the legacy queues could not be read (x)')
         with tempfile.TemporaryDirectory() as folder:
@@ -124,14 +186,53 @@ class SupplementTests(unittest.TestCase):
             with self.assertRaises(pgmq_legacy.LegacyError):
                 pgmq_legacy.quote(value)
 
+    def capture(self, database):
+        rows = {'q': b'1\t0\t2026\t2026\t{}\t\\N\n2\t0\t2026\t2026\t{}\t\\N\n', 'a': b''}
+        original = pgmq_legacy.copy_out
+        def copy_out(psql, query, handle):
+            data = rows['q' if 'q_jobs' in query else 'a']
+            handle.write(data)
+            return data.count(b'\n')
+        pgmq_legacy.copy_out = copy_out
+        try:
+            with tempfile.TemporaryDirectory() as folder:
+                entry = pgmq_legacy.capture(SimpleNamespace(sql=database.sql, psql=lambda e: []), E,
+                                            '00000003-00000002-1', Path(folder))
+                return entry, (Path(folder) / pgmq_legacy.FILE).read_text()
+        finally:
+            pgmq_legacy.copy_out = original
+
+    def test_capture_sets_exact_access_after_closing_the_new_tables(self):
+        statements = ['GRANT SELECT ON TABLE pgmq.q_jobs TO authenticated;',
+                      'ALTER TABLE pgmq.q_jobs ENABLE ROW LEVEL SECURITY;',
+                      'CREATE POLICY own ON pgmq.q_jobs AS PERMISSIVE FOR SELECT TO authenticated USING (true);']
+        database = FakeDatabase(access={'statements': statements, 'roles': ['authenticated']})
+        entry, text = self.capture(database)
+        self.assertEqual(entry['format'], 2)
+        self.assertEqual(entry['roles'], ['authenticated'])
+        revoke = text.index('REVOKE ALL ON %s pgmq.%I FROM %s CASCADE')
+        self.assertLess(text.index(f'OWNER TO "{E}_developer"'), revoke)
+        self.assertLess(revoke, text.index(statements[0]))
+        self.assertLess(text.index(statements[2]), text.index('COPY pgmq."q_jobs"'))
+        access = next(query for query in database.seen if "'statements'" in query)
+        self.assertIn("SET LOCAL search_path = ''", access)
+        self.assertIn("SET TRANSACTION SNAPSHOT '00000003-00000002-1'", access)
+
+    def test_a_queue_dropped_and_created_again_during_the_backup_refuses_it(self):
+        database = FakeDatabase()
+        database.moved = True
+        with self.assertRaisesRegex(pgmq_legacy.LegacyError, 'changed during the backup'):
+            self.capture(database)
+
+    def test_sequence_never_falls_below_the_snapshot_messages(self):
+        for sequence, highest, expected in (('7|1', '2', "7, true"), ('3|1', '9', "9, true"),
+                                            ('', '9', "9, true"), ('|1', '0', "1, false"), ('', '0', "1, false")):
+            _, text = self.capture(FakeDatabase(sequence=sequence, highest=highest))
+            self.assertIn(f"setval('pgmq.\"q_jobs_msg_id_seq\"', {expected})", text, (sequence, highest))
+
     def test_capture_writes_recreate_copy_and_sequence(self):
         database = FakeDatabase()
-        def sql(query, e):
-            if 'count(*)' in query:
-                return '2' if 'q_jobs' in query else '0'
-            if 'last_value' in query:
-                return '7|t'
-            return database.sql(query, e)
+        sql = database.sql
         rows = {'q': b'1\t0\t2026\t2026\t{}\t\\N\n2\t0\t2026\t2026\t{}\t\\N\n', 'a': b''}
         calls = []
         def copy_out(psql, query, handle):

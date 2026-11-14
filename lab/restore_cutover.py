@@ -109,7 +109,7 @@ def phase(api, journal, name):
 
 
 @contextlib.contextmanager
-def archive_sql(api, admitted, archive, database, stage):
+def archive_sql(api, admitted, archive, database, stage, omit=frozenset()):
     with tempfile.TemporaryFile() as generated, tempfile.TemporaryFile() as replay:
         with (archive / 'database.dump').open('rb') as source:
             result = api.run(['docker', 'exec', '-i', admitted['db'], 'pg_restore', '--create', '--exit-on-error',
@@ -120,7 +120,7 @@ def archive_sql(api, admitted, archive, database, stage):
         # The anonymous spool remains private and is never a host dependency.
         import io
         with io.TextIOWrapper(generated, encoding='utf-8') as source, io.TextIOWrapper(replay, encoding='utf-8', write_through=True) as output:
-            plan = plan_archive(source, output, database, stage)
+            plan = plan_archive(source, output, database, stage, omit)
             output.flush()
             replay.seek(0)
             yield plan, replay
@@ -138,19 +138,28 @@ def restore(api, scope, name, now, accept_pgmq_loss=False):
     elif scope not in api.DATABASE_SCOPES and scope not in api.published():
         raise api.BackupError('Only a published environment can be restored')
     admitted = api.preflight()
-    supplement = None
+    supplement, omit, supplement_roles = None, frozenset(), []
     if scope not in api.DATABASE_SCOPES:
         # An archive taken before the PGMQ repair holds no queue: its supplement brings them
         # back, and without one the restore is refused unless the operator accepts the loss.
-        shape = pgmq_legacy.archive_shape(api.archive_toc(admitted, archive))
+        toc = api.archive_toc(admitted, archive)
+        shape = pgmq_legacy.archive_shape(toc)
         refusal = pgmq_legacy.restorable(shape, manifest, accept_pgmq_loss)
         if refusal:
             raise api.BackupError(refusal)
+        if shape == 'legacy':
+            # Grants on queue tables the archive does not create would stop the replay; the
+            # supplement sets them once the tables exist (lab/pgmq_legacy.py replay_omits).
+            omit = pgmq_legacy.replay_omits(toc)
         if shape == 'legacy' and manifest.get('pgmq') and manifest['pgmq'].get('file'):
             try:
                 supplement = pgmq_legacy.verify(manifest['pgmq'], archive).decode('utf-8')
             except (pgmq_legacy.LegacyError, UnicodeDecodeError) as error:
                 raise api.BackupError(str(error)) from None
+            if manifest['pgmq']['format'] == 1:
+                # 0.13.1 kept no grants: its queues come back closed (restore_notice says so).
+                supplement += ''.join(pgmq_legacy.closed_sql(queue['name']) for queue in manifest['pgmq']['queues'])
+            supplement_roles = manifest['pgmq'].get('roles') or []
     storage_cid = storage(api)
     if scope not in api.DATABASE_SCOPES:
         # Before anything stops: services on another release's image are never started on restored data.
@@ -180,11 +189,12 @@ def restore(api, scope, name, now, accept_pgmq_loss=False):
                'archive': {'manifest': api.digest(archive / 'manifest.json'), 'database': api.digest(archive / 'database.dump'),
                            'objects': None if scope in api.DATABASE_SCOPES else api.digest(archive / 'objects.tar')},
                'files': files, 'record': record}
-    with archive_sql(api, admitted, archive, database, stage) as (plan, replay):
-        if plan.roles:
-            roles = ','.join("'" + role.replace("'", "''") + "'" for role in plan.roles)
+    with archive_sql(api, admitted, archive, database, stage, omit) as (plan, replay):
+        needed = sorted(set(plan.roles) | set(supplement_roles))
+        if needed:
+            roles = ','.join("'" + role.replace("'", "''") + "'" for role in needed)
             observed = json.loads(api.sql("SELECT coalesce(json_agg(rolname ORDER BY rolname),'[]'::json) FROM pg_roles WHERE rolname IN (" + roles + ');'))
-            if observed != list(plan.roles):
+            if sorted(observed) != needed:
                 raise api.BackupError('Archive owner or grantee role is missing before restore')
         if api.sql("SELECT to_regprocedure('pg_catalog.pg_nextoid(regclass,name,regclass)') IS NOT NULL;") != 't':
             raise api.BackupError('Pinned PostgreSQL stage identity allocator is unavailable')

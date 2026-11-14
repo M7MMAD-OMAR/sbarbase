@@ -6,7 +6,24 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-This source release is 0.13.1. Check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for publication and downloadable assets. [Status](docs/reference/status.md) distinguishes source from the installed revision.
+This source release is 0.13.2. Check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for publication and downloadable assets. [Status](docs/reference/status.md) distinguishes source from the installed revision.
+
+## [0.13.2] - 2026-11-14
+
+### Fixed
+
+- Restoring a backup of a legacy PGMQ extension no longer stops at a grant on a queue. pg_dump keeps the grants of extension members but not their tables, so the replay granted on tables that did not exist yet; `--accept-pgmq-loss` failed the same way. The replay now leaves those grants out.
+- `pgmq.sql` format 2 also keeps each queue's grants (queue, archive, sequence and columns), row level security with its FORCE setting, and policies, read in the dump's snapshot. A restore first removes any grant the replay's default privileges gave the new tables, then sets exactly those. Format 1 kept none of them, and pg_dump never keeps row level security or policies of a legacy queue.
+- A queue dropped and created again while a backup runs is refused instead of being read from another table, and a restored queue sequence never falls below a saved message id.
+- A failed queue capture now fails the backup run (exit 1) and keeps the rest of the backup, so an update from the console stops before it changes anything. A queue that cannot be kept for a known reason is printed on every run. The backup's own reason, such as `upgrade`, is no longer replaced by the error.
+- An off-site copy of a backup whose queues could not be kept can be fetched again.
+- Backups that carry PGMQ data use manifest version 2. Earlier versions refuse it instead of restoring the backup without its queues.
+
+### Limits
+
+- A `pgmq.sql` written by 0.13.1 (format 1) restores the rows with the queues closed: only the environment's developer role reaches them until their grants and policies are applied again, and the restore prints this. Versions before 0.13.2 restore a 0.13.1 backup without its queues and without a warning; use 0.13.2 or later for those.
+- Queue tables with a trigger, a rule, an index pgmq does not create or a publication are reported as unsupported: a restore needs `--accept-pgmq-loss` and `repair-pgmq` refuses them. Partitioned queues are not supported.
+- Checked with real pgmq 1.5.1 on a disposable database (`lab/pgmq-access-check.py`, [evidence](docs/evidence/pgmq-access-2026-11-14.json)) and by unit tests. The fenced cutover with a supplement and `repair-pgmq` have not run on an installation with queues. Service image locks do not change.
 
 ## [0.13.1] - 2026-11-14
 

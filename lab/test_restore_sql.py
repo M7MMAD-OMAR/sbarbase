@@ -33,6 +33,29 @@ class ArchiveSqlPlanningTests(unittest.TestCase):
         self.assertNotIn('CREATE DATABASE', body)
         self.assertNotIn('\\connect', body)
 
+    def test_grants_on_omitted_pgmq_relations_are_left_out_of_the_replay(self):
+        body = ('GRANT SELECT,INSERT ON TABLE pgmq.q_jobs TO authenticated;\n'
+                'GRANT SELECT(message) ON TABLE "pgmq"."q_jobs" TO anon;\n'
+                'REVOKE ALL ON SEQUENCE pgmq.q_jobs_msg_id_seq FROM PUBLIC;\n'
+                'GRANT SELECT ON TABLE pgmq.meta TO authenticated;\n'
+                'GRANT SELECT ON TABLE pgmq.q_mine TO authenticated;\n'
+                'GRANT SELECT ON TABLE public.q_jobs TO authenticated;\n'
+                'GRANT USAGE ON SCHEMA pgmq TO authenticated;\n'
+                "SELECT 'GRANT SELECT ON TABLE pgmq.q_jobs TO x;';\n")
+        omit = frozenset({'q_jobs', 'q_jobs_msg_id_seq'})
+        output = io.StringIO()
+        result = plan_archive(io.StringIO(dump(body=body)), output, SOURCE, STAGE, omit)
+        replay = output.getvalue()
+        self.assertEqual(result.omitted, 3)
+        self.assertNotIn('ON TABLE pgmq.q_jobs TO authenticated', replay)
+        self.assertNotIn('"pgmq"."q_jobs"', replay)
+        self.assertNotIn('q_jobs_msg_id_seq', replay)
+        for kept in ('pgmq.meta', 'pgmq.q_mine', 'public.q_jobs', 'SCHEMA pgmq', "'GRANT SELECT ON TABLE pgmq.q_jobs TO x;'"):
+            self.assertIn(kept, replay)
+        self.assertNotIn('anon', result.roles)
+        unfiltered, _ = plan(dump(body=body))
+        self.assertEqual(unfiltered.omitted, 0)
+
     def test_database_acl_comment_and_role_settings_rebased_only_at_db_identifier(self):
         extra = f'''ALTER DATABASE {SOURCE} CONNECTION LIMIT = 0;
 COMMENT ON DATABASE {SOURCE} IS 'keep {SOURCE}; \\connect preserve';

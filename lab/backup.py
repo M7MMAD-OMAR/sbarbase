@@ -458,8 +458,8 @@ def create(e, keep=DEFAULT_KEEP, now=None, reason=None, protected=None):
             legacy_queues = pgmq_legacy.capture(sys.modules[__name__], e, exported, target)
         except Exception as error:
             (target / pgmq_legacy.FILE).unlink(missing_ok=True)
-            reason = str(error) if isinstance(error, pgmq_legacy.LegacyError) else type(error).__name__
-            legacy_queues = pgmq_legacy.not_kept(f'the legacy queues could not be read ({reason})')
+            failure = str(error) if isinstance(error, pgmq_legacy.LegacyError) else type(error).__name__
+            legacy_queues = pgmq_legacy.not_kept(f'the legacy queues could not be read ({failure})')
             print(f'backup {e}: {legacy_queues["unsupported"][0]}', file=sys.stderr)
     # Bind referenced native files to the exact exported database snapshot.
     fd = os.open(target / 'objects.tar', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
@@ -482,6 +482,9 @@ def create(e, keep=DEFAULT_KEEP, now=None, reason=None, protected=None):
                    'storage': storage_image()},
     }
     if legacy_queues is not None:
+        # Version 2: releases before it would restore the archive without its queues and say
+        # nothing, where they refuse a manifest version they do not know.
+        manifest['version'] = 2
         manifest['pgmq'] = legacy_queues
     if reason is not None:
         manifest['reason'] = reason
@@ -677,7 +680,8 @@ def verify(e, path, *, staged_stamp=None):
     if not manifest_path.is_file():
         raise BackupError('Backup is incomplete')
     manifest = json.loads(manifest_path.read_text())
-    if manifest.get('version') != 1 or manifest.get('runtime') != e:
+    if manifest.get('version') not in (1, 2) or manifest.get('runtime') != e \
+            or manifest['version'] == 2 and not isinstance(manifest.get('pgmq'), dict):
         raise BackupError('Backup belongs to another environment or format')
     for part in ('database', 'objects'):
         item = manifest[part]
@@ -1451,6 +1455,14 @@ def main(argv=None):
                         created.append(e)
                         print(f"backup {e} {path.name}: database {manifest['database']['bytes']} B, "
                               f"{manifest['objects']['files']} file(s), {manifest['counts']['auth.users']} user(s)")
+                        # Legacy PGMQ queues not kept: an error fails the run (an upgrade then
+                        # changes nothing); a known unsupported shape is said, and restore refuses.
+                        queues = manifest.get('pgmq') or {}
+                        if queues.get('unsupported'):
+                            print(f"backup {e} {path.name} does not keep every PGMQ queue: "
+                                  + '; '.join(queues['unsupported']), file=sys.stderr)
+                        if queues.get('failed'):
+                            failed += 1
                     except BackupError as error:
                         failed += 1
                         print(f'backup {e} failed: {error}', file=sys.stderr)
@@ -1525,6 +1537,8 @@ def main(argv=None):
                 record = restore(e, args.backup, accept_pgmq_loss=args.accept_pgmq_loss)
                 print(f"restored {e} from {args.backup}; the previous state is kept as {record['previous_database']} "
                       f"until: backup.py discard-previous {e}")
+                if notice := pgmq_legacy.restore_notice(json.loads((BACKUPS / e / args.backup / 'manifest.json').read_text())):
+                    print(notice)
                 return 0
             if args.command == 'repair-pgmq':
                 e = resolve(args.environment)

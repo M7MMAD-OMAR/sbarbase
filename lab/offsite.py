@@ -461,7 +461,8 @@ def fetch(e, stamp, config=None):
                 decrypt_stream(response, partial / file, config['passphrase'])
             finally:
                 response.close()
-            if file == 'manifest.json' and 'pgmq' in json.loads((partial / file).read_text()):
+            # A backup whose queues could not be kept names no file (`file` is null).
+            if file == 'manifest.json' and _names_supplement(json.loads((partial / file).read_text())):
                 files.append(backup.pgmq_legacy.FILE)
         manifest = backup.verify(e, partial, staged_stamp=stamp)
         if type(manifest.get('created_at')) is not str or manifest['created_at'] != stamp:
@@ -474,6 +475,11 @@ def fetch(e, stamp, config=None):
     finally:
         if not promoted:
             _cleanup(partial)
+
+
+def _names_supplement(manifest):
+    entry = manifest.get('pgmq') if isinstance(manifest, dict) else None
+    return isinstance(entry, dict) and entry.get('file') == backup.pgmq_legacy.FILE
 
 
 def main(argv=None):

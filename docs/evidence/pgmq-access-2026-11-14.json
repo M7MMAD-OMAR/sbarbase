@@ -1,0 +1,104 @@
+{
+  "scope": "Disposable container from lab/distro-image.lock.json with pgmq 1.5.1; archive, supplement and metadata replayed in one session through lab/restore_sql.py. Not the fenced cutover, not a retained or production database.",
+  "image": "public.ecr.aws/supabase/postgres:17.6.1.166",
+  "seconds": 81.2,
+  "checks": [
+    {
+      "check": "fixture is a legacy extension",
+      "passed": true
+    },
+    {
+      "check": "fixture has queue grants, row level security and policies",
+      "passed": true
+    },
+    {
+      "check": "a queue dropped and created again during the backup is refused",
+      "passed": true,
+      "detail": "The legacy queue plain changed during the backup; take the backup again"
+    },
+    {
+      "check": "supplement keeps the supported queues and names its roles",
+      "passed": true,
+      "detail": "{\"format\": 2, \"file\": \"pgmq.sql\", \"bytes\": 5993, \"sha256\": \"61fb8b875a202a649c917671e46b693dbc64dc3b8c16bb11fe69dd3e94cf009c\", \"version\": \"1.5.1\", \"queues\": [{\"name\": \"jobs\", \"messages\": 2, \"archived\": 1, \"unlogged\": false}, {\"name\": \"plain\", \"messages\": 3, \"archived\": 0, \"unlogged\": false}], \"unsupported\": [\"queue hooked: trigger q_hooked.noop would not be kept\"], \"roles\": [\"anon\", \"authenticated\", \"pg_monitor\"]}"
+    },
+    {
+      "check": "a queue with a trigger is unsupported and restore refuses it without the flag",
+      "passed": true
+    },
+    {
+      "check": "pgmq 1.5.1 creates exactly the indexes the check expects",
+      "passed": true,
+      "detail": "[\"queue hooked: trigger q_hooked.noop would not be kept\"]"
+    },
+    {
+      "check": "archive is legacy and its queue grants are listed for omission",
+      "passed": true,
+      "detail": [
+        "a_jobs",
+        "q_jobs",
+        "q_jobs_msg_id_seq"
+      ]
+    },
+    {
+      "check": "0.13.1 replay of a legacy archive with a queue grant fails (the reviewed defect)",
+      "passed": true,
+      "detail": "ERROR:  relation \"pgmq.a_jobs\" does not exist\n"
+    },
+    {
+      "check": "accept-loss replay without a supplement succeeds",
+      "passed": true,
+      "detail": "4"
+    },
+    {
+      "check": "restored queue access equals the original, with nothing added",
+      "passed": true,
+      "detail": "{\"original\": [\"[\\\"a_hooked\\\", \\\"pg_monitor\\\", \\\"SELECT\\\", false]\", \"[\\\"a_hooked\\\", \\\"rls\\\", false, false]\", \"[\\\"a_jobs\\\", \\\"authenticated\\\", \\\"SELECT\\\", true]\", \"[\\\"a_jobs\\\", \\\"pg_monitor\\\", \\\"SELECT\\\", false]\", \"[\\\"a_jobs\\\", \\\"rls\\\", false, false]\", \"[\\\"a_plain\\\", \\\"pg_monitor\\\", \\\"SELECT\\\", false]\", \"[\\\"a_plain\\\", \\\"rls\\\", false, false]\", \"[\\\"q_hooked_msg_id_seq\\\", \\\"pg_monitor\\\", \\\"SELECT\\\", false]\", \"[\\\"q_hooked\\\", \\\"pg_monitor\\\", \\\"SELECT\\\", false]\", \"[\\\"q_hooked\\\", \\\"rls\\\", false, false]\", \"[\\\"q_jobs_msg_id_seq\\\", \\\"authenticated\\\", \\\"SELECT\\\", false]\", \"[\\\"q_jobs_msg_id_seq\\\", \\\"authenticated\\\", \\\"USAGE\\\", false]\", \"[\\\"q_jobs_msg_id_seq\\\", \\\"pg_monitor\\\", \\\"SELECT\\\", false]\", \"[\\\"q_jobs.message\\\", \\\"anon\\\", \\\"SELECT\\\", false]\", \"[\\\"q_jobs\\\", \\\"authenticated\\\", \\\"INSERT\\\", false]\", \"[\\\"q_jobs\\\", \\\"authenticated\\\", \\\"SELECT\\\", false]\", \"[\\\"q_jobs\\\", \\\"authenticated\\\", \\\"UPDATE\\\", false]\", \"[\\\"q_jobs\\\", \\\"fresh\\\", \\\"RESTRICTIVE\\\", [\\\"authenticated\\\"], \\\"ALL\\\", \\\"(read_ct < 5)\\\", null]\", \"[\\\"q_jobs\\\", \\\"pg_monitor\\\", \\\"SELECT\\\", false]\", \"[\\\"q_jobs\\\", \\\"readable\\\", \\\"PERMISSIVE\\\", [\\\"authenticated\\\"], \\\"SELECT\\\", \\\"((message ->> 'public'::text))::boolean\\\", null]\", \"[\\\"q_jobs\\\", \\\"rls\\\", true, true]\", \"[\\\"q_jobs\\\", \\\"writable\\\", \\\"PERMISSIVE\\\", [\\\"authenticated\\\"], \\\"INSERT\\\", null, \\\"((message ->> 'public'::text))::boolean\\\"]\", \"[\\\"q_plain_msg_id_seq\\\", \\\"pg_monitor\\\", \\\"SELECT\\\", false]\", \"[\\\"q_plain\\\", \\\"pg_monitor\\\", \\\"SELECT\\\", false]\", \"[\\\"q_plain\\\", \\\"rls\\\", false, false]\"], \"restored\": [\"[\\\"a_jobs\\\", \\\"authenticated\\\", \\\"SELECT\\\", true]\", \"[\\\"a_jobs\\\", \\\"pg_monitor\\\", \\\"SELECT\\\", false]\", \"[\\\"a_jobs\\\", \\\"rls\\\", false, false]\", \"[\\\"a_plain\\\", \\\"pg_monitor\\\", \\\"SELECT\\\", false]\", \"[\\\"a_plain\\\", \\\"rls\\\", false, false]\", \"[\\\"q_jobs_msg_id_seq\\\", \\\"authenticated\\\", \\\"SELECT\\\", false]\", \"[\\\"q_jobs_msg_id_seq\\\", \\\"authenticated\\\", \\\"USAGE\\\", false]\", \"[\\\"q_jobs_msg_id_seq\\\", \\\"pg_monitor\\\", \\\"SELECT\\\", false]\", \"[\\\"q_jobs.message\\\", \\\"anon\\\", \\\"SELECT\\\", false]\", \"[\\\"q_jobs\\\", \\\"authenticated\\\", \\\"INSERT\\\", false]\", \"[\\\"q_jobs\\\", \\\"authenticated\\\", \\\"SELECT\\\", false]\", \"[\\\"q_jobs\\\", \\\"authenticated\\\", \\\"UPDATE\\\", false]\", \"[\\\"q_jobs\\\", \\\"fresh\\\", \\\"RESTRICTIVE\\\", [\\\"authenticated\\\"], \\\"ALL\\\", \\\"(read_ct < 5)\\\", null]\", \"[\\\"q_jobs\\\", \\\"pg_monitor\\\", \\\"SELECT\\\", false]\", \"[\\\"q_jobs\\\", \\\"readable\\\", \\\"PERMISSIVE\\\", [\\\"authenticated\\\"], \\\"SELECT\\\", \\\"((message ->> 'public'::text))::boolean\\\", null]\", \"[\\\"q_jobs\\\", \\\"rls\\\", true, true]\", \"[\\\"q_jobs\\\", \\\"writable\\\", \\\"PERMISSIVE\\\", [\\\"authenticated\\\"], \\\"INSERT\\\", null, \\\"((message ->> 'public'::text))::boolean\\\"]\", \"[\\\"q_plain_msg_id_seq\\\", \\\"pg_monitor\\\", \\\"SELECT\\\", false]\", \"[\\\"q_plain\\\", \\\"pg_monitor\\\", \\\"SELECT\\\", false]\", \"[\\\"q_plain\\\", \\\"rls\\\", false, false]\"]}"
+    },
+    {
+      "check": "queue rows and archive rows are restored as the snapshot had them",
+      "passed": true,
+      "detail": [
+        "1,2",
+        "1",
+        "3"
+      ]
+    },
+    {
+      "check": "row level security filters rows for authenticated after restore",
+      "passed": true,
+      "detail": "1"
+    },
+    {
+      "check": "pgmq.send works through the restored grants and policies",
+      "passed": true,
+      "detail": "4"
+    },
+    {
+      "check": "the restored insert policy still refuses a private message",
+      "passed": true
+    },
+    {
+      "check": "the restored sequence continues past every id handed out by the backup",
+      "passed": true,
+      "detail": "5"
+    },
+    {
+      "check": "the repair keeps the restored access",
+      "passed": true
+    },
+    {
+      "check": "a native dump after the repair holds the policies and row level security",
+      "passed": true,
+      "detail": "CREATE TABLE pgmq.q_jobs (\nALTER TABLE ONLY pgmq.q_jobs FORCE ROW LEVEL SECURITY;\nALTER TABLE pgmq.q_jobs OWNER TO e_cccccccccccccccccccccccc_developer;\nALTER TABLE pgmq.q_jobs ALTER COLUMN msg_id ADD GENERATED ALWAYS AS IDENTITY (\n    SEQUENCE NAME pgmq.q_jobs_msg_id_seq\nCOPY pgmq.q_jobs (msg_id, read_ct, enqueued_at, vt, message, headers) FROM stdin;\nSELECT pg_catalog.setval('pgmq.q_jobs_msg_id_seq', 5, true);\nALTER TABLE ONLY pgmq.q_jobs\n    ADD CONSTRAINT q_jobs_pkey PRIMARY KEY (msg_id);\nCREATE INDEX q_jobs_vt_idx ON pgmq.q_jobs USING btree (vt);\nCREATE POLICY fresh ON pgmq.q_jobs AS RESTRICTIVE TO authenticated USING ((read_ct < 5));\nALTER TABLE pgmq.q_jobs ENABLE ROW LEVEL SECURITY;\nCREATE POLICY readable ON pgmq.q_jobs FOR SELECT TO authenticated USING (((message ->> 'public'::text))::boolean);\nCREATE POLICY writable ON pgmq.q_jobs FOR INSERT TO authenticated WITH CHECK (((message ->> 'public'::text))::boolean);\nGRANT SELECT,INSERT,UPDATE ON TABLE pgmq.q_jobs TO authenticated;\nGRANT SELECT ON TABLE pgmq.q_jobs TO pg_monitor;\nGRANT SELECT(message) ON TABLE pgmq.q_jobs TO anon;\nGRANT SELECT,USAGE ON SEQUENCE pgmq.q_jobs_msg_id_seq TO authenticated;\nGRANT SELECT ON SEQUENCE pgmq.q_jobs_msg_id_seq TO pg_monitor;"
+    },
+    {
+      "check": "format 1 restore brings the rows back with no grant or policy on the queues",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "check": "format 1 restore says the queues come back closed",
+      "passed": true
+    }
+  ]
+}

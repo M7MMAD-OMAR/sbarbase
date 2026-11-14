@@ -64,7 +64,7 @@ Source release: 0.13.1. Check [Latest on GitHub](https://github.com/M7MMAD-OMAR/
 
 The console uses filled surfaces for elevation, persistent navigation, direct project/environment selectors, themed native pickers and project-labelled browser tabs. Original Studio remains a full page.
 
-Version 0.13.1 makes the update from 0.11.2 and later available from the console again: it drops the PGMQ migration declaration and defers the PGMQ repair behind a verified backup that holds legacy queues ([upgrades](docs/guides/upgrades.md)).
+Version 0.13.1 makes the update from 0.11.2 and later available from the console again: it drops the PGMQ migration declaration and defers the PGMQ repair behind a verified backup that holds legacy queues ([upgrades](docs/guides/upgrades.md)). Version 0.13.2 keeps those queues' grants, row level security and policies through a backup and restore, and fixes a restore that stopped at a queue grant.
 
 Version 0.13.0 adds scoped API/MCP tokens, project archive and owner restore, sole-owner recovery through a local root command and native lifecycle fixes, pinned Studio SMTP/template loading and private asset cache repairs, and portable gzip release verification. Service image locks do not change. Physical purge, full Storage qualification and overall Studio latency remain open.
 

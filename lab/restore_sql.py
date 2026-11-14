@@ -36,6 +36,7 @@ class ArchivePlan:
     stage: str
     explicit_acl: bool
     roles: tuple = ()
+    omitted: int = 0
 
 
 class Reader:
@@ -349,8 +350,26 @@ def validate_metadata(statement, offset):
         raise PlanError('Archive contains unsupported privileged worker configuration')
 
 
-def plan_archive(source, body, original, stage):
-    """Write replay SQL and return independently replayable archive DB metadata."""
+def privilege_target(statement):
+    """(schema, relation) a GRANT or REVOKE on one table, sequence or its columns names, or None."""
+    tokens = statement.tokens
+    if not tokens or not (keyword(tokens[0], 'GRANT') or keyword(tokens[0], 'REVOKE')):
+        return None
+    for index, token in enumerate(tokens):
+        if keyword(token, 'ON'):
+            position = index + 1
+            if position < len(tokens) and (keyword(tokens[position], 'TABLE') or keyword(tokens[position], 'SEQUENCE')):
+                position += 1
+            if position + 2 < len(tokens) and tokens[position + 1].kind == 'symbol' and tokens[position + 1].value == '.' \
+                    and tokens[position].kind in ('word', 'identifier') and tokens[position + 2].kind in ('word', 'identifier'):
+                return identifier(tokens[position]), identifier(tokens[position + 2])
+            return None
+    return None
+
+
+def plan_archive(source, body, original, stage, omit=frozenset()):
+    """Write replay SQL and return independently replayable archive DB metadata. Grants on the
+    pgmq relations in omit are left out (lab/pgmq_legacy.py replay_omits)."""
     if not re.fullmatch(r'(?:e_[a-f0-9]{24}|storage_metadata|management)', original) \
             or not re.fullmatch(r'[a-z][a-z0-9_]{0,62}', stage) or stage == original:
         raise PlanError('Unsupported staged database identity')
@@ -360,6 +379,7 @@ def plan_archive(source, body, original, stage):
     restriction_key, restriction_count = None, 0
     connection_count, properties_since_connect = 0, False
     roles = set()
+    omitted = 0
     for statement in statements(reader):
         if statement.directive:
             directive_start = statement.text.rfind('\\')
@@ -390,6 +410,9 @@ def plan_archive(source, body, original, stage):
         tokens = statement.tokens
         if not tokens:
             body.write(statement.text)
+            continue
+        if omit and (target := privilege_target(statement)) and target[0] == 'pgmq' and target[1] in omit:
+            omitted += 1
             continue
         roles.update(archived_roles(statement))
         if len(tokens) >= 3 and keyword(tokens[0], 'CREATE') and keyword(tokens[1], 'EXTENSION'):
@@ -444,4 +467,4 @@ def plan_archive(source, body, original, stage):
     # limit must not accidentally become the restored database's default.
     if not connection_limit:
         metadata.append('ALTER DATABASE ' + quote_identifier(stage) + ' CONNECTION LIMIT = -1;\n')
-    return ArchivePlan(create, tuple(metadata), original, stage, bool(explicit_acl), tuple(sorted(roles)))
+    return ArchivePlan(create, tuple(metadata), original, stage, bool(explicit_acl), tuple(sorted(roles)), omitted)

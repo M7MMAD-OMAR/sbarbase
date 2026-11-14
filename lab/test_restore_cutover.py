@@ -43,6 +43,8 @@ class NativeModel:
         self.pid = '900'
         self.roles = ['management_auth', 'supabase_admin'] if scope == backup.MANAGEMENT else ['supabase_admin']
         self.archived_search_path = None
+        self.archive_tail = ''
+        self.replayed = b''
         self.database_settings = {'search_path': 'live_changed_schema'}
         self.retained_search_path = 'public'
         self.held = None
@@ -91,7 +93,8 @@ class NativeModel:
                       'GRANT CONNECT ON DATABASE management TO management_auth;\n')
                    + ('' if self.archived_search_path is None else 'ALTER DATABASE ' + database
                       + " SET search_path TO '" + self.archived_search_path + "';\n")
-                   + '\\connect ' + database + "\nSELECT pg_catalog.set_config('search_path', '', false);\nCREATE TABLE payload(id integer);\n")
+                   + '\\connect ' + database + "\nSELECT pg_catalog.set_config('search_path', '', false);\nCREATE TABLE payload(id integer);\n"
+                   + self.archive_tail)
             kwargs['stdout'].write(sql.encode())
             return SimpleNamespace(stderr='')
         if argv[:2] == ['docker', 'stop']:
@@ -226,6 +229,7 @@ class NativeModel:
                 model.event('replay')
                 assert not model.dbs[stage]['allow_connections']
                 body = source.read()
+                model.replayed = body
                 assert b'CREATE TABLE payload' in body
                 if b"set_config('search_path', '', false)" in body:
                     model.retained_search_path = ''
@@ -332,13 +336,44 @@ class CutoverTests(Fixture):
         with NativeModel(self) as model, patch.object(backup, 'archive_toc', lambda *a: legacy):
             model.supplements = []
             model.restore()
-            self.assertEqual(model.supplements, [data.decode()])
+            # 0.13.1 kept no grants: its queues come back closed after the supplement.
+            self.assertEqual(len(model.supplements), 1)
+            self.assertTrue(model.supplements[0].startswith(data.decode()))
+            self.assertIn('REVOKE ALL ON %s pgmq.%I', model.supplements[0])
             self.assertEqual(model.journal()['phase'], 'completed')
         (path / 'pgmq.sql').write_bytes(b'-- Sbarbase legacy PGMQ supplement, format 1.\nSELECT 2;\n')
         with NativeModel(self) as model, patch.object(backup, 'archive_toc', lambda *a: legacy):
             with self.assertRaisesRegex(backup.BackupError, 'digest'):
                 model.restore()
             self.assertEqual(model.events, [])
+
+    def test_legacy_queue_grants_wait_for_the_supplement_and_its_roles_must_exist(self):
+        import hashlib
+        path = backup.BACKUPS / E / NAME
+        data = b'-- Sbarbase legacy PGMQ supplement, format 2.\nGRANT SELECT ON TABLE pgmq.q_jobs TO authenticated;\n'
+        (path / 'pgmq.sql').write_bytes(data)
+        manifest = json.loads((path / 'manifest.json').read_text())
+        manifest['version'] = 2
+        manifest['pgmq'] = {'format': 2, 'file': 'pgmq.sql', 'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest(),
+                            'version': '1.5.1', 'queues': [{'name': 'jobs', 'messages': 1, 'archived': 0, 'unlogged': False}],
+                            'unsupported': [], 'roles': ['authenticated']}
+        (path / 'manifest.json').write_text(json.dumps(manifest))
+        toc = '3; 3079 16384 EXTENSION - pgmq\n3472; 0 0 ACL pgmq TABLE q_jobs supabase_admin\n'
+        tail = ('GRANT SELECT ON TABLE pgmq.q_jobs TO authenticated;\n'
+                'GRANT SELECT ON TABLE public.payload TO authenticated;\n')
+        with NativeModel(self) as model, patch.object(backup, 'archive_toc', lambda *a: toc):
+            model.archive_tail, model.supplements = tail, []
+            with self.assertRaisesRegex(backup.BackupError, 'role is missing'):
+                model.restore()
+            self.assertEqual(model.events, [])
+        with NativeModel(self) as model, patch.object(backup, 'archive_toc', lambda *a: toc):
+            model.archive_tail, model.supplements = tail, []
+            model.roles = ['authenticated', 'supabase_admin']
+            model.restore()
+            self.assertNotIn(b'pgmq.q_jobs', model.replayed)
+            self.assertIn(b'public.payload TO authenticated', model.replayed)
+            self.assertEqual(model.supplements, [data.decode()])
+            self.assertEqual(model.journal()['phase'], 'completed')
 
     def test_prepared_transactions_refuse_before_journal_or_mutation(self):
         with NativeModel(self) as model:
