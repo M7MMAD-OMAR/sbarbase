@@ -13,21 +13,39 @@
     "signed": true
   },
   "checks": {
-    "environment_databases": 3,
+    "environments_backed_up": 3,
     "pre_update_backup_run": "20261114T155355Z",
     "upgrade_status": "confirmed: the new version started and passed its health checks",
-    "services_active": ["sbarbase", "sbarbase-proxy"],
+    "services_active": [
+      "sbarbase",
+      "sbarbase-proxy"
+    ],
     "console_public_http": 200,
-    "auth_health_http": {"environments": [200, 200, 200], "management": 200},
-    "rest_root_http": [200, 200, 200],
+    "auth_health_http": {
+      "environments": [
+        200,
+        200,
+        200
+      ],
+      "management": 200
+    },
+    "rest_root_http": [
+      200,
+      200,
+      200
+    ],
     "post_update_backup_run": "20261114T160216Z",
     "post_update_backup_exit": 0,
     "post_update_offsite_copy": "6 backups encrypted and uploaded, 1 older set removed from the target",
     "post_update_backups_verified": 3,
-    "post_update_manifest_versions": [1, 1, 1],
+    "post_update_manifest_versions": [
+      1,
+      1,
+      1
+    ],
     "post_update_backups_with_pgmq_entry": 0,
     "backups_marked_partial": 0,
-    "rotation_after_update": "each environment kept 7 counted backups plus the 3 latest upgrade runs; the 2 oldest upgrade runs (20261113T182543Z, 20261113T194204Z) were removed, as UPGRADE_RUNS_KEPT = 3 provides"
+    "rotation_after_update": "each environment kept its 7 newest counted backups plus the 3 latest upgrade runs; the 2 oldest upgrade runs (20261113T182543Z, 20261113T194204Z) were removed, as UPGRADE_RUNS_KEPT = 3 provides. e_b0927e0c72b8858ab066f933 also keeps 20261017T084736Z, the backup its completed restore record names, which prune never counts"
   },
   "local_evidence": {
     "disposable_check": "lab/pgmq-access-check.py",
@@ -40,7 +58,9 @@
     "the console update button itself; the update was started with lab/upgrade.py start --release"
   ],
   "observations": [
-    "Auth and REST were checked inside the server against each container (Auth /health, REST root); the gateway with API keys was not called, because the key store is private"
+    "Auth and REST were checked inside the server against each container (Auth /health, REST root); the gateway with API keys was not called, because the key store is private",
+    "The 3 environment backups were checked with backup.verify; storage and management backups have their own verify functions, which this probe did not call. The backup run itself wrote and listed them",
+    "Folder .lab/backups/e_1fcb34ef2e0ea20058f5ad69 has no backup after 20261114T010914Z and was not part of this run; the update did not touch it"
   ],
   "independent_review": "the 0.13.3 changes have no independent review yet"
 }
