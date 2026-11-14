@@ -1,9 +1,9 @@
 {
-  "version": "0.13.3",
+  "version": "0.13.4",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "Keeps backups that hold every PGMQ queue through rotation. Local backups, off-site sets and off-site copies that list queues or definitions they did not keep now count apart from complete ones, so they never push out the last backups that hold every queue; up to twice keep can be kept. A legacy queue dropped and created again during a backup is left out and listed instead of failing every queue, and extra columns and constraints are listed with the messages kept. Such a run exits 4 with a critical backup.failed notice; a console update goes on and says that restoring from its backup needs --accept-pgmq-loss. A restore refuses a legacy archive with entries on queue tables it does not create before changing anything. Checked with real pgmq 1.5.1 on a disposable database (25 checks) and by unit tests; rotation of partial backups is unit tested only. Service image locks do not change.",
-    "ar": "يحفظ النسخ الاحتياطيّة التي تحمل كل طوابير PGMQ عند التدوير. صارت النسخ المحلّيّة والمجموعات الخارجيّة والنسخ الخارجيّة التي تذكر طوابير أو تعريفات لم تحفظها تُعدّ بمعزل عن الكاملة، فلا تزيح آخر النسخ التي تحفظ كل الطوابير، وقد يبقى ضعف keep. والطابور القديم الذي يُحذف ويُنشأ من جديد أثناء النسخ يُترك خارج النسخة ويُذكر بدل أن يُفشل حفظ كل الطوابير، وتُذكر الأعمدة والقيود الإضافيّة مع حفظ الرسائل. ينتهي تشغيل كهذا بالرمز 4 مع تنبيه حرج backup.failed، ويمضي التحديث من لوحة الإدارة ويذكر أنّ الاستعادة من نسخته تحتاج إلى --accept-pgmq-loss. وترفض الاستعادة، قبل أن تغيّر شيئًا، الأرشيف القديم الذي فيه عناصر على جداول طوابير لا ينشئها. فُحص الإصدار مع pgmq 1.5.1 الحقيقيّ على قاعدة بيانات مؤقّتة (25 فحصًا) وباختبارات الوحدات؛ ولا تغطّي تدوير النسخ الناقصة إلا اختبارات الوحدات. ولا تتغيّر صور الخدمات المثبّتة."
+    "en": "A PGMQ queue that changed during a backup is retried, and an update stops if it keeps changing.",
+    "ar": "يُعاد نسخ طابور PGMQ الذي تغيّر أثناء النسخ، ويتوقّف التحديث إذا بقي يتغيّر."
   },
   "migrations": []
 }
