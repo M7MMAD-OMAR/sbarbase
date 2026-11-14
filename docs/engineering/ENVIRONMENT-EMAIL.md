@@ -1402,3 +1402,37 @@ with custom SMTP off. The rest of the mail file is unchanged.
 - With no mail file and nothing saved the base configuration sets `GOTRUE_MAILER_AUTOCONFIRM` true: Confirm email is off.
 - Live check: `lab/auth-names-check.py --only mail_settings` (evidence in `docs/evidence/settings-routes-2026-10-30/`). The two 5 minute
   limits showed no effect on the paths tried.
+
+## Update 2026-11-14: the native Studio Templates screens
+
+Symptom: in the pinned Studio, Authentication, Emails, Templates stayed on the grey loading skeleton after every reload, while
+SMTP Settings worked. Cause: the pinned Studio disables its auth configuration query on self-hosted installs
+(`enabled: ... IS_PLATFORM`), and the compatibility adapter (`src/control/studio-smtp-assets.ts`) enabled it only on
+`/project/default/auth/smtp`. A disabled react-query stays `isPending`, and the Templates list and editor render the skeleton
+while it is pending.
+
+Fix:
+
+- `studio-smtp-assets.ts`: the query is also enabled on `/project/default/auth/templates` and `/project/default/auth/templates/<id>`.
+  The asset version is now `3699278-smtp-v3`, so browsers holding the v2 chunks fetch them again.
+- `studio-smtp.ts`: `GET /api/platform/auth/default/config` also returns `MAILER_SUBJECTS_<KIND>` and `MAILER_TEMPLATES_<KIND>_CONTENT`
+  for the six kinds, and the `*_CUSTOM_CONTENTS` maps. A PATCH that carries only those keys is translated into the same
+  `PUT /environments/{id}/mail-templates` the console Templates panel and the agent operation `auth.mail_templates.update` use, so
+  validation, the pending revision and the supervisor apply are unchanged. `POST .../templates/<kind>/reset` clears one kind.
+  `POST .../validate/spam` answers `{rules:[]}`: no spam scoring runs here. The seven security notification emails read as off
+  and cannot be turned on (400). A templates file the server cannot read stops template edits, never the SMTP screen.
+- `studio.ts`: the Studio proxy routes these three paths to the adapter (still same-origin only), and a PATCH body may be up to
+  128 KiB, since a 32 KiB template body can grow when JSON escapes it.
+
+Checked: unit tests in `tests/studio-smtp.test.ts` and `tests/studio-smtp-assets.test.ts`. A headless Chromium session also ran
+against the original pinned Studio assets, through a read-only tunnel with local fixture settings: the list and the editor rendered,
+a subject was saved and kept after a reload, and no request reached the source Studio as a write. No email was sent for this check.
+
+Operator notes learned on the same day:
+
+- Template bodies may be applied without Studio through the console Templates panel or the management route above. Auth fetches
+  each body from the console's internal route the first time it sends that kind, then caches it for `GOTRUE_MAILER_TEMPLATE_MAX_AGE`.
+  A fetch failure falls back to the compiled default without a log line at info level, so "the email arrived" alone does not prove the
+  custom body was used.
+- The pinned Auth accepts a `redirect_to` on a loopback host (`127.0.0.1`, `localhost`) even when it is not on the redirect list. An
+  unlisted public host falls back to the Site URL. Removing a loopback entry from the list therefore does not block it.

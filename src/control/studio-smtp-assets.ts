@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto';
 
-export const STUDIO_SMTP_ASSET_VERSION='3699278-smtp-v2';
+export const STUDIO_SMTP_ASSET_VERSION='3699278-smtp-v3';
 
 /** Compatibility for original Studio 369927892fde63d07b199d4e80fe05ae780573d5 only.
  * Each path is bound to its entire original module, not a guessed minified fragment.
@@ -99,7 +99,7 @@ function queryModule(source:string):string {
  source=once(source,guard[0],`enabled:${guard[1]}&&(${hosted}||__sbarbaseSmtpPage(e))&&void 0!==e&&"_"!==e`);
  source=once(source,prefetch[0],`e&&(${hosted}||__sbarbaseSmtpPage(e))&&${prefetch[1]}.prefetchQuery(`);
  return once(source,'"use strict";',
-  '"use strict";function __sbarbaseSmtpPage(ref){return ref==="default"&&globalThis.location?.pathname==="/project/default/auth/smtp"}');
+  '"use strict";function __sbarbaseSmtpPage(ref){const p=globalThis.location?.pathname;return ref==="default"&&(p==="/project/default/auth/smtp"||p==="/project/default/auth/templates"||/^\\/project\\/default\\/auth\\/templates\\/[^/]+$/.test(p??""))}');
 }
 
 function formModule(source:string):string {

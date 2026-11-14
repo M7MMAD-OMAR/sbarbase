@@ -62,10 +62,47 @@ test('native SMTP writes retain Studio CSRF, session, method, request bounds and
   expect((await f.proxy(f.request('PATCH',input,{origin:'https://evil.example'}))).status).toBe(403);
   expect((await f.proxy(f.request('PATCH',input,{cookie:''}))).status).toBe(401);
   expect((await f.proxy(f.request('PATCH',input,{'content-type':'text/plain'}))).status).toBe(415);
-  expect((await f.proxy(f.request('PATCH',{...input,SMTP_PASS:'x'.repeat(20000)}))).status).toBe(413);
+  expect((await f.proxy(f.request('PATCH',{...input,SMTP_PASS:'x'.repeat(140000)}))).status).toBe(413);
   expect((await f.handler('viewer',f.runtime,f.request())).status).toBe(403);
   f.catalog.setMember('alice',f.catalog.studioNavigation('alice',f.runtime).current.organization.id,'alice','viewer');
   expect((await f.proxy(f.request())).status).toBe(401);
+ }finally{f.close();}
+});
+
+const emailRoute=(f:ReturnType<typeof fixture>,path:string,method='POST',body?:unknown,headers:Record<string,string>={})=>new Request(f.origin+'/api/platform/auth/default/'+path,
+ {method,headers:{cookie:f.request().headers.get('cookie')!,origin:f.origin,'content-type':'application/json',...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});
+test('native email templates read defaults, save to the private templates file and reset',async()=>{
+ const f=fixture();try{
+  const initial=await (await f.proxy(f.request())).json();
+  expect(initial.MAILER_SUBJECTS_CONFIRMATION).toBe('Confirm Your Signup');expect(initial.MAILER_TEMPLATES_RECOVERY_CONTENT).toContain('{{');
+  expect(initial.MAILER_TEMPLATES_CUSTOM_CONTENTS.MAILER_TEMPLATES_RECOVERY_CONTENT).toBe(false);
+  expect(initial.MAILER_NOTIFICATIONS_PASSWORD_CHANGED_ENABLED).toBe(false);
+  const body='<p dir="rtl">رمزك {{ .Token }}</p>'+'x'.repeat(30000);
+  const saved=await f.proxy(f.request('PATCH',{MAILER_SUBJECTS_MAGIC_LINK:'رمز الدخول | Your code',MAILER_TEMPLATES_MAGIC_LINK_CONTENT:body}));
+  expect(saved.status).toBe(202);const view=await saved.json();
+  expect(view.MAILER_TEMPLATES_MAGIC_LINK_CONTENT).toBe(body);expect(view.MAILER_SUBJECTS_CUSTOM_CONTENTS.MAILER_SUBJECTS_MAGIC_LINK).toBe(true);
+  const file=join(f.directory,f.runtime+'-templates.json');expect(statSync(file).mode&0o077).toBe(0);
+  expect(JSON.parse(readFileSync(file,'utf8')).templates.magic_link).toEqual({subject:'رمز الدخول | Your code',body});
+  expect(f.catalog.signIn('alice',f.environment).state).toBe('pending');
+  const reloaded=await (await f.proxy(f.request())).json();expect(reloaded.MAILER_SUBJECTS_MAGIC_LINK).toBe('رمز الدخول | Your code');
+  const reset=await f.proxy(emailRoute(f,'templates/magic-link/reset'));expect(reset.status).toBe(200);
+  expect((await reset.json()).MAILER_SUBJECTS_MAGIC_LINK).toBe('Your Magic Link');expect(existsSync(file)).toBe(false);
+  expect(f.calls).toBe(0);
+ }finally{f.close();}
+});
+test('native email templates refuse notifications, mixed saves, broken templates and wrong methods',async()=>{
+ const f=fixture();try{
+  expect((await f.proxy(f.request('PATCH',{MAILER_NOTIFICATIONS_PASSWORD_CHANGED_ENABLED:true}))).status).toBe(400);
+  expect((await f.proxy(f.request('PATCH',{MAILER_NOTIFICATIONS_PASSWORD_CHANGED_ENABLED:false}))).status).toBe(200);
+  expect((await f.proxy(f.request('PATCH',{MAILER_SUBJECTS_RECOVERY:'Reset',SMTP_HOST:'smtp.example.com'}))).status).toBe(400);
+  expect((await f.proxy(f.request('PATCH',{MAILER_TEMPLATES_RECOVERY_CONTENT:'{{ .Token'}))).status).toBe(400);
+  expect((await f.proxy(f.request('PATCH',{MAILER_SUBJECTS_RECOVERY:42}))).status).toBe(400);
+  expect((await f.proxy(emailRoute(f,'templates/password-changed-notification/reset'))).status).toBe(400);
+  expect((await f.proxy(emailRoute(f,'templates/recovery/reset','GET'))).status).toBe(405);
+  expect((await f.proxy(emailRoute(f,'templates/recovery/reset','POST',undefined,{origin:'https://evil.example'}))).status).toBe(403);
+  const spam=await f.proxy(emailRoute(f,'validate/spam','POST',{subject:'s',content:'c'}));expect(spam.status).toBe(200);expect(await spam.json()).toEqual({rules:[]});
+  expect((await f.handler('viewer',f.runtime,emailRoute(f,'templates/recovery/reset'))).status).toBe(403);
+  expect(f.catalog.signIn('alice',f.environment).revision).toBe(0);expect(f.calls).toBe(0);
  }finally{f.close();}
 });
 

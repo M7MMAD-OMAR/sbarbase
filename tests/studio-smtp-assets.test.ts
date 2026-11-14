@@ -49,6 +49,12 @@ describe('pinned native SMTP query compatibility',()=>{
    expect(options.queryKey).toEqual(['projects','default','auth-config','sbarbase-smtp']);
    expect(smtp.exports.useAuthConfigQuery({projectRef:'default'},{enabled:false}).enabled).toBe(false);
    for(const ref of [undefined,'_','other-project'])expect(smtp.exports.useAuthConfigQuery({projectRef:ref}).enabled).toBe(false);
+   for(const page of ['/project/default/auth/templates','/project/default/auth/templates/confirm-sign-up']){
+    const templates=queryModule(text,false,page).exports.useAuthConfigQuery({projectRef:'default'});
+    expect(templates.enabled).toBe(true);expect(templates.queryKey).toEqual(['projects','default','auth-config','sbarbase-smtp']);
+   }
+   for(const page of ['/project/default/auth/templates/a/b','/project/default/auth/templatesx'])
+    expect(queryModule(text,false,page).exports.useAuthConfigQuery({projectRef:'default'}).enabled).toBe(false);
    const other=queryModule(text,false,'/project/default/auth/providers'),disabled=other.exports.useAuthConfigQuery({projectRef:'default'});
    expect(disabled.enabled).toBe(false);expect(disabled.queryKey).toEqual(['projects','default','auth-config','sbarbase-auth-unavailable']);
    const hosted=queryModule(text,true,'/project/cloud/auth/providers'),hostedOptions=hosted.exports.useAuthConfigQuery({projectRef:'cloud'});

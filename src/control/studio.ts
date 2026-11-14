@@ -351,10 +351,13 @@ export function studioProxy(options:{key:()=>Buffer;allowed:(actor:string,runtim
    const origin=request.headers.get('origin'),site=request.headers.get('sec-fetch-site');
    if(origin?origin!==selfOrigin(url):site!=='same-origin')return page(403,'This request did not come from this Studio page.');
   }
-  if(options.authConfig&&/^\/api\/platform\/auth\/[^/]+\/config$/.test(url.pathname)){
-   if(!['GET','PATCH'].includes(request.method))return reply(405,{message:'Method not allowed'});
+  // The native Emails screens: SMTP, templates, a template reset and the spam check (src/control/studio-smtp.ts).
+  const emails=url.pathname.match(/^\/api\/platform\/auth\/[^/]+\/(config|validate\/spam|templates\/[^/]+\/reset)$/);
+  if(options.authConfig&&emails){
+   if(!(emails[1]==='config'?['GET','PATCH']:['POST']).includes(request.method))return reply(405,{message:'Method not allowed'});
    let body:Uint8Array<ArrayBuffer>|undefined;
-   try{if(request.method==='PATCH')body=await studioBody(request,Math.min(bodyLimit,16*1024),bodyTimeout);}
+   // A template body is at most 32 KiB, and JSON escaping can triple it. The spam check's body is never read.
+   try{if(request.method==='PATCH')body=await studioBody(request,Math.min(bodyLimit,128*1024),bodyTimeout);}
    catch(error){return reply(error instanceof StudioBodyError?error.status:400,{message:'Invalid SMTP request body'});}
    if(!allowed())return reply(403,{message:'Forbidden'});
    return guarded(await options.authConfig(claim.actor,runtime,new Request(request.url,{method:request.method,headers:request.headers,signal:request.signal,...(body?{body}:{})}),()=>sessionCurrent(claim,runtime)));
