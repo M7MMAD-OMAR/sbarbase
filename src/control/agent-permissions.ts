@@ -9,10 +9,10 @@ export const AGENT_PERMISSIONS=[
 ] as const;
 export type AgentPermission=typeof AGENT_PERMISSIONS[number];
 export const READ_PERMISSIONS:AgentPermission[]=AGENT_PERMISSIONS.filter(value=>value.endsWith('.read'));
+export const DANGEROUS_PERMISSIONS:AgentPermission[]=['database.write','functions.write','functions.delete','keys.write','keys.delete','auth.delete'];
 /** Deliberately excludes arbitrary SQL, code execution/deployment, deletion and revocation. */
 export const SAFE_ADMIN_PERMISSIONS:AgentPermission[]=AGENT_PERMISSIONS.filter(value=>
- !['database.write','functions.write','functions.delete','keys.write','keys.delete','auth.delete'].includes(value));
-export const DANGEROUS_PERMISSIONS:AgentPermission[]=['database.write','functions.write','functions.delete','keys.write','keys.delete','auth.delete'];
+ !DANGEROUS_PERMISSIONS.includes(value));
 export function parseAgentPermissions(value:unknown,readOnly=false):AgentPermission[]{
  if(value===undefined)return [...READ_PERMISSIONS];
  if(!Array.isArray(value)||value.length>AGENT_PERMISSIONS.length||value.some(item=>typeof item!=='string'||!AGENT_PERMISSIONS.includes(item as AgentPermission))||new Set(value).size!==value.length)
