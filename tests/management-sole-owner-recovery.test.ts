@@ -62,21 +62,25 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 const scenario=process.argv[1],source=process.argv[2],root=fs.mkdtempSync(join(tmpdir(),'sole-engine-'));
 const target='11111111-1111-4111-8111-111111111111',old='22222222-2222-4222-8222-222222222222',replacement='55555555-5555-4555-8555-555555555555';
-const nativeFs={...fs};let calls=[],catalog,organization,fail=true;
+const nativeFs={...fs};let calls=[],catalog,organization,fail=true,readerPublicUrls=[];
 fs.mkdirSync(root+'/.lab/upstream',{recursive:true});
 fs.writeFileSync(root+'/.lab/upstream/server.json',JSON.stringify({url:'http://127.0.0.1:7001',pid:22}));
 fs.writeFileSync(root+'/.lab/upstream/supervisor.json',JSON.stringify({pid:11,serverPid:22}));
 const map=p=>String(p).startsWith('/var/lib/sbarbase')?root+'/private'+String(p).slice('/var/lib/sbarbase'.length):p;
 mock.module('node:fs',()=>({...nativeFs,
  realpathSync(p){if(String(p).startsWith('/proc/'))return root;if(String(p)===source)return root+'/lab/management-sole-owner-recovery.ts';return nativeFs.realpathSync(p);},
- readFileSync(p,...a){if(String(p).endsWith('/cmdline'))return 'bun\0lab/upstream-server.ts\0';if(String(p).endsWith('/stat'))return '22 (bun) '+Array(30).fill('1').join(' ');return nativeFs.readFileSync(typeof p==='number'?p:map(p),...a);},
+ readFileSync(p,...a){if(String(p).endsWith('/environ')){if(scenario==='service-url')return 'UNRELATED_SERVICE_SECRET=not-propagated\0SBARBASE_PUBLIC_URL=https://installed.example.test\0';if(scenario==='service-url-mismatch')return 'SBARBASE_PUBLIC_URL=https://'+(String(p).includes('/11/')?'supervisor':'controller')+'.example.test\0';if(scenario==='service-url-change')return 'SBARBASE_PUBLIC_URL=https://'+(calls.length>3?'changed':'original')+'.example.test\0';return '';}if(String(p).endsWith('/cmdline'))return 'bun\0lab/upstream-server.ts\0';if(String(p).endsWith('/stat'))return '22 (bun) '+Array(30).fill('1').join(' ');return nativeFs.readFileSync(typeof p==='number'?p:map(p),...a);},
  mkdirSync(p,...a){return nativeFs.mkdirSync(map(p),...a);},
  openSync(p,...a){return nativeFs.openSync(map(p),...a);},
  lstatSync(p){const info=nativeFs.lstatSync(map(p));Object.defineProperty(info,'uid',{value:0});return info;},
  fstatSync(fd){const info=nativeFs.fstatSync(fd);Object.defineProperty(info,'uid',{value:0});return info;}
 }));
 process.geteuid=()=>0;
-Bun.spawnSync=(args)=>({exitCode:0,stdout:Buffer.from(args[0].includes('systemctl')?'WorkingDirectory='+root+'\nUser=sbarbase\nMainPID=11\n':JSON.stringify({auth:'http://127.0.0.1:9999',key:'anon',serviceToken:'service',process:scenario==='realm'&&calls.length>3?'changed':'native-original'}))});
+process.env.SBARBASE_PUBLIC_URL='https://caller-must-not-win.example.test';
+Bun.spawnSync=(args,options)=>{
+ if(!args[0].includes('systemctl')){readerPublicUrls.push(options.env.SBARBASE_PUBLIC_URL??null);if(options.env.UNRELATED_SERVICE_SECRET!==undefined)throw new Error('Unexpected service environment propagation');}
+ return {exitCode:0,stdout:Buffer.from(args[0].includes('systemctl')?'WorkingDirectory='+root+'\nUser=sbarbase\nMainPID=11\n':JSON.stringify({auth:'http://127.0.0.1:9999',key:'anon',serviceToken:'service',process:scenario==='realm'&&calls.length>3?'changed':'native-original'}))};
+};
 Bun.sleep=async()=>{};
 let factors=[{id:old,status:'verified',factor_type:'totp',friendly_name:'old'}],verified=false;
 const session=(aal='aal1')=>({access_token:'header.'+Buffer.from(JSON.stringify({sub:target,exp:Math.floor(Date.now()/1000)+3600,aal})).toString('base64url')+'.signature',refresh_token:'test-refresh',token_type:'bearer',expires_in:3600,user:{id:target,email:'owner@example.test',factors}});
@@ -122,7 +126,7 @@ let requestFile;try{requestFile=nativeFs.readdirSync(root+'/private/sole-owner-r
 if(['delete','enroll','verify','proxy-fail','lost-response'].includes(scenario)&&requestFile){fail=false;try{await recoverSoleManagementOwner({...input,resumeReceipt:requestFile.split('.')[0]});retrySuccess=true;}catch(e){error=e.message;}}
 let replayDenied=false;if(success&&requestFile){try{await recoverSoleManagementOwner({...input,resumeReceipt:requestFile.split('.')[0]});}catch{replayDenied=true;}}
 const audit=catalog.managementSecurityAudit(target);
-process.stdout.write(JSON.stringify({success,retrySuccess,replayDenied,error,calls,latch:catalog.managementSecurity.recovering(target),tokenEpoch:catalog.managementSecurity.tokenEpoch(target),audit}));
+process.stdout.write(JSON.stringify({success,retrySuccess,replayDenied,error,calls,readerPublicUrls,latch:catalog.managementSecurity.recovering(target),tokenEpoch:catalog.managementSecurity.tokenEpoch(target),audit}));
 catalog.close();nativeFs.rmSync(root,{recursive:true,force:true});
 `;
 function simulate(scenario:string){
@@ -188,4 +192,15 @@ test('armed recovery stays latched until the exact proxy factor grant commits, a
   expect(catalog.grantManagementMfa(target,'exact',factor,now+1,now+100,security.epoch(target))).toBe(true);
   expect(security.recovering(target)).toBe(false);
  }finally{catalog.close();}
+});
+
+test('service public URL reaches retained reader and caller environment cannot override it',()=>{
+ const installed=simulate('service-url');expect(installed.success).toBe(true);
+ expect(installed.readerPublicUrls.length).toBeGreaterThan(0);
+ expect(installed.readerPublicUrls.every((value:string)=>value==='https://installed.example.test')).toBe(true);
+ const absent=simulate('success');expect(absent.success).toBe(true);expect(absent.readerPublicUrls.every((value:unknown)=>value===null)).toBe(true);
+});
+for(const scenario of ['service-url-mismatch','service-url-change'])test('service public URL refuses '+scenario+' before native mutations',()=>{
+ const result=simulate(scenario);expect(result.success).toBe(false);expect(result.latch).toBe(false);
+ expect(result.calls.some((call:string)=>call.startsWith('DELETE')||call==='POST /logout'||call==='POST /factors')).toBe(false);
 });

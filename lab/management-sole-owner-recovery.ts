@@ -9,7 +9,7 @@ const PRIVATE='/var/lib/sbarbase/sole-owner-recovery';
 const KEY='sb_publishable_sbarbase_local_management';
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 export type SoleOwnerRecovery={target:string;factor:string;targetPassword:string;reason:'lost_factor'|'compromised_factor';resumeReceipt?:string};
-type Realm={checkout:string;auth:string;key:string;serviceToken:string;process:string;controller:string;controllerProcess:string};
+type Realm={checkout:string;publicUrl:string|null;auth:string;key:string;serviceToken:string;process:string;controller:string;controllerProcess:string};
 type Setup={receipt:string;target:string;oldFactor:string;factor:string;secret:string;uri:string;realm:string};
 function need(value:unknown):asserts value {if(!value)throw new Error('Sole-owner recovery refused');}
 function root(){need(process.geteuid?.()===0);}
@@ -28,14 +28,24 @@ function installed():Realm {
  const command=readFileSync('/proc/'+server.pid+'/cmdline','utf8').split('\0');
  need(command.some((part:string)=>part==='lab/upstream-server.ts'||part===ROOT+'/lab/upstream-server.ts'));
  const supervisor=json(ROOT+'/.lab/upstream/supervisor.json');need(supervisor.serverPid===server.pid&&supervisor.pid===Number(fields.MainPID));
+ // Read only this public configuration value from the already-bound service processes.
+ // Caller environment is never an authority for reconstructing native Auth configuration.
+ function servicePublicUrl(pid:number):string|undefined {
+  const values=readFileSync('/proc/'+pid+'/environ','utf8').split('\0').filter(entry=>entry.startsWith('SBARBASE_PUBLIC_URL='));
+  need(values.length<=1);return values[0]?.slice('SBARBASE_PUBLIC_URL='.length);
+ }
+ const supervisorUrl=servicePublicUrl(supervisor.pid),controllerUrl=servicePublicUrl(server.pid);
+ need(supervisorUrl===undefined||controllerUrl===undefined||supervisorUrl===controllerUrl);
+ const publicUrl=controllerUrl??supervisorUrl;
+
  // The existing reader validates the retained original container's image, ownership, full Auth
  // configuration, published endpoint and process identity. It executes as the installation uid
  // because its existing private-file contract intentionally rejects foreign file owners.
  const script="import sys,json;sys.path.insert(0,sys.argv[1]+'/lab');import lifecycle_auth_realm as r;import durable_runtime as n;v=r.realm();v['serviceToken']=n.token(r.private_json(n.runtime_files.runtime_secret_path_for_tool(n.PRIVATE))['management']['jwt'],'service_role');print(json.dumps(v))";
- const result=Bun.spawnSync(['/usr/sbin/runuser','-u','sbarbase','--','/usr/bin/python3','-c',script,ROOT],{cwd:ROOT,env:{PATH:'/usr/local/bin:/usr/bin:/bin',HOME:'/home/sbarbase'},stdout:'pipe',stderr:'pipe',timeout:10000});
+ const result=Bun.spawnSync(['/usr/sbin/runuser','-u','sbarbase','--','/usr/bin/python3','-c',script,ROOT],{cwd:ROOT,env:{PATH:'/usr/local/bin:/usr/bin:/bin',HOME:'/home/sbarbase',...(publicUrl===undefined?{}:{SBARBASE_PUBLIC_URL:publicUrl})},stdout:'pipe',stderr:'pipe',timeout:10000});
  need(result.exitCode===0);const realm=JSON.parse(result.stdout.toString());
  need(typeof realm.auth==='string'&&/^http:\/\/[0-9.]+:[0-9]+\/?$/.test(realm.auth)&&typeof realm.key==='string'&&typeof realm.serviceToken==='string'&&typeof realm.process==='string');
- return {...realm,checkout:ROOT,controller:server.url,controllerProcess:server.pid+':'+readFileSync('/proc/'+server.pid+'/stat','utf8').split(') ')[1]!.split(' ')[19]};
+ return {...realm,checkout:ROOT,publicUrl:publicUrl??null,controller:server.url,controllerProcess:server.pid+':'+readFileSync('/proc/'+server.pid+'/stat','utf8').split(') ')[1]!.split(' ')[19]};
 }
 function privateFolder(){
  root();

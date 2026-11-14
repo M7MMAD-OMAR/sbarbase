@@ -19,10 +19,10 @@
 
 - [x] Read-only preflight: clean remote tracked source at15b9647, systemd service active, healthy private/public endpoints, sufficient disk and no observed pending operations.
 - [x] Choose documented `upgrade.py check --to SHA` and `start --to SHA`, preserving backup and SQLite snapshot safeguards. Do not deploy by copying live source files or plain Git checkout.
-- [ ] Freeze one reviewed SHA, transfer its Git objects without moving serving HEAD, run the guarded upgrade as the service account and restart once.
-- [ ] Measure the interruption. An ordinary restart on this explicit development-ref path stops/restarts owned containers and preserves volumes; no zero-outage promise is made.
-- [ ] Verify exact deployed source, confirmed upgrade, native health, schema migration, unauthenticated MCP refusal and current console assets.
-- [ ] Inspect native Studio Templates list/editor and compare cold/warm loading. No OTP, recovery or other real email smoke tests.
+- [x] Freeze one reviewed SHA, transfer its Git objects without moving serving HEAD, run the guarded upgrade as the service account and restart once.
+- [x] Measure the interruption. An ordinary restart on this explicit development-ref path stops/restarts owned containers and preserves volumes; no zero-outage promise is made.
+- [x] Verify exact deployed source, confirmed upgrade, native health, schema migration, unauthenticated MCP refusal and current console assets.
+- [x] Inspect native Studio Templates list/editor and compare cold/warm loading. No OTP, recovery or other real email smoke tests.
 
 ## Exact i2s cleanup
 
@@ -38,3 +38,5 @@
 - [ ] Record fresh source-bound checks and independent reports.
 - [ ] Distinguish deployed outcomes, measured limits and any user-only credential prerequisite.
 - [ ] Keep owner credentials out of Git, command arguments, logs and reports.
+
+Initial guarded rollout of `230693f` passed 10 live checks. Observed first failed health sample to the next healthy sample: 49.7 seconds. Native Templates list and editor render. The first sole-owner recovery attempt refused before artifacts, latch or factor mutation: the host reader did not inherit the validated service public URL. A followup corrects canonical process configuration propagation and requires fresh checks and review before retry.
