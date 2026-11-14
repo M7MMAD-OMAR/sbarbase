@@ -42,6 +42,7 @@ class BackupFileRace(unittest.TestCase):
                                     ('ownership', lambda e: None), ('storage_image', lambda: 'fixture'),
                                     ('sql', lambda *args: json.dumps(inventory))]:
                     stack.enter_context(patch.object(backup, name, value))
+                stack.enter_context(patch.object(backup.pgmq_legacy, 'capture', lambda *a: None))
                 try:
                     result = backup.create(E)
                 except backup.BackupError:

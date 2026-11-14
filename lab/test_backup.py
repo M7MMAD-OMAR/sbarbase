@@ -25,6 +25,14 @@ class Fixture(unittest.TestCase):
         self.state = root / 'state'
         self.state.mkdir()
         (self.state / 'endpoints.json').write_text(json.dumps({E: {'auth': 'http://auth.invalid'}}))
+        # Legacy PGMQ handling has its own tests (test_pgmq_legacy, lab/pgmq-check.py).
+        for target, value in (('archive_toc', lambda *a: ''),):
+            patcher = patch.object(backup, target, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        patcher = patch.object(backup.pgmq_legacy, 'capture', lambda *a: None)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         for target, value in (('BACKUPS', self.backups), ('STATE', self.state)):
             patcher = patch.object(backup, target, value)
             patcher.start()

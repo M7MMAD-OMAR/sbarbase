@@ -6,9 +6,13 @@ Reviewed 2026-11-14. This guide describes supported update paths and rollback bo
 
 ## Current release advisory
 
-Public release 0.12.2 declares a manual PGMQ ownership and backup-metadata migration. The ordinary 0.11.2 updater refuses it; acknowledging a console prompt cannot override that classification. A qualified general migration path for this transition is still incomplete. Do not remove the migration from `release.json` or use `--to` to force it.
+Version 0.13.1 drops the PGMQ migration declaration that made 0.12.0 to 0.13.0 manual, so the ordinary updater of 0.11.2 and later offers it as a normal update. It is dropped because the PGMQ repair no longer runs during an update or by itself: Studio, direct database access and a write pause leave a legacy extension as it is.
 
-Version 0.13.0 retains `minimum_from: 0.3.1` and the inherited PGMQ ownership and backup-metadata migration declaration. The update class remains manual: the migration needs manual handling before installation, and automatic updates are refused. Running version 0.12.2 does not prove migration completion, and no completion check qualifies this transition. Do not remove the declaration or force the ordinary updater. Service image locks do not change.
+An environment whose `pgmq` extension still belongs to the cluster's `postgres` role is legacy. Its native logical backups cannot hold its queues, so from 0.13.1 each backup of it also writes `pgmq.sql`, the rows of every ordinary queue read in the same snapshot as the dump. Restoring a legacy archive replays that file. An archive without it, such as any backup an older version took before the update, is refused unless you pass `--accept-pgmq-loss`. Partitioned queues are not captured.
+
+To repair a legacy environment, run `/usr/bin/python3 lab/backup.py repair-pgmq <environment>` as the installation user. It takes a verified backup that holds the queues, applies the repair in one transaction, then takes a native backup and checks that it holds every queue. It refuses partitioned queues and changes nothing then. Moving back to an older version afterwards does not undo the repair.
+
+Version 0.13.0 kept the inherited declaration, so its update class was manual and the ordinary updater refused it.
 
 Startup migrates catalog schema 9 to 10 and personal-access-token schema 0 to 1. Legacy tokens retain reads only; issue new tokens with explicit write capabilities when needed. New tokens default to reads, and dangerous operations need explicit grants. The upgrade takes control-state snapshots for failure recovery. After guarded confirmation, downgrade to an older catalog or personal-access-token schema is refused; rollback between revisions with compatible schemas is not excluded by this boundary. Do not treat snapshots as an unrestricted downgrade path.
 

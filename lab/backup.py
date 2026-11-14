@@ -74,6 +74,7 @@ import data_api
 import image_identity
 import runtime_files
 import backup_consistency
+import pgmq_legacy
 import scheduled_jobs
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -449,6 +450,12 @@ def create(e, keep=DEFAULT_KEEP, now=None, reason=None, protected=None):
             object_rows = backup_consistency.inventory(sys.modules[__name__], e, exported)
         except backup_consistency.ConsistencyError as error:
             raise BackupError(str(error)) from None
+        # Queues of an extension the PGMQ repair has not reconciled are not in the dump: their
+        # rows go beside it, read in the same snapshot (lab/pgmq_legacy.py).
+        try:
+            legacy_queues = pgmq_legacy.capture(sys.modules[__name__], e, exported, target)
+        except pgmq_legacy.LegacyError as error:
+            raise BackupError(str(error)) from None
     # Bind referenced native files to the exact exported database snapshot.
     fd = os.open(target / 'objects.tar', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, 'wb') as handle:
@@ -469,6 +476,8 @@ def create(e, keep=DEFAULT_KEEP, now=None, reason=None, protected=None):
         'images': {'db': json.loads((ROOT / 'lab' / 'distro-image.lock.json').read_text())['id'],
                    'storage': storage_image()},
     }
+    if legacy_queues is not None:
+        manifest['pgmq'] = legacy_queues
     if reason is not None:
         manifest['reason'] = reason
     write_private(target / 'manifest.json', json.dumps(manifest, indent=2) + '\n')
@@ -672,7 +681,69 @@ def verify(e, path, *, staged_stamp=None):
             raise BackupError(f'Backup {part} file is missing')
         if file.stat().st_size != item['bytes'] or digest(file) != item['sha256']:
             raise BackupError(f'Backup {part} file does not match its digest')
+    if 'pgmq' in manifest:
+        try:
+            pgmq_legacy.verify(manifest['pgmq'], path)
+        except pgmq_legacy.LegacyError as error:
+            raise BackupError(str(error)) from None
     return manifest
+
+
+def files_of(path):
+    """The files of an environment backup folder: the native three, and the legacy PGMQ
+    supplement when the backup has one."""
+    names = ['database.dump', 'objects.tar', 'manifest.json']
+    if (path / pgmq_legacy.FILE).is_file():
+        names.append(pgmq_legacy.FILE)
+    return names
+
+
+def archive_toc(admitted, path):
+    """`pg_restore -l` of a backup's native archive, read inside the pinned database container."""
+    with (path / 'database.dump').open('rb') as source:
+        return run(['docker', 'exec', '-i', admitted['db'], 'pg_restore', '-l'], stdin=source, text=False).stdout.decode()
+
+
+def repair_pgmq(e, keep=DEFAULT_KEEP):
+    """The qualified PGMQ repair of one environment: a verified backup that holds the legacy
+    queues, the repair in one transaction, then a native backup verified to hold every queue.
+    Returns (before, after) backup names, or None when the extension needs no repair."""
+    if e not in published():
+        raise BackupError('Only a published environment can be repaired')
+    try:
+        found = pgmq_legacy.inventory(sql, e)
+    except (ValueError, pgmq_legacy.LegacyError) as error:
+        raise BackupError(f'The PGMQ extension of {e} could not be read ({error})') from None
+    if found is None:
+        return None
+    if found['unsupported']:
+        raise BackupError('The PGMQ repair is refused: ' + '; '.join(found['unsupported'])
+                          + '. Nothing was changed')
+    before, manifest = create(e, keep)
+    verify(e, before)
+    kept = {queue['name'] for queue in (manifest.get('pgmq') or {}).get('queues', [])}
+    if kept != {queue['name'] for queue in found['queues']} or (manifest.get('pgmq') or {}).get('unsupported'):
+        raise BackupError(f'The backup {before.name} does not hold every legacy queue; nothing was changed')
+    import durable_runtime
+    try:
+        durable_runtime.Runtime().sql(data_api.SAFE + durable_runtime.DEVELOPER_BOUNDS
+                                      + durable_runtime.studio_extensions.prepare_sql(e, repair=True), e)
+    except Exception as error:
+        raise BackupError(f'The PGMQ repair of {e} failed ({type(error).__name__}) and was rolled back; '
+                          f'the backup {before.name} holds the queues') from None
+    if pgmq_legacy.legacy(pgmq_legacy.extension(sql, e)):
+        raise BackupError(f'The PGMQ repair of {e} did not take effect; the backup {before.name} holds the queues')
+    # A new name for the second backup, whose time is to the second; the first stays out of pruning.
+    time.sleep(1.1)
+    after, _ = create(e, keep, protected=set(upgrade_runs()) | {before.name})
+    verify(e, after)
+    toc = archive_toc(preflight(), after)
+    missing = [f'{kind}_{name}' for name in kept for kind in ('q', 'a')
+               if not re.search(rf'\bTABLE DATA pgmq {kind}_{re.escape(name)}\b', toc)]
+    if pgmq_legacy.archive_shape(toc) != 'native' or missing:
+        raise BackupError(f'The backup {after.name} after the PGMQ repair does not hold every queue '
+                          f"({', '.join(missing) or 'pgmq.meta'}); keep {before.name}")
+    return before.name, after.name
 
 
 def verify_management(path):
@@ -750,12 +821,13 @@ def scope_services(scope):
     return service_names(scope)
 
 
-def start_scope(scope):
-    """Start what a restore of this scope stopped besides Storage, and wait until it answers."""
+def start_scope(scope, restored=False):
+    """Start what a restore of this scope stopped besides Storage, and wait until it answers.
+    `restored` only after a completed restore; a rolled back one reopens the original data."""
     if scope == MANAGEMENT:
         wait_management(start_management())
     elif scope != STORAGE:
-        start_services(scope)
+        start_services(scope, restored=restored)
         wait_healthy(scope)
 
 
@@ -862,8 +934,10 @@ def require_service_images(e):
                               'start Sbarbase so it replaces the container')
 
 
-def start_services(e):
-    """Start Auth and REST again and publish their addresses, which a restart may change."""
+def start_services(e, restored=False):
+    """Start Auth and REST again and publish their addresses, which a restart may change.
+    `restored` is a completed restore: its data came from an archive the legacy PGMQ guard
+    admitted, so the PGMQ repair runs; a live database (a write pause) keeps its shape."""
     require_service_images(e)
     import durable_runtime
     # The restored database may bring a REST login without the pin (an archive from before it), and
@@ -882,7 +956,7 @@ def start_services(e):
         # CREATE EXTENSION ran under the staged database name. Reconcile its
         # database-local ownership after cutover, before Auth and REST resume.
         runtime.sql(data_api.SAFE + durable_runtime.DEVELOPER_BOUNDS +
-                    durable_runtime.studio_extensions.prepare_sql(e), e)
+                    durable_runtime.studio_extensions.prepare_sql(e, repair=restored), e)
     except Exception as error:
         raise BackupError(f'The database setup of {e} could not be completed after the restore ({type(error).__name__}); '
                           'Auth and REST stay stopped, and the next start of Sbarbase starts them') from None
@@ -1089,7 +1163,7 @@ def complete_restore(scope, name, stamp):
     try:
         if scope == STORAGE or checkpoint['version'] == 2:
             wait_storage(start_storage())
-        start_scope(scope)
+        start_scope(scope, restored=True)
         atomic_private(archive / ('restore-' + stamp + '.json'), record)
         checkpoint['status'] = 'completed'
         atomic_private(completion_path(scope), checkpoint)
@@ -1153,9 +1227,10 @@ def fsync_directory(path):
         os.close(fd)
 
 
-def restore(e, name, now=None):
+def restore(e, name, now=None, accept_pgmq_loss=False):
     import restore_cutover
-    return restore_cutover.restore(sys.modules[__name__], e, name, now or datetime.datetime.now(datetime.UTC))
+    return restore_cutover.restore(sys.modules[__name__], e, name, now or datetime.datetime.now(datetime.UTC),
+                                   accept_pgmq_loss=accept_pgmq_loss)
 
 
 def restore_storage(name, now=None):
@@ -1259,6 +1334,11 @@ def main(argv=None):
     back.add_argument('environment')
     back.add_argument('backup')
     back.add_argument('--offsite', action='store_true', help='fetch the backup from the off-host target first')
+    back.add_argument('--accept-pgmq-loss', action='store_true',
+                      help='restore a backup taken before the PGMQ repair that holds no queue data')
+    mend = sub.add_parser('repair-pgmq', help='back up legacy PGMQ queues, repair the extension, verify a new backup')
+    mend.add_argument('environment')
+    mend.add_argument('--keep', type=int, default=DEFAULT_KEEP)
     shared = sub.add_parser('restore-storage', help="replace Storage's shared metadata database with a backup of it")
     shared.add_argument('backup')
     shared.add_argument('--offsite', action='store_true', help='fetch the backup from the off-host target first')
@@ -1336,7 +1416,7 @@ def main(argv=None):
             start_database()
             print(f'{DB} runs; nothing else was started. Restore what you need, then start Sbarbase.')
             return 0
-        if args.command in ('create', 'restore', 'restore-storage', 'restore-management', 'discard-previous'):
+        if args.command in ('create', 'restore', 'restore-storage', 'restore-management', 'discard-previous', 'repair-pgmq'):
             preflight()
         private_dir(BACKUPS)
         with (STATE / 'backup.lock').open('a') as lock:
@@ -1437,9 +1517,18 @@ def main(argv=None):
                 if args.offsite and not (BACKUPS / e / args.backup).exists():
                     import backup_offsite
                     backup_offsite.fetch(args.backup)
-                record = restore(e, args.backup)
+                record = restore(e, args.backup, accept_pgmq_loss=args.accept_pgmq_loss)
                 print(f"restored {e} from {args.backup}; the previous state is kept as {record['previous_database']} "
                       f"until: backup.py discard-previous {e}")
+                return 0
+            if args.command == 'repair-pgmq':
+                e = resolve(args.environment)
+                result = repair_pgmq(e, args.keep)
+                if result is None:
+                    print(f'{e}: PGMQ needs no repair')
+                else:
+                    print(f'{e}: PGMQ repaired; backup {result[0]} holds the queues before the repair, '
+                          f'backup {result[1]} holds them natively after it')
                 return 0
             if args.command == 'restore-storage':
                 if args.offsite and not (BACKUPS / STORAGE / args.backup).exists():

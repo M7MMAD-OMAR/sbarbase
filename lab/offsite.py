@@ -404,7 +404,7 @@ def push(targets, config=None):
                 continue
             backup.verify(e, path)
             base = f"{config['prefix']}/{e}/{path.name}"
-            for file in FILES:
+            for file in backup.files_of(path):
                 bucket.put_file(f'{base}/{file}.sbb', path / file, config['passphrase'])
             # Written last: a copy without it is an interrupted upload and is never fetched.
             bucket.put_bytes(f'{base}/complete', b'')
@@ -451,7 +451,9 @@ def fetch(e, stamp, config=None):
     partial.mkdir(mode=0o700)
     promoted = False
     try:
-        for file in FILES:
+        # The legacy PGMQ supplement only when the manifest names one (lab/pgmq_legacy.py).
+        files = list(FILES)
+        for file in files:
             response = bucket.request('GET', f"{config['prefix']}/{e}/{stamp}/{file}.sbb", stream=True)
             if isinstance(response, bytes):
                 raise OffsiteError(f'{file} is missing from the copy')
@@ -459,6 +461,8 @@ def fetch(e, stamp, config=None):
                 decrypt_stream(response, partial / file, config['passphrase'])
             finally:
                 response.close()
+            if file == 'manifest.json' and 'pgmq' in json.loads((partial / file).read_text()):
+                files.append(backup.pgmq_legacy.FILE)
         manifest = backup.verify(e, partial, staged_stamp=stamp)
         if type(manifest.get('created_at')) is not str or manifest['created_at'] != stamp:
             raise OffsiteError('Backup creation time does not match the requested backup name')

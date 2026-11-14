@@ -210,6 +210,9 @@ class NativeModel:
                     return model.actual or '2|2'
                 if query == 'SELECT pg_backend_pid();':
                     return model.pid
+                if query.startswith('-- Sbarbase legacy PGMQ supplement'):
+                    model.supplements.append(query)
+                    return ''
                 if query.lstrip().startswith('ALTER DATABASE '):
                     model.metadata.append(query)
                 if query.startswith('SET max_parallel_workers_per_gather=0;') or query.lstrip().startswith('ALTER DATABASE '):
@@ -255,7 +258,8 @@ class NativeModel:
         patches = {'run': self.run, 'sql': self.sql, 'helper': self.helper,
                    'resolve_storage_image': lambda: ('qualified-pin', 'sha256:' + 'f' * 64),
                    'start_storage': self.start_storage, 'wait_storage': lambda *a: None,
-                   'start_services': lambda *a: self.event('start-services'), 'wait_healthy': lambda *a: self.event('wait-healthy'),
+                   'start_services': lambda *a, **k: self.event('start-services'),
+                   'archive_toc': lambda *a: '', 'wait_healthy': lambda *a: self.event('wait-healthy'),
                    'start_management': self.start_management, 'wait_management': self.wait_management,
                    'require_service_images': self.service_checks.append}
         for name, value in patches.items():
@@ -300,6 +304,41 @@ class CutoverTests(Fixture):
             self.assertEqual(next(event for event in model.events if event[0] == 'open')[1], 'open-intent')
             self.assertEqual(model.journal()['phase'], 'completed')
             self.assertEqual(model.trees[E], model.identity('2'))
+
+    def test_legacy_pgmq_archive_without_supplement_refuses_before_anything_changes(self):
+        legacy = '3; 3079 16384 EXTENSION - pgmq\n'
+        with NativeModel(self) as model, patch.object(backup, 'archive_toc', lambda *a: legacy):
+            model.supplements = []
+            with self.assertRaisesRegex(backup.BackupError, 'accept-pgmq-loss'):
+                model.restore()
+            self.assertEqual(model.events, [])
+            self.assertIsNone(model.journal())
+        with NativeModel(self) as model, patch.object(backup, 'archive_toc', lambda *a: legacy):
+            model.supplements = []
+            restore_cutover.restore(backup, E, NAME, NOW, accept_pgmq_loss=True)
+            self.assertEqual(model.supplements, [])
+
+    def test_legacy_pgmq_supplement_is_verified_and_replayed_in_the_fenced_stage(self):
+        import hashlib
+        path = backup.BACKUPS / E / NAME
+        data = b'-- Sbarbase legacy PGMQ supplement, format 1.\nSELECT 1;\n'
+        (path / 'pgmq.sql').write_bytes(data)
+        manifest = json.loads((path / 'manifest.json').read_text())
+        manifest['pgmq'] = {'format': 1, 'file': 'pgmq.sql', 'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest(),
+                            'version': '1.5.1', 'queues': [{'name': 'jobs', 'messages': 1, 'archived': 0, 'unlogged': False}],
+                            'unsupported': []}
+        (path / 'manifest.json').write_text(json.dumps(manifest))
+        legacy = '3; 3079 16384 EXTENSION - pgmq\n'
+        with NativeModel(self) as model, patch.object(backup, 'archive_toc', lambda *a: legacy):
+            model.supplements = []
+            model.restore()
+            self.assertEqual(model.supplements, [data.decode()])
+            self.assertEqual(model.journal()['phase'], 'completed')
+        (path / 'pgmq.sql').write_bytes(b'-- Sbarbase legacy PGMQ supplement, format 1.\nSELECT 2;\n')
+        with NativeModel(self) as model, patch.object(backup, 'archive_toc', lambda *a: legacy):
+            with self.assertRaisesRegex(backup.BackupError, 'digest'):
+                model.restore()
+            self.assertEqual(model.events, [])
 
     def test_prepared_transactions_refuse_before_journal_or_mutation(self):
         with NativeModel(self) as model:

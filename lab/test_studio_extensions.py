@@ -55,8 +55,15 @@ class StudioExtensionTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError,'container identity'):
             studio_extensions.install(docker,'not-a-container',image,owner)
 
-    def test_existing_hosted_ownership_is_repaired_without_dropping_the_extension(self):
+    def test_studio_and_direct_access_defer_the_legacy_repair(self):
         text=studio_extensions.prepare_sql(E)
+        self.assertNotIn('extowner',text)
+        self.assertNotIn('ALTER EXTENSION',text)
+        self.assertNotIn('RAISE EXCEPTION',text)
+        self.assertIn('CREATE SCHEMA IF NOT EXISTS pgmq',text)
+
+    def test_existing_hosted_ownership_is_repaired_without_dropping_the_extension(self):
+        text=studio_extensions.prepare_sql(E, repair=True)
         self.assertIn("r.rolname = 'postgres'",text)
         self.assertIn("e.extversion = '1.5.1'",text)
         self.assertIn('extowner = owner_role::regrole',text)

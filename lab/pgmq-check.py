@@ -1,7 +1,7 @@
 """Disposable real PGMQ and Studio permission check. No existing database is used."""
-import subprocess,json,time,uuid,urllib.request
+import subprocess,json,time,uuid,urllib.request,tempfile
 from pathlib import Path
-import durable_runtime as runtime,studio
+import durable_runtime as runtime,studio,pgmq_legacy
 root=Path(__file__).resolve().parents[1]; prefix='sbarbase-pgmq-'+uuid.uuid4().hex[:10]; db=prefix+'-db';net=prefix+'-net';meta=prefix+'-meta'
 e='e_'+'a'*24; other='e_'+'b'*24;password='isolated-pgmq-fixture-only'
 def docker(*args,input=None,check=True):
@@ -34,8 +34,63 @@ try:
  def adapter_docker(*args,data=None):return docker(*args,input=data)
  studio.studio_extensions.install(adapter_docker,container,image,prefix)
  studio.studio_extensions.install(adapter_docker,container,image,prefix)
+ # The bridge: Studio and direct access prepare the schema but leave a legacy extension as it is.
+ sql("SELECT pgmq.create('second'); SELECT pgmq.send('second','{\"n\":1}'::jsonb); SELECT pgmq.send('second','{\"n\":2}'::jsonb); SELECT pgmq.archive('second',1);",e)
+ sql(studio.role_sql(e,password),e)
+ sql(r.developer_sql(e,password),e)
+ legacy_shape=lambda:pgmq_legacy.legacy(pgmq_legacy.extension(lambda q,d:sql(q,d).stdout,e))
+ assert legacy_shape(),'Studio or direct access repaired a legacy extension'
+ print('legacy extension left unrepaired by Studio and direct access')
+ # A backup's supplement, read in the same exported snapshot as its native dump.
+ class Api:
+  @staticmethod
+  def sql(q,d):return sql(q,d).stdout.strip()
+  @staticmethod
+  def psql(d):return ['docker','exec','-i','-e','PGPASSWORD='+password,db,'psql','-X','-h','127.0.0.1','-U','supabase_admin','-d',d,'-v','ON_ERROR_STOP=1','-qAt']
+ holder=subprocess.Popen(Api.psql(e),stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+ holder.stdin.write('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;\nSELECT pg_export_snapshot();\n');holder.stdin.flush()
+ exported=holder.stdout.readline().strip()
+ sql("SELECT pgmq.send('existing','{\"after\":true}'::jsonb);",e)  # outside the snapshot
+ folder=Path(tempfile.mkdtemp(prefix='sbarbase-pgmq-'))
+ dump=subprocess.run(['docker','exec',db,'pg_dump','-U','supabase_admin','-Fc','--snapshot='+exported,'-d',e],capture_output=True,timeout=90).stdout
+ entry=pgmq_legacy.capture(Api,e,exported,folder)
+ holder.stdin.write('COMMIT;\n');holder.stdin.close();holder.wait(timeout=30)
+ assert [q['name'] for q in entry['queues']]==['existing','second'] and not entry['unsupported'],entry
+ assert [(q['messages'],q['archived']) for q in entry['queues']]==[(1,0),(1,1)],entry
+ pgmq_legacy.verify(entry,folder)
+ toc=subprocess.run(['docker','exec','-i',db,'pg_restore','-l'],input=dump,capture_output=True,timeout=90).stdout.decode()
+ assert pgmq_legacy.archive_shape(toc)=='legacy' and 'TABLE DATA pgmq q_existing' not in toc
+ assert pgmq_legacy.restorable('legacy',{})is not None and pgmq_legacy.restorable('legacy',{'pgmq':entry}) is None
+ print('legacy backup supplement captured in the dump snapshot; archive without it is refused')
+ # The restore path: the archive replayed through the real plan into a stage, the supplement, then the repair.
+ import io
+ from restore_sql import plan_archive
+ stage=e+'_stage_x'
+ generated=subprocess.run(['docker','exec','-i',db,'pg_restore','--create','--exit-on-error','--file=-'],input=dump,capture_output=True,timeout=90)
+ assert not generated.stderr,generated.stderr
+ body=io.StringIO();plan=plan_archive(io.StringIO(generated.stdout.decode()),body,e,stage)
+ sql(plan.create)
+ sql(body.getvalue()+'\n'+(folder/pgmq_legacy.FILE).read_text()+'\n'+'\n'.join(plan.metadata),stage)
+ assert sql("SELECT message FROM pgmq.q_existing;",stage).stdout.strip()=='{"retained": true}'
+ assert sql("SELECT count(*) FROM pgmq.a_second; SELECT count(*) FROM pgmq.q_second;",stage).stdout.split()==['1','1']
+ sql('ALTER DATABASE '+e+' RENAME TO '+e+'_pre_x; ALTER DATABASE '+stage+' RENAME TO '+e+';')
+ sql(studio.studio_extensions.prepare_sql(e,repair=True),e)
  sql(studio.role_sql(e,password),e)
  assert sql("SELECT message FROM pgmq.q_existing;",e,e+'_studio').stdout.strip()=='{"retained": true}'
+ assert sql("SELECT pgmq.send('second','{}'::jsonb);",e,e+'_studio').stdout.strip()=='3'
+ print('restore replayed the legacy supplement; queues, archive and sequence restored')
+ # Back to the original legacy database for the qualified repair.
+ sql('ALTER DATABASE '+e+' RENAME TO '+e+'_restored_x; ALTER DATABASE '+e+'_pre_x RENAME TO '+e+';')
+ assert legacy_shape()
+ sql(studio.studio_extensions.prepare_sql(e,repair=True),e)
+ assert not legacy_shape()
+ sql(studio.role_sql(e,password),e)
+ assert sql("SELECT message FROM pgmq.q_existing ORDER BY msg_id LIMIT 1;",e,e+'_studio').stdout.strip()=='{"retained": true}'
+ repaired_toc=subprocess.run(['docker','exec','-i',db,'pg_restore','-l'],input=subprocess.run(['docker','exec',db,'pg_dump','-U','supabase_admin','-Fc','-d',e],capture_output=True,timeout=90).stdout,capture_output=True,timeout=90).stdout.decode()
+ assert pgmq_legacy.archive_shape(repaired_toc)=='native' and 'TABLE DATA pgmq q_second' in repaired_toc
+ sql('SELECT pgmq.drop_queue(\'second\');',e,e+'_studio')
+ sql('DELETE FROM pgmq.q_existing WHERE message ? \'after\';',e,e+'_studio')
+ print('qualified repair produced a native archive holding every queue')
  repaired=docker('exec',db,'pg_dump','-U','supabase_admin','-d',e,'--data-only','--no-owner','--no-privileges').stdout
  assert 'COPY pgmq.q_existing' in repaired and 'COPY pgmq.meta' in repaired
  sql('TRUNCATE pgmq.q_existing, pgmq.meta;',e)

@@ -7,6 +7,7 @@ are fenced by ALLOW_CONNECTIONS, not by connection limits or random names.
 import backup_consistency
 import contextlib
 import json
+import pgmq_legacy
 import tempfile
 import time
 
@@ -125,7 +126,7 @@ def archive_sql(api, admitted, archive, database, stage):
             yield plan, replay
 
 
-def restore(api, scope, name, now):
+def restore(api, scope, name, now, accept_pgmq_loss=False):
     api.no_pending_completion()
     database = api.scope_database(scope)
     archive = api.BACKUPS / scope / name
@@ -137,6 +138,19 @@ def restore(api, scope, name, now):
     elif scope not in api.DATABASE_SCOPES and scope not in api.published():
         raise api.BackupError('Only a published environment can be restored')
     admitted = api.preflight()
+    supplement = None
+    if scope not in api.DATABASE_SCOPES:
+        # An archive taken before the PGMQ repair holds no queue: its supplement brings them
+        # back, and without one the restore is refused unless the operator accepts the loss.
+        shape = pgmq_legacy.archive_shape(api.archive_toc(admitted, archive))
+        refusal = pgmq_legacy.restorable(shape, manifest, accept_pgmq_loss)
+        if refusal:
+            raise api.BackupError(refusal)
+        if shape == 'legacy' and manifest.get('pgmq'):
+            try:
+                supplement = pgmq_legacy.verify(manifest['pgmq'], archive).decode('utf-8')
+            except (pgmq_legacy.LegacyError, UnicodeDecodeError) as error:
+                raise api.BackupError(str(error)) from None
     storage_cid = storage(api)
     if scope not in api.DATABASE_SCOPES:
         # Before anything stops: services on another release's image are never started on restored data.
@@ -201,6 +215,8 @@ def restore(api, scope, name, now):
                 phase(api, journal, 'stage-fenced')
                 held.execute('SET max_parallel_workers_per_gather=0; SET max_parallel_maintenance_workers=0;')
                 held.replay(replay)
+                if supplement is not None:
+                    held.execute(supplement)
                 held.execute('\n'.join(plan.metadata))
                 actual, expected = api.restore_counts(scope, held.execute), api.expected_counts(scope, manifest)
                 if actual != expected or held.execute('SELECT pg_backend_pid();') != pid:

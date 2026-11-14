@@ -8,15 +8,29 @@ PGMQ_SCRIPT = '/etc/postgresql-custom/extension-custom-scripts/pgmq/after-create
 SOURCE = Path(__file__).resolve().parent / 'postgres/pgmq-after-create.sql'
 
 
-def prepare_sql(environment):
-    """Prepare the fixed schema and reconcile only the former hosted-role ownership.
+def prepare_sql(environment, repair=False):
+    """Prepare the fixed schema; with repair, also reconcile the former hosted-role ownership.
 
-    Runs under the existing bounded, pg_catalog-pinned platform provisioner.
-    Existing queues are retained. No extension is activated automatically.
+    Runs under the existing bounded, pg_catalog-pinned platform provisioner. No extension is
+    activated automatically. The repair makes legacy queues part of native logical backups, so
+    it runs only where a backup cannot lose them: lab/backup.py repair-pgmq after a verified
+    backup with the legacy supplement (lab/pgmq_legacy.py), and a restore whose archive passed
+    the legacy guard. Studio, direct database access and a write pause leave a legacy extension
+    as it is and only prepare the schema.
     """
     if not re.fullmatch(r'e_[a-f0-9]{24}', environment):
         raise ValueError('Invalid environment')
     developer = environment + '_developer'
+    if not repair:
+        return f"""DO $studio_extensions$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = '{developer}')
+     AND EXISTS (SELECT 1 FROM pg_catalog.pg_available_extensions WHERE name = 'pgmq') THEN
+    CREATE SCHEMA IF NOT EXISTS pgmq AUTHORIZATION {developer};
+    GRANT USAGE, CREATE ON SCHEMA pgmq TO {developer};
+  END IF;
+END $studio_extensions$;
+"""
     repair = SOURCE.read_text().replace("'", "''")
     return f"""DO $studio_extensions$
 BEGIN

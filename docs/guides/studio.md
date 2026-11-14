@@ -75,9 +75,7 @@ CI starts Studio on a clean machine with every change, uses the table list, SQL,
 
 ## Extension prerequisites on shared databases
 
-Public source 0.12.2 contains a PGMQ ownership and backup-metadata adapter. This is a declared manual migration, not part of the owner's private console update above 0.11.2. Do not assume the adapter is installed because Studio lists an extension. Applying it needs a qualified migration and backup/recovery path; see [upgrades](upgrades.md) and [capabilities](agents.md#discover-capabilities-before-changing-a-project).
-
-On a qualified installation using that adapter, the provisioner prepares the fixed schema and reconciles pgmq 1.5.1 ownership, refusing unexpected versions or schemas. Backup qualification covers ordinary non-partitioned queues only. Application-code rollback does not undo database ownership or queue backup metadata changes. This describes conditional source behavior, not a migration accepted on every existing installation.
+Opening Studio prepares the fixed `pgmq` schema for the environment's developer role. A `pgmq` extension activated from 0.12.0 on belongs to that role and its queues are in native backups. An extension activated earlier still belongs to the cluster's `postgres` role: Studio leaves it as it is, so its queues may not be usable from Studio until the operator runs the qualified repair described in [upgrades](upgrades.md). The repair accepts pgmq 1.5.1 in the `pgmq` schema and ordinary non-partitioned queues only, and moving back to an older version does not undo it. See also [capabilities](agents.md#discover-capabilities-before-changing-a-project).
 
 Shared server statistics remain blocked for tenant isolation, so Query Performance requiring `pg_stat_statements` is unavailable on this topology.
 

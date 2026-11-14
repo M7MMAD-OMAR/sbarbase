@@ -58,6 +58,8 @@ CATALOG_COLUMNS = {
     'auth_settings': ('runtime', 'revision', 'applied', 'state'),
 }
 ENVIRONMENT_FILES = ('database.dump', 'objects.tar', 'manifest.json')
+# An environment backup of legacy PGMQ queues also holds their supplement (lab/pgmq_legacy.py).
+ENVIRONMENT_ALLOWED = ENVIRONMENT_FILES + ('pgmq.sql',)
 INSTALLATION_FILES = ('installation.json', 'manifest.json')
 STORAGE_FILES = ('database.dump', 'manifest.json')
 MAGIC = b'SBBKUP1\n'
@@ -380,7 +382,7 @@ class Reader:
 def pack(stamp, runtimes, key, handle):
     """Tar one run's backups straight into the cipher; no plaintext copy is written."""
     writer = Encrypting(handle, key, stamp)
-    folders = [(e, ENVIRONMENT_FILES) for e in sorted(runtimes)]
+    folders = [(e, backup.files_of(backup.BACKUPS / e / stamp)) for e in sorted(runtimes)]
     # A run taken before Storage metadata was backed up has no such folder.
     if (backup.BACKUPS / backup.STORAGE / stamp / 'manifest.json').is_file():
         folders.append((backup.STORAGE, STORAGE_FILES))
@@ -410,7 +412,7 @@ def unpack(path, key, stamp, staging):
             allowed = match and match[2] == stamp and (
                 member.isdir() if match[3] is None else member.isfile() and match[3] in (
                     {INSTALLATION: INSTALLATION_FILES, backup.STORAGE: STORAGE_FILES,
-                     backup.MANAGEMENT: STORAGE_FILES}.get(match[1], ENVIRONMENT_FILES)))
+                     backup.MANAGEMENT: STORAGE_FILES}.get(match[1], ENVIRONMENT_ALLOWED)))
             if not allowed:
                 raise BackupError('Off-host set holds an unexpected entry')
             archive.extract(member, staging, filter='data')
