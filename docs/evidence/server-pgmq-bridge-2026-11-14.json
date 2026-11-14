@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "observed_on": "2026-11-14",
+  "scope": "Owner server update from source 0044cb6 to signed v0.13.1 through the ordinary release channel; not complete production qualification",
+  "previous_commit": "0044cb6d329d",
+  "deployed_commit": "992be52c9b88209cf3f435effa39a798045170eb",
+  "public_source_release": "v0.13.1",
+  "outcome": "confirmed",
+  "release_channel_before_update": {
+    "updater_commit": "0044cb6d329d",
+    "available": "0.13.1",
+    "class": "safe",
+    "signed": true,
+    "refusals": []
+  },
+  "classifier_replay": {
+    "v0.11.2": "safe",
+    "0044cb6": "safe"
+  },
+  "checks": {
+    "environment_databases": 4,
+    "pgmq_installed_before_update": 0,
+    "published_environments": 3,
+    "auth_health_http": [200, 200, 200],
+    "rest_http": [200, 200, 200],
+    "console_public_http": 200,
+    "upgrade_status": "confirmed",
+    "pre_update_backup_run": "20261114T123004Z",
+    "post_update_backup_run": "20261114T123148Z",
+    "post_update_backups_verified": 3,
+    "post_update_backups_with_pgmq_entry": 0
+  },
+  "local_evidence": {
+    "disposable_check": "lab/pgmq-check.py",
+    "covers": [
+      "Studio and direct access leave a legacy extension unrepaired",
+      "legacy supplement captured in the dump snapshot",
+      "legacy archive without supplement refused",
+      "restore plan plus supplement brings back queue, archive and sequence",
+      "repair then native archive holds every queue"
+    ]
+  },
+  "not_exercised": [
+    "repair-pgmq on a real installation with queues",
+    "a full backup.py restore replaying a supplement through the retained session on a real runtime",
+    "unlogged queues outside unit tests",
+    "partitioned queues (unsupported)",
+    "the console update button itself; the update was started with lab/upgrade.py start --release"
+  ],
+  "independent_review": "not performed; the checkpoint review gates remain unproven"
+}

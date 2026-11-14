@@ -16,7 +16,7 @@ Version 0.13.0 kept the inherited declaration, so its update class was manual an
 
 Startup migrates catalog schema 9 to 10 and personal-access-token schema 0 to 1. Legacy tokens retain reads only; issue new tokens with explicit write capabilities when needed. New tokens default to reads, and dangerous operations need explicit grants. The upgrade takes control-state snapshots for failure recovery. After guarded confirmation, downgrade to an older catalog or personal-access-token schema is refused; rollback between revisions with compatible schemas is not excluded by this boundary. Do not treat snapshots as an unrestricted downgrade path.
 
-The owner's source revision `0044cb6` was deployed and its guarded activation confirmed on 2026-11-14. This is a bounded observation, not verification of an installed public 0.13.0 release or a general migration path from 0.11.2.
+On 2026-11-14 the owner server moved from source revision `0044cb6` to signed release v0.13.1 through the ordinary release channel: the updater at `0044cb6` offered it as class safe and signed, the guarded updater confirmed it, Auth and REST answered for every published environment, and a backup run with the new code verified ([evidence](../evidence/server-pgmq-bridge-2026-11-14.json)). No environment there has `pgmq`, so this observation does not exercise `repair-pgmq` or a supplement restore.
 
 ## Where you see an update
 

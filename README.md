@@ -60,7 +60,7 @@ Reader guides and references are in English and Arabic. The dated engineering no
 
 ## Status
 
-Source release: 0.13.1. Check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for the published release and verified downloadable assets. The owner's guarded updater confirmed source revision `0044cb6` on 2026-11-14; that observation does not identify an installed public 0.13.0 release.
+Source release: 0.13.1. Check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for the published release and verified downloadable assets. The owner server runs signed v0.13.1, installed through the ordinary release channel and confirmed by the guarded updater on 2026-11-14.
 
 The console uses filled surfaces for elevation, persistent navigation, direct project/environment selectors, themed native pickers and project-labelled browser tabs. Original Studio remains a full page.
 
