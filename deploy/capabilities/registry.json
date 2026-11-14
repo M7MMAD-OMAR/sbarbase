@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "version": "0.12.3",
+  "version": "0.13.0",
   "source_algorithm": "sbarbase-public-source-v1",
   "reference": {
     "repository": "https://github.com/supabase/supabase",
