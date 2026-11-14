@@ -28,12 +28,21 @@ try:
   sql(studio.role_sql(name,password),name)
  # Simulate an existing installation made by the unmodified hosted-role hook.
  sql("CREATE EXTENSION pgmq WITH SCHEMA pgmq; SELECT pgmq.create('existing'); SELECT pgmq.send('existing','{\"retained\":true}'::jsonb);",e)
+ before=docker('exec',db,'pg_dump','-U','supabase_admin','-d',e,'--data-only','--no-owner','--no-privileges').stdout
+ assert 'COPY pgmq.q_existing' not in before and 'COPY pgmq.meta' not in before, 'fixture no longer reproduces the old backup gap'
  container=json.loads(docker('inspect',db).stdout)[0]['Id']
  def adapter_docker(*args,data=None):return docker(*args,input=data)
  studio.studio_extensions.install(adapter_docker,container,image,prefix)
  studio.studio_extensions.install(adapter_docker,container,image,prefix)
  sql(studio.role_sql(e,password),e)
  assert sql("SELECT message FROM pgmq.q_existing;",e,e+'_studio').stdout.strip()=='{"retained": true}'
+ repaired=docker('exec',db,'pg_dump','-U','supabase_admin','-d',e,'--data-only','--no-owner','--no-privileges').stdout
+ assert 'COPY pgmq.q_existing' in repaired and 'COPY pgmq.meta' in repaired
+ sql('TRUNCATE pgmq.q_existing, pgmq.meta;',e)
+ sql(repaired,e)
+ assert sql('SELECT message FROM pgmq.q_existing;',e,e+'_studio').stdout.strip()=='{"retained": true}'
+ assert sql("SELECT queue_name FROM pgmq.meta WHERE queue_name='existing';",e,e+'_studio').stdout.strip()=='existing'
+ print('pre-repair backup gap reproduced; repaired existing queue and metadata restored')
  sql("SELECT pgmq.drop_queue('existing'); DROP EXTENSION pgmq;",e,e+'_studio')
  print('existing queue ownership migration preserved data; queue drop passed')
  denied=sql('SELECT current_user,session_user;',other,e+'_studio',False)
