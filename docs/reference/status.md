@@ -8,7 +8,7 @@ Observed through 2026-11-14. A published source release, an installed revision a
 
 | Item | Current observation |
 |---|---|
-| Source release | 0.13.1; check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for publication and downloadable assets |
+| Source release | 0.13.2; check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for publication and downloadable assets |
 | Owner installation | Signed release v0.13.1 (`992be52`), installed through the ordinary release channel and confirmed by the guarded updater on 2026-11-14 ([evidence](../evidence/server-pgmq-bridge-2026-11-14.json)) |
 | Documentation website | [base.sbarah.com](https://base.sbarah.com/), Arabic at `/docs/`, English at `/en/docs/` |
 | Owner console | `https://sbarbase.sbarah.com`; other installations use their own configured origin |

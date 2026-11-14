@@ -12,17 +12,18 @@ What it covers, on real PostgreSQL and real pgmq 1.5.1:
 - row level security filters rows for `authenticated`, and `pgmq.send` works through the grants;
 - a queue dropped and created again during the backup is refused, not copied from another table;
 - a restored sequence continues past every id the source handed out while the backup ran;
+- an unlogged queue comes back unlogged with its rows;
 - a queue with a trigger is reported unsupported, and restore refuses it without the flag;
 - `--accept-pgmq-loss` without a supplement replays without error;
 - a format 1 supplement (the real 0.13.1 code) restores the rows with the queues closed;
 - the qualified repair keeps all of it, and a native dump then holds the policies.
 
-It replays the archive, the supplement and the database metadata in one psql session the way
-lab/restore_cutover.py does, but not the fenced cutover itself (renames, journal, services).
+It plans the archive with lab/restore_cutover.archive_sql and replays it, the supplement and the
+database metadata in one HeldSession, as the cutover does; not the fencing, renames, journal or
+services around it.
 """
 import datetime
 import importlib.util
-import io
 import json
 import re
 import subprocess
@@ -34,8 +35,9 @@ from pathlib import Path
 
 import durable_runtime as runtime
 import pgmq_legacy
+import restore_cutover
 import studio
-from restore_sql import plan_archive
+from restore_session import HeldSession, SessionError
 
 ROOT = Path(__file__).resolve().parents[1]
 PREFIX = 'sbarbase-pgmq-access-' + uuid.uuid4().hex[:10]
@@ -110,15 +112,40 @@ def access(database):
     return json.loads(value(ACCESS, database))
 
 
-def stage(name, dump, omit, supplement='', expect_failure=False):
-    """Replay the archive through the production plan into a new database, then the supplement
-    and the metadata, in one session as lab/restore_cutover.py does."""
-    generated = docker('exec', '-i', DB, 'pg_restore', '--create', '--exit-on-error', '--file=-', data=dump, binary=True)
-    body = io.StringIO()
-    plan = plan_archive(io.StringIO(generated.stdout.decode()), body, E, name, omit)
-    sql(plan.create, 'postgres')
-    result = sql(body.getvalue() + '\n' + supplement + '\n' + '\n'.join(plan.metadata), name, check=not expect_failure)
-    return plan, result
+class Shim:
+    """The two parts of the backup API lab/restore_cutover.archive_sql uses."""
+    BackupError = RuntimeError
+
+    @staticmethod
+    def run(argv, *, stdin=None, stdout=subprocess.PIPE, text=True):
+        result = subprocess.run(argv, stdin=stdin, stdout=stdout, stderr=subprocess.PIPE, text=text, timeout=600)
+        if result.returncode:
+            raise RuntimeError('pg_restore failed')
+        return result
+
+
+def stage(name, dump, omit, supplement=None):
+    """Replay as lab/restore_cutover.py does: the archive planned by archive_sql, then in one
+    HeldSession the replay, the supplement and the database metadata. Returns (plan, failure)."""
+    archive = Path(tempfile.mkdtemp(prefix='sbarbase-pgmq-access-archive-', dir=Path.home() / '.cache'))
+    (archive / 'database.dump').write_bytes(dump)
+    with restore_cutover.archive_sql(Shim, {'db': DB}, archive, E, name, omit) as (plan, replay):
+        sql(plan.create, 'postgres')
+        diagnostic = ''
+        try:
+            with HeldSession(psql(name)) as held:
+                held.execute('SET max_parallel_workers_per_gather=0; SET max_parallel_maintenance_workers=0;')
+                try:
+                    held.replay(replay)
+                    if supplement is not None:
+                        held.execute(supplement)
+                    held.execute('\n'.join(plan.metadata))
+                except SessionError:
+                    diagnostic = held.private_diagnostic.decode(errors='replace')
+                    raise
+        except SessionError as error:
+            return plan, diagnostic or str(error)
+    return plan, None
 
 
 def main():
@@ -145,6 +172,7 @@ def main():
         # The shape an installation made before the repair has: the extension owned by postgres.
         sql("""CREATE EXTENSION pgmq WITH SCHEMA pgmq;
 SELECT pgmq.create('jobs'); SELECT pgmq.create('plain'); SELECT pgmq.create('hooked');
+SELECT pgmq.create_unlogged('fast'); SELECT pgmq.send('fast', '{"n": 1}'); SELECT pgmq.send('fast', '{"n": 2}');
 SELECT pgmq.send('jobs', '{"public": true, "n": 1}'); SELECT pgmq.send('jobs', '{"public": false, "n": 2}');
 SELECT pgmq.send('jobs', '{"public": true, "n": 3}'); SELECT pgmq.archive('jobs', 3::bigint);
 SELECT pgmq.send('plain', '{"n": 1}'); SELECT pgmq.send('plain', '{"n": 2}'); SELECT pgmq.send('plain', '{"n": 3}');
@@ -201,7 +229,7 @@ CREATE TRIGGER noop BEFORE INSERT ON pgmq.q_hooked FOR EACH ROW EXECUTE FUNCTION
         holder.wait(timeout=60)
         supplement = pgmq_legacy.verify(entry, folder).decode()
         record('supplement keeps the supported queues and names its roles',
-               [queue['name'] for queue in entry['queues']] == ['jobs', 'plain']
+               [queue['name'] for queue in entry['queues']] == ['fast', 'jobs', 'plain']
                and {'anon', 'authenticated'} <= set(entry['roles']), json.dumps(entry))
         record('a queue with a trigger is unsupported and restore refuses it without the flag',
                any('trigger q_hooked.noop' in item for item in entry['unsupported'])
@@ -216,19 +244,21 @@ CREATE TRIGGER noop BEFORE INSERT ON pgmq.q_hooked FOR EACH ROW EXECUTE FUNCTION
                and {'q_jobs', 'a_jobs', 'q_jobs_msg_id_seq'} <= omit and 'meta' not in omit, sorted(omit))
 
         # 0.13.1: the archive replay stops at the first grant on a queue table it does not create.
-        _, failed = stage(E + '_stage_old', dump, frozenset(), expect_failure=True)
+        _, failed = stage(E + '_stage_old', dump, frozenset())
         record('0.13.1 replay of a legacy archive with a queue grant fails (the reviewed defect)',
-               failed.returncode != 0 and re.search(r'relation "pgmq\.[aq]_jobs" does not exist', failed.stderr), failed.stderr[-300:])
+               failed and re.search(r'relation "pgmq\.[aq]_jobs" does not exist', failed), str(failed)[-300:])
         sql('DROP DATABASE ' + E + '_stage_old;', 'postgres')
 
         # --accept-pgmq-loss without a supplement now replays.
-        plan, _ = stage(E + '_stage_loss', dump, omit)
-        record('accept-loss replay without a supplement succeeds', plan.omitted >= 4, str(plan.omitted))
+        plan, failed = stage(E + '_stage_loss', dump, omit)
+        record('accept-loss replay without a supplement succeeds', failed is None and plan.omitted >= 4,
+               f'{plan.omitted} {failed}')
         sql('DROP DATABASE ' + E + '_stage_loss;', 'postgres')
 
         # Format 2: exact access.
         target = E + '_stage_new'
-        stage(target, dump, omit, supplement)
+        _, failed = stage(target, dump, omit, supplement)
+        record('format 2 supplement replays in the held restore session', failed is None, str(failed))
         restored = access(target)
         record('restored queue access equals the original, with nothing added',
                restored == [row for row in original if 'q_hooked' not in row and 'a_hooked' not in row],
@@ -236,6 +266,9 @@ CREATE TRIGGER noop BEFORE INSERT ON pgmq.q_hooked FOR EACH ROW EXECUTE FUNCTION
         rows = value("SELECT string_agg(message->>'n', ',' ORDER BY msg_id) FROM pgmq.q_jobs;"
                      "SELECT count(*) FROM pgmq.a_jobs; SELECT count(*) FROM pgmq.q_plain;", target).split()
         record('queue rows and archive rows are restored as the snapshot had them', rows == ['1,2', '1', '3'], rows)
+        fast = value("SELECT relpersistence FROM pg_class WHERE relname = 'q_fast';"
+                     "SELECT count(*) FROM pgmq.q_fast; SELECT pgmq.send('fast', '{}');", target).split()
+        record('an unlogged queue comes back unlogged with its rows and sequence', fast == ['u', '2', '3'], fast)
         seen = value("SET ROLE authenticated; SELECT string_agg(message->>'n', ',') FROM pgmq.q_jobs;", target)
         record('row level security filters rows for authenticated after restore', seen == '1', seen)
         sent = value("SET ROLE authenticated; SELECT pgmq.send('jobs', '{\"public\": true, \"n\": 4}');", target)
@@ -278,7 +311,8 @@ CREATE TRIGGER noop BEFORE INSERT ON pgmq.q_hooked FOR EACH ROW EXECUTE FUNCTION
             pgmq_legacy.closed_sql(queue['name']) for queue in entry_old['queues'])
         toc_old = docker('exec', '-i', DB, 'pg_restore', '-l', data=dump_old, binary=True).stdout.decode()
         target = E + '_stage_f1'
-        stage(target, dump_old, pgmq_legacy.replay_omits(toc_old), closed)
+        _, failed = stage(target, dump_old, pgmq_legacy.replay_omits(toc_old), closed)
+        record('format 1 supplement replays in the held restore session', failed is None, str(failed))
         left = [row for row in access(target) if '"rls"' not in row]
         record('format 1 restore brings the rows back with no grant or policy on the queues',
                entry_old['format'] == 1 and left == [] and value('SELECT count(*) FROM pgmq.q_jobs;', target) == '2',

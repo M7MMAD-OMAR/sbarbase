@@ -185,6 +185,110 @@ class RetentionTests(Fixture):
             backup.main(['create', E, '--reason', 'whim'])
 
 
+class LegacyQueueRunTests(Fixture):
+    def run_create(self, entry):
+        import offsite
+        import io
+        def create(e, keep, now, reason, protected):
+            return self.complete(now.strftime('%Y%m%dT%H%M%SZ')), {
+                'database': {'bytes': 1}, 'objects': {'files': 0}, 'counts': {'auth.users': 1}, 'pgmq': entry}
+        errors = io.StringIO()
+        with patch.object(backup, 'create', create), patch.object(offsite, 'load_config', return_value=None), \
+                patch('sys.stderr', errors), patch('builtins.print', side_effect=lambda *a, **k: k.get('file') and k['file'].write(' '.join(map(str, a)) + '\n')):
+            code = backup.main(['create', E, '--reason', 'upgrade', '--local-only'])
+        return code, errors.getvalue()
+
+    def test_a_failed_queue_capture_fails_the_run_so_an_upgrade_stops(self):
+        code, errors = self.run_create(backup.pgmq_legacy.not_kept('the legacy queues could not be read (OSError)'))
+        self.assertEqual(code, 1)
+        self.assertIn('does not keep every PGMQ queue', errors)
+
+    def test_a_known_unsupported_queue_is_said_and_the_run_succeeds(self):
+        entry = {'format': 2, 'file': 'pgmq.sql', 'queues': [], 'roles': [],
+                 'unsupported': ['queue big: partitioned queues need pg_partman']}
+        code, errors = self.run_create(entry)
+        self.assertEqual(code, 0)
+        self.assertIn('queue big', errors)
+
+    def test_a_complete_supplement_is_silent(self):
+        code, errors = self.run_create({'format': 2, 'file': 'pgmq.sql', 'queues': [], 'roles': [], 'unsupported': []})
+        self.assertEqual((code, errors), (0, ''))
+
+
+class RepairPgmqTests(unittest.TestCase):
+    """lab/backup.py repair_pgmq refuses before it changes anything unless a verified backup
+    holds every legacy queue, and says what happened at each later step."""
+    QUEUES = {'version': '1.5.1', 'queues': [{'name': 'jobs'}], 'unsupported': []}
+
+    def run_repair(self, inventory=QUEUES, before_entry=None, repair_error=None, legacy_after=False,
+                   toc='3; 3079 1 EXTENSION - pgmq\n4; 0 1 TABLE DATA pgmq meta x\n5; 0 1 TABLE DATA pgmq q_jobs x\n'
+                       '6; 0 1 TABLE DATA pgmq a_jobs x\n'):
+        import sys
+        from pathlib import Path
+        from types import SimpleNamespace
+        steps = []
+        before_entry = before_entry if before_entry is not None else {
+            'format': 2, 'file': 'pgmq.sql', 'queues': [{'name': 'jobs'}], 'unsupported': [], 'roles': []}
+
+        def create(e, keep, protected=None):
+            steps.append('backup')
+            return Path('/x/2026111' + str(len(steps))), {'pgmq': before_entry} if len(steps) == 1 else {}
+
+        class Runtime:
+            def sql(self, query, e):
+                steps.append('repair')
+                if repair_error:
+                    raise repair_error
+        fake = SimpleNamespace(Runtime=Runtime, DEVELOPER_BOUNDS='',
+                               studio_extensions=SimpleNamespace(prepare_sql=lambda e, repair: 'REPAIR'))
+        with patch.object(backup, 'published', return_value={E: {}}), \
+                patch.object(backup.pgmq_legacy, 'inventory', return_value=inventory), \
+                patch.object(backup, 'create', create), patch.object(backup, 'verify', return_value={}), \
+                patch.object(backup.pgmq_legacy, 'extension', return_value={'owner': 'postgres' if legacy_after else E}), \
+                patch.object(backup, 'archive_toc', return_value=toc), patch.object(backup, 'preflight', return_value={}), \
+                patch.object(backup, 'upgrade_runs', return_value=[]), patch.object(backup.time, 'sleep'), \
+                patch.dict(sys.modules, {'durable_runtime': fake}):
+            try:
+                return backup.repair_pgmq(E), steps
+            except backup.BackupError as error:
+                return str(error), steps
+
+    def test_nothing_to_repair(self):
+        self.assertEqual(self.run_repair(inventory=None), (None, []))
+
+    def test_unsupported_queues_refuse_before_any_backup(self):
+        result, steps = self.run_repair(inventory={**self.QUEUES, 'unsupported': ['queue big: partitioned']})
+        self.assertIn('Nothing was changed', result)
+        self.assertEqual(steps, [])
+
+    def test_a_backup_missing_a_queue_refuses_the_repair(self):
+        for entry in ({'format': 2, 'file': None, 'queues': [], 'unsupported': ['x'], 'failed': True},
+                      {'format': 2, 'file': 'pgmq.sql', 'queues': [], 'unsupported': [], 'roles': []}):
+            result, steps = self.run_repair(before_entry=entry)
+            self.assertIn('nothing was changed', result)
+            self.assertEqual(steps, ['backup'])
+
+    def test_a_failed_repair_names_the_backup(self):
+        result, steps = self.run_repair(repair_error=RuntimeError('x'))
+        self.assertIn('rolled back', result)
+        self.assertEqual(steps, ['backup', 'repair'])
+
+    def test_a_repair_without_effect_says_so(self):
+        result, _ = self.run_repair(legacy_after=True)
+        self.assertIn('did not take effect', result)
+
+    def test_an_after_backup_missing_a_queue_says_the_repair_was_applied(self):
+        result, steps = self.run_repair(toc='3; 3079 1 EXTENSION - pgmq\n4; 0 1 TABLE DATA pgmq meta x\n')
+        self.assertIn('was applied', result)
+        self.assertIn('q_jobs', result)
+        self.assertEqual(steps, ['backup', 'repair', 'backup'])
+
+    def test_a_qualified_repair_returns_both_backups(self):
+        result, steps = self.run_repair()
+        self.assertEqual(result, ('20261111', '20261113'))
+        self.assertEqual(steps, ['backup', 'repair', 'backup'])
+
+
 class VerifyTests(Fixture):
     def test_a_complete_backup_verifies(self):
         path = self.complete('20260901T030000Z')

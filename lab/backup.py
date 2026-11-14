@@ -750,8 +750,9 @@ def repair_pgmq(e, keep=DEFAULT_KEEP):
     missing = [f'{kind}_{name}' for name in kept for kind in ('q', 'a')
                if not re.search(rf'\bTABLE DATA pgmq {kind}_{re.escape(name)}\b', toc)]
     if pgmq_legacy.archive_shape(toc) != 'native' or missing:
-        raise BackupError(f'The backup {after.name} after the PGMQ repair does not hold every queue '
-                          f"({', '.join(missing) or 'pgmq.meta'}); keep {before.name}")
+        raise BackupError(f'The PGMQ repair of {e} was applied, but the backup {after.name} taken after it does '
+                          f"not hold every queue ({', '.join(missing) or 'pgmq.meta'}); keep {before.name}, "
+                          'which holds them')
     return before.name, after.name
 
 
@@ -1408,7 +1409,8 @@ def main(argv=None):
                     manifest = json.loads((path / 'manifest.json').read_text())
                     print(f"{e}  {path.name}  database {manifest['database']['bytes']} B  "
                           f"files {manifest['objects']['files']}  users {manifest['counts']['auth.users']}"
-                          + ('  before an upgrade' if manifest.get('reason') == 'upgrade' else ''))
+                          + ('  before an upgrade' if manifest.get('reason') == 'upgrade' else '')
+                          + ('  PGMQ queues not all kept' if (manifest.get('pgmq') or {}).get('unsupported') else ''))
             if not args.environment:
                 for path in complete_backups(STORAGE):
                     manifest = json.loads((path / 'manifest.json').read_text())

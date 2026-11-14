@@ -23,7 +23,7 @@ This source release is 0.13.2. Check [Latest on GitHub](https://github.com/M7MMA
 
 - A `pgmq.sql` written by 0.13.1 (format 1) restores the rows with the queues closed: only the environment's developer role reaches them until their grants and policies are applied again, and the restore prints this. Versions before 0.13.2 restore a 0.13.1 backup without its queues and without a warning; use 0.13.2 or later for those.
 - Queue tables with a trigger, a rule, an index pgmq does not create or a publication are reported as unsupported: a restore needs `--accept-pgmq-loss` and `repair-pgmq` refuses them. Partitioned queues are not supported.
-- Checked with real pgmq 1.5.1 on a disposable database (`lab/pgmq-access-check.py`, [evidence](docs/evidence/pgmq-access-2026-11-14.json)) and by unit tests. The fenced cutover with a supplement and `repair-pgmq` have not run on an installation with queues. Service image locks do not change.
+- Checked with real pgmq 1.5.1 on a disposable database (`lab/pgmq-access-check.py`, [evidence](docs/evidence/pgmq-access-2026-11-14.json)) and by unit tests. The supplement and its replay go through `lab/restore_cutover.archive_sql` and the held restore session there; the fencing and renames around them, and `repair-pgmq`, have not run on an installation with queues. A restore reads the whole supplement into memory and each step of the held session has 600 seconds, so very large legacy queues fail to restore, before anything is replaced. Service image locks do not change.
 
 ## [0.13.1] - 2026-11-14
 
