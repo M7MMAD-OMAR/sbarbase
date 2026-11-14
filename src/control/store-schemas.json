@@ -1,6 +1,6 @@
 {
   "access_tokens": {"version": 1, "sha256": "1b8d9fef3878602a9b85bbd15399b2dcf2a3946a1da59ea2902db88b5fca5ca8"},
-  "catalog": {"version": 9, "sha256": "a54fdcd67e3a6d36c3ba0517c1a0848cbcac68d3598878626bc64ae742abf2f3"},
+  "catalog": {"version": 10, "sha256": "4546d1ae76f58e7f99a97f181da2b8f3cfa19bb6468213e09f4b79e3bf44a12b"},
   "deployment_setup": {"version": 0, "sha256": "66b6c2bf85749d51d0ee97b6ff45082899007a6b6ad46b05bbefd1936298fcfd"},
   "keys": {"version": 0, "sha256": "51701cd1f03e87be0451f48c6496ae02bd7eb04d915df96dca5bffcdf3ce9100"}
 }

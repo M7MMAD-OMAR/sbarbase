@@ -113,3 +113,23 @@ It asks for the new password twice without echo (at least 12 characters), replac
 Sources: [Supabase admin createUser](https://supabase.com/docs/reference/javascript/auth-admin-createuser),
 [admin listUsers](https://supabase.com/docs/reference/javascript/auth-admin-listusers),
 and the original pinned Auth service exercised locally.
+
+## Recover the only owner's authenticator from the host
+
+`lab/management-sole-owner-recovery.ts` is a separate root-only B5 host command for an installation whose bootstrap organization currently has exactly one owner. The ordinary `management-factor-recovery.ts` command still requires a different owner with verified MFA. Host root is trusted and can change installed code; this command is not a sandbox against root.
+
+Deploy the controller with `durable-latch-v1` support first. Recovery reads the installed `sbarbase.service` working directory and original Auth process binding, and asks the running controller's authenticated policy endpoint to advertise that capability. A newer checkout beside an older running controller is refused.
+
+Run as root from the installed checkout, with private JSON on stdin, never command-line credentials:
+
+```sh
+bun lab/management-sole-owner-recovery.ts < /root/sole-owner-request.json
+```
+
+The root-private input has exactly `target`, `factor`, `targetPassword` and `reason` (`lost_factor` or `compromised_factor`). `target` is the current sole owner's Auth UUID; `factor` is the exact lost verified TOTP factor UUID. Add `resumeReceipt` to resume a failed or interrupted attempt. There are no realm, uid, authorization or output-path arguments.
+
+Recovery checks the native password against the exact target, durably blocks both password and MFA management grants, revokes personal tokens and native sessions, removes the admitted old factor, then enrolls and verifies a new native TOTP factor. Global optional-MFA policy stays unchanged. The command rereads the native identity and factors, then arms the receipt for that replacement only. The existing proxy completes the receipt and publishes its grant in one transaction. Final management access must pass the existing proxy's native MFA verification, using a later TOTP timestep to avoid replay.
+
+The command prints only receipt and factor IDs. Root-owned files under `/var/lib/sbarbase/sole-owner-recovery` use mode `0600` inside a `0700` directory: `<receipt>.request.json` records the admitted request without the password, `<receipt>.setup.json` preserves the new native setup secret and URI, and `<receipt>.session.json` holds the genuinely proxy-verified session for a private host task. Import the new URI into the owner's authenticator through a private channel. Keep setup material away from the service account. Consume the session privately, sign it out and delete its file after the authorized host task. Never put these files in logs, tickets or terminal output.
+
+A failure or interruption leaves the durable denial active; use the same receipt and unchanged request fields to resume. A receipt with a published session cannot be replayed. If native enrollment succeeded but its response was lost before the setup file reached disk, Auth cannot return that seed again: recovery preserves the factor and denial, and refuses automatic reenrollment or deletion. Inspect that case as a host recovery incident. Source tests model root admission and native calls; they do not establish real-root native integration on an installed host.

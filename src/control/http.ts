@@ -102,7 +102,7 @@ const CONFLICTS=new Set(['Name already used','Environment capacity reached','Org
   'Environment services are still on','Runtime was deleted here','Organization name belongs to another organization',
   'Project belongs to another organization','Environment exists with another project or runtime',
   'Runtime belongs to another environment','Lifecycle operation is active','Exact ownership inventory unavailable',
-  'Retention has expired','Retention has not expired','Complete recovery proof unavailable','Shared writer isolation unavailable']);
+  'Project archive migration unavailable','Retention has expired','Retention has not expired','Complete recovery proof unavailable','Shared writer isolation unavailable']);
 const INVALID=new Set(['Invalid name','Invalid ownership','Invalid runtime','Invalid lifecycle operation']);
 function refusal(error:unknown):Response {
   const message=error instanceof Error?error.message:'';
@@ -176,6 +176,28 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
       response.headers.set('Cache-Control','no-store');
       return bindManagementPublication(response,catalog,()=>{requireOperatorPublication(catalog,actor);return response;});
     }
+    const archivedProjects=path.match(/^\/management\/v1\/organizations\/([a-f0-9-]{36})\/archived-projects$/);
+    if(archivedProjects){
+      if(request.method!=='GET')return reply(405,{message:'Method not allowed'});
+      const actor=await authenticate(identify,request);if(actor instanceof Response)return actor;
+      try{return managementPublication(catalog,()=>reply(200,{data:catalog.listArchivedProjects(actor,archivedProjects[1]!)}));}
+      catch(error){return refusal(error);}
+    }
+    const restoreProject=path.match(/^\/management\/v1\/projects\/([a-f0-9-]{36})\/restore$/);
+    if(restoreProject){
+      if(request.method!=='POST')return reply(405,{message:'Method not allowed'});
+      const actor=await authenticate(identify,request);if(actor instanceof Response)return actor;
+      try{
+        if(request.body)await body(request,[]);
+        else await refreshCurrentManagement();
+        const data=catalog.restoreProject(actor,restoreProject[1]!),response=reply(200,{data});
+        return bindManagementPublication(response,catalog,()=>{
+          requireOrganizationPublication(catalog,actor,data.organization,['owner']);
+          if(!catalog.listProjects(actor,data.organization).some(item=>item.id===data.id))throw new Error('Forbidden');
+          return response;
+        });
+      }catch(error){return refusal(error);}
+    }
     const lifecycle=path.match(/^\/management\/v1\/environments\/([a-f0-9-]{36})\/(lifecycle|restore|purge|resume)$/);
     if(lifecycle){
       const actor=await authenticate(identify,request);
@@ -220,7 +242,14 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
         }
         if(request.body)return reply(400,{message:'Invalid request'});
         if(kind==='organizations'){catalog.deleteOrganization(actor,id);return reply(200,{deleted:true});}
-        if(kind==='projects'){catalog.deleteProject(actor,id);return reply(200,{deleted:true});}
+        if(kind==='projects'){
+          const result=catalog.deleteProject(actor,id),response=reply(200,{deleted:true,...(result.retained?{retained:true}:{})});
+          return bindManagementPublication(response,catalog,()=>{
+            requireOrganizationPublication(catalog,actor,result.organization,['owner']);
+            if(result.retained&&!catalog.listArchivedProjects(actor,result.organization).some(project=>project.id===id))throw new Error('Forbidden');
+            return response;
+          });
+        }
         if(!keys)return reply(500,{message:'Key revocation unavailable'});
         await refreshLifecycleRequest(catalog);
         await catalog.prepareDeletion(actor,id);

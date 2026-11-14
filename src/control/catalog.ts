@@ -12,6 +12,7 @@ import {type LifecycleAdmission,type LifecycleResource,type LifecycleOperation,t
 
 export type MembershipRole = 'owner' | 'admin' | 'viewer';
 type Project = {id:string;organization:string;name:string};
+export type ArchivedProject=Project&{archived_at:number;retained_environments:number};
 export type AgentDirectoryEntry={organization:string;organization_name:string;role:MembershipRole;project:string;project_name:string;
   environment:string;environment_name:string;runtime:string|null;state:string|null;created_at:number|null};
 type Environment = {id:string;project:string;name:string};
@@ -138,7 +139,7 @@ function credentialShape(value:string):boolean {
 export {ENVIRONMENT_LIMIT};
 
 /** Bumped with each step of Catalog.migrate(). */
-export const CATALOG_SCHEMA_VERSION=9;
+export const CATALOG_SCHEMA_VERSION=10;
 /** What PostgREST serves for an environment with no saved Data API settings (lab/data_api.py). */
 export const DATA_API_DEFAULT={schemas:['public'],extraSearchPath:['public'],maxRows:null as number|null};
 
@@ -394,6 +395,13 @@ export class Catalog {
     this.db.transaction(()=>{
       const version=this.db.query<{user_version:number},[]>('PRAGMA user_version').get()!.user_version;
       if(version>CATALOG_SCHEMA_VERSION)throw new Error('Catalog schema is newer than this release');
+      // Archive metadata and its version are committed together. Legacy duplicate-name stores
+      // stay at version 1 below; they may read this table but cannot write archives yet.
+      if(version<10)this.db.exec(`CREATE TABLE IF NOT EXISTS project_archives(
+        project TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+        archived_at INTEGER NOT NULL, actor TEXT NOT NULL);`);
+      if(!this.db.query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='project_archives'").get())
+        throw new Error('Project archive migration unavailable');
       if(version<1) {
         const columns=this.db.query<{name:string},[]>('PRAGMA table_info(provision_jobs)').all();
         if(!columns.some(column=>column.name==='failure'))
@@ -412,6 +420,7 @@ export class Catalog {
       // Version 7: installation_services (installation wide settings of the optional services) and service_hints (when an unused service was last reported), created by the schema above.
       // Version 8: service_modes (Off, On or On demand, and the quiet period, per environment and service), created by the schema above.
       // Version 9: host_actions (an operator's request for a host side action the supervisor applies: clearing Docker's build cache), created by the schema above.
+      // Version 10: project_archives, created in this transaction before stamping its version.
       this.db.exec(`PRAGMA user_version=${CATALOG_SCHEMA_VERSION}`);
     }).immediate();
     this.allowTelegramDeliveries();
@@ -471,8 +480,9 @@ export class Catalog {
     if(!membership||!roles.includes(membership.role)) throw new Error('Forbidden');
     return membership.role;
   }
-  private project(actor:string,id:string,roles:MembershipRole[]):Project {
-    const project=this.db.query<Project,[string]>('SELECT * FROM projects WHERE id=?').get(id);
+  private project(actor:string,id:string,roles:MembershipRole[],includeArchived=false):Project {
+    const project=this.db.query<Project,[string,number]>(`SELECT p.* FROM projects p WHERE p.id=?
+      AND (?=1 OR NOT EXISTS (SELECT 1 FROM project_archives a WHERE a.project=p.id))`).get(id,includeArchived?1:0);
     if(!project) throw new Error('Forbidden');
     this.require(actor,project.organization,roles);
     return project;
@@ -634,8 +644,20 @@ export class Catalog {
   /** The authorization grant and its audit event commit together. */
   grantManagementMfa(actor:string,session:string,factor:string,verified:number,expires:number,epoch:number,firstEnrollment=false):boolean {
     return this.db.transaction(()=>{
+      let hostRecovery=false;
+      if(this.managementSecurity.recovering(actor)){
+        const pending=this.db.query<{receipt:string},[string,string]>("SELECT receipt FROM management_mfa_recovery WHERE actor=? AND target=? AND state='requested'")
+          .get('system:host:sole-owner:'+factor,actor);
+        if(!pending||this.managementSecurity.epoch(actor)!==epoch)return false;
+        this.assertSoleManagementOwner(actor);hostRecovery=true;
+        this.db.query("UPDATE management_mfa_recovery SET state='completed',finished=? WHERE receipt=?").run(Date.now(),pending.receipt);
+        this.record('system:host','management.mfa.sole_owner_completed',actor,{factor,receipt:pending.receipt,mode:'sole_owner'});
+      }
       if(firstEnrollment){if(this.managementSecurity.epoch(actor)!==epoch)return false;this.managementSecurity.promote(actor);epoch++;}
-      if(!this.managementSecurity.grant(actor,session,factor,verified,expires,epoch))return false;
+      if(!this.managementSecurity.grant(actor,session,factor,verified,expires,epoch)){
+        if(hostRecovery)throw new Error('Host recovery admission rejected');
+        return false;
+      }
       this.recordManagementFactor(actor,'verified',factor);return true;
     }).immediate();
   }
@@ -691,6 +713,53 @@ export class Catalog {
     const bootstrap=this.db.query<{organization:string},[]>('SELECT organization FROM installation_bootstrap WHERE singleton=1').get();
     if(!bootstrap)throw new Error('Forbidden');
     this.require(actor,bootstrap.organization,['owner']);
+  }
+  /** Trusted host recovery is separate from the two-person operator recovery path. */
+  assertSoleManagementOwner(target:string):void {
+    const bootstrap=this.installationBootstrap();
+    if(!bootstrap)throw new Error('Sole installation owner required');
+    const owners=this.db.query<{actor:string},[string]>("SELECT actor FROM memberships WHERE organization=? AND role='owner'").all(bootstrap.organization);
+    if(owners.length!==1||owners[0]!.actor!==target)throw new Error('Sole installation owner required');
+  }
+  /** Only the root-local command calls this. No HTTP handler admits host recovery. */
+  beginSoleOwnerRecovery(target:string,factor:string,reason:'lost_factor'|'compromised_factor',receipt:string,resume=false):void {
+    if(![target,factor,receipt].every(value=>/^[a-f0-9-]{36}$/.test(value))||!['lost_factor','compromised_factor'].includes(reason))throw new Error('Invalid recovery');
+    this.db.transaction(()=>{
+      this.assertSoleManagementOwner(target);
+      const prior=this.db.query<{state:string;actor:string;target:string},[string]>('SELECT state,actor,target FROM management_mfa_recovery WHERE receipt=?').get(receipt);
+      if(resume){
+        if(this.db.query("SELECT 1 FROM management_mfa_recovery WHERE target=? AND receipt!=? AND (actor='system:host:sole-owner' OR actor LIKE 'system:host:sole-owner:%') AND state IN ('requested','failed')").get(target,receipt))throw new Error('Another recovery is pending');
+        if(!prior||!/^system:host:sole-owner(?::[a-f0-9-]{36})?$/.test(prior.actor)||prior.target!==target)throw new Error('Invalid recovery receipt');
+        const audit=this.db.query<{detail:string},[string,string]>("SELECT detail FROM audit_events WHERE actor='system:host' AND action='management.mfa.sole_owner_requested' AND subject=? AND json_extract(detail,'$.receipt')=?").get(target,receipt);
+        if(!audit||JSON.parse(audit.detail).factor!==factor||JSON.parse(audit.detail).reason!==reason)throw new Error('Invalid recovery receipt');
+        this.db.query("UPDATE management_mfa_recovery SET actor='system:host:sole-owner',state='requested',finished=NULL WHERE receipt=?").run(receipt);
+      }else{
+        if(prior||this.managementSecurity.recovering(target))throw new Error('Recovery receipt required');
+        this.db.query("INSERT INTO management_mfa_recovery(receipt,actor,target,state,started) VALUES (?,'system:host:sole-owner',?,'requested',?)").run(receipt,target,Date.now());
+        this.record('system:host','management.mfa.sole_owner_requested',target,{factor,reason,receipt,mode:'sole_owner'});
+      }
+      this.managementSecurity.revoke(target);
+    }).immediate();
+  }
+  /** Arm only the natively reread replacement. The existing proxy must verify it to finish. */
+  prepareSoleOwnerRecovery(target:string,factor:string,receipt:string):void {
+    if(!/^[a-f0-9-]{36}$/.test(factor))throw new Error('Invalid factor');
+    this.db.transaction(()=>{
+      this.assertSoleManagementOwner(target);
+      const changed=this.db.query("UPDATE management_mfa_recovery SET actor=? WHERE receipt=? AND actor='system:host:sole-owner' AND target=? AND state='requested'")
+        .run('system:host:sole-owner:'+factor,receipt,target);
+      if(changed.changes!==1)throw new Error('Invalid recovery receipt');
+      this.record('system:host','management.mfa.sole_owner_ready',target,{factor,receipt,mode:'sole_owner'});
+    }).immediate();
+  }
+  finishSoleOwnerRecovery(target:string,factor:string,receipt:string,outcome:'failed'):void {
+    this.db.transaction(()=>{
+      const row=this.db.query("SELECT 1 FROM management_mfa_recovery WHERE receipt=? AND (actor='system:host:sole-owner' OR actor LIKE 'system:host:sole-owner:%') AND target=? AND (state IN ('requested','failed') OR (?='failed' AND state='completed'))").get(receipt,target,outcome);
+      if(!row)throw new Error('Invalid recovery receipt');
+      this.managementSecurity.revoke(target);
+      this.db.query('UPDATE management_mfa_recovery SET state=?,finished=? WHERE receipt=?').run(outcome,Date.now(),receipt);
+      this.record('system:host','management.mfa.sole_owner_'+outcome,target,{factor,receipt,mode:'sole_owner'});
+    }).immediate();
   }
   /** Private host recovery must have an installation owner and a separately verified MFA session. */
   revokeManagementMfa(actor:string,target:string,reason:'lost_factor'|'compromised_factor'):string {
@@ -935,7 +1004,8 @@ export class Catalog {
   listProjects(actor:string,organization:string):Project[] {
     return this.db.transaction(()=>{
       this.require(actor,organization,['owner','admin','viewer']);
-      return this.db.query<Project,[string]>('SELECT * FROM projects WHERE organization=? ORDER BY id').all(organization);
+      return this.db.query<Project,[string]>(`SELECT p.* FROM projects p WHERE p.organization=?
+        AND NOT EXISTS (SELECT 1 FROM project_archives a WHERE a.project=p.id) ORDER BY p.id`).all(organization);
     })();
   }
   listEnvironments(actor:string,project:string):EnvironmentStatus[] {
@@ -956,6 +1026,7 @@ export class Catalog {
       FROM memberships m JOIN organizations o ON o.id=m.organization JOIN projects p ON p.organization=o.id
       JOIN environments e ON e.project=p.id LEFT JOIN provision_jobs j ON j.environment=e.id
       WHERE m.actor=? AND NOT EXISTS (SELECT 1 FROM environment_lifecycle l WHERE l.environment=e.id AND l.state!='active')
+      AND NOT EXISTS (SELECT 1 FROM project_archives a WHERE a.project=p.id)
       ORDER BY o.id,p.id,e.id`).all(actor);
   }
   /** A side-effect-free authorization predicate, used from inside the management guard.
@@ -965,10 +1036,12 @@ export class Catalog {
       !!this.db.query('SELECT 1 FROM memberships WHERE actor=? AND organization=?').get(actor,id);
     let row:{organization:string;project:string}|null;
     if(kind==='projects')row=this.db.query<{organization:string;project:string},[string,string]>(`SELECT p.organization,p.id AS project
-      FROM projects p JOIN memberships m ON m.organization=p.organization WHERE m.actor=? AND p.id=?`).get(actor,id);
+      FROM projects p JOIN memberships m ON m.organization=p.organization WHERE m.actor=? AND p.id=?
+      AND NOT EXISTS (SELECT 1 FROM project_archives a WHERE a.project=p.id)`).get(actor,id);
     else if(kind==='environments')row=this.db.query<{organization:string;project:string},[string,string]>(`SELECT p.organization,p.id AS project
       FROM environments e JOIN projects p ON p.id=e.project JOIN memberships m ON m.organization=p.organization
-      WHERE m.actor=? AND e.id=? AND NOT EXISTS (SELECT 1 FROM environment_lifecycle l WHERE l.environment=e.id AND l.state!='active')`).get(actor,id);
+      WHERE m.actor=? AND e.id=? AND NOT EXISTS (SELECT 1 FROM environment_lifecycle l WHERE l.environment=e.id AND l.state!='active')
+      AND NOT EXISTS (SELECT 1 FROM project_archives a WHERE a.project=p.id)`).get(actor,id);
     else return false;
     return !!row&&(scope.kind==='all'||scope.kind==='organization'&&row.organization===scope.id||scope.kind==='project'&&row.project===scope.id);
   }
@@ -1023,7 +1096,8 @@ export class Catalog {
       const selectedOrganization=organization===undefined?current.organization:organization;
       if(!organizations.some(item=>item.id===selectedOrganization))throw new Error('Forbidden');
       const projects=this.db.query<{id:string;name:string},[string]>(`
-        SELECT id,name FROM projects WHERE organization=? ORDER BY name COLLATE NOCASE,id`).all(selectedOrganization);
+        SELECT p.id,p.name FROM projects p WHERE p.organization=?
+        AND NOT EXISTS (SELECT 1 FROM project_archives a WHERE a.project=p.id) ORDER BY p.name COLLATE NOCASE,p.id`).all(selectedOrganization);
       const selectedProject=project===undefined
         ?(selectedOrganization===current.organization?current.project:projects[0]?.id??null):project;
       if(selectedProject!==null&&!projects.some(item=>item.id===selectedProject))throw new Error('Forbidden');
@@ -1799,14 +1873,45 @@ export class Catalog {
       this.record(actor,'project.renamed',project,{});
     }).immediate();
   }
-  /** Owners delete a project that holds no environment. */
-  deleteProject(actor:string,project:string) {
-    this.db.transaction(()=>{
-      const current=this.project(actor,project,['owner']);
-      if(this.db.query('SELECT 1 FROM environments WHERE project=? LIMIT 1').get(project))throw new Error('Project has environments');
+  /** Empty projects are removed. Projects holding completed retained lifecycle rows are archived;
+   * resource inventories, authorizations, keys and environment receipts are never removed here. */
+  deleteProject(actor:string,project:string):{retained:boolean;organization:string} {
+    return this.db.transaction(()=>{
+      const current=this.project(actor,project,['owner'],true);
+      const children=this.db.query<{state:string|null;failure:string|null;runtime:string|null},[string]>(`SELECT l.state,l.failure,j.runtime
+        FROM environments e LEFT JOIN environment_lifecycle l ON l.environment=e.id
+        LEFT JOIN provision_jobs j ON j.environment=e.id WHERE e.project=?`).all(project);
+      if(children.length){
+        if(children.some(child=>!['deleted','purged'].includes(child.state??'')||child.failure))throw new Error('Project has environments');
+        if(this.schemaVersion()<10)throw new Error('Project archive migration unavailable');
+        for(const child of children)if(child.runtime)this.assertLifecycleRuntimeUnheld(child.runtime);
+        const saved=this.db.query('INSERT OR IGNORE INTO project_archives(project,archived_at,actor) VALUES (?,?,?)').run(project,Date.now(),actor);
+        if(saved.changes)this.record(actor,'project.archived',project,{retained_environments:children.length});
+        return {retained:true,organization:current.organization};
+      }
       this.db.query('DELETE FROM projects WHERE id=?').run(project);
       this.record(actor,'project.deleted',current.organization,{});
+      return {retained:false,organization:current.organization};
     }).immediate();
+  }
+  listArchivedProjects(actor:string,organization:string):ArchivedProject[] {
+    this.require(actor,organization,['owner','admin']);
+    return this.db.query<ArchivedProject,[string]>(`SELECT p.*,a.archived_at,
+      (SELECT count(*) FROM environments e WHERE e.project=p.id) AS retained_environments
+      FROM projects p JOIN project_archives a ON a.project=p.id WHERE p.organization=?
+      ORDER BY a.archived_at DESC,p.id`).all(organization);
+  }
+  /** Restore visibility only. Each retained environment still needs its own native restoration. */
+  restoreProject(actor:string,project:string):Project {
+    return this.db.transaction(()=>{
+      const current=this.project(actor,project,['owner'],true);
+      this.unarchiveProject(actor,project);
+      return current;
+    }).immediate();
+  }
+  private unarchiveProject(actor:string,project:string):void {
+    if(this.db.query('DELETE FROM project_archives WHERE project=?').run(project).changes)
+      this.record(actor,'project.restored',project,{});
   }
   /** Owners and admins rename an environment; the name stays unique in its project. */
   renameEnvironment(actor:string,environment:string,name:string) {
@@ -1890,7 +1995,7 @@ export class Catalog {
   private retainedProject(actor:string,environment:string,roles:MembershipRole[]):Project {
     const row=this.db.query<Environment,[string]>('SELECT * FROM environments WHERE id=?').get(environment);
     if(!row)throw new Error('Forbidden');
-    return this.project(actor,row.project,roles);
+    return this.project(actor,row.project,roles,true);
   }
   private lifecycleRow(environment:string):LifecycleOperation|null {
     const row=this.db.query<any,[string]>('SELECT * FROM environment_lifecycle WHERE environment=?').get(environment);
@@ -1906,7 +2011,7 @@ export class Catalog {
     return this.lifecycleRow(environment);
   }
   retainedEnvironments(actor:string,project:string):LifecycleOperation[] {
-    this.project(actor,project,['owner','admin']);
+    this.project(actor,project,['owner','admin'],true);
     return this.db.query<{environment:string},[string]>(`SELECT l.environment FROM environment_lifecycle l
       JOIN environments e ON e.id=l.environment WHERE e.project=? AND l.state!='active' ORDER BY l.environment`).all(project)
       .map(row=>this.lifecycleRow(row.environment)!);
@@ -1958,6 +2063,7 @@ export class Catalog {
       this.db.query('UPDATE environment_lifecycle SET state=?,operation=?,failure=NULL,recovery_receipt=?,actor=?,management_epoch=? WHERE environment=?')
         .run(state,operation,receipt,actor,this.managementSecurity.epoch(actor),environment);
       this.captureLifecycleAuthorization(this.lifecycleRow(environment)!);
+      if(state==='restoring')this.unarchiveProject(actor,this.retainedProject(actor,environment,['owner']).id);
       this.record(actor,'lifecycle.'+state+'_requested',environment,{runtime:row.runtime,epoch:row.epoch,operation});
       return this.lifecycleRow(environment)!;
     }).immediate();
@@ -2109,6 +2215,7 @@ export class Catalog {
       const existingProject=this.db.query<Project,[string]>('SELECT * FROM projects WHERE id=?').get(project);
       if(existingProject) {
         if(existingProject.organization!==organization)throw new Error('Project belongs to another organization');
+        this.project(actor,project,['owner']);
       } else {
         this.unusedProjectName(organization,names.project);
         this.db.query('INSERT INTO projects VALUES (?,?,?)').run(project,organization,names.project);

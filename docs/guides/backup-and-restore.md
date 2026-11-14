@@ -294,3 +294,19 @@ source suite does not establish that a rebuilt container was deployed.
 Use the [runtime credential guide](fanio-storage-credentials.md) for the bounded server-only issuer available in the published source. Credentials, their custody and scoped policy do not make a private bucket public or qualify complete host recovery.
 
 Local [qualification working notes](../engineering/storage-credentials-qualification-2026-11-08.md) retain the separate attended-minting prototype. That prototype is not distributed in the current public release; do not assume its CLI exists on an installed server. [Current status](../reference/status.md) distinguishes installed code from unpublished development work.
+
+## Removing projects while environments are retained
+
+Delete each environment through its normal lifecycle first and wait until deletion completes. A project with an active environment, an operation in progress or a failed deletion cannot be removed. Once every environment is fully `deleted` or `purged`, Delete project moves the project to the project archive. An empty project with no environment records is removed permanently.
+
+Archiving removes the project from the active project list without deleting its environment records, ownership inventories, native authorizations, API key records or retained resources. It does not shorten retention, reactivate revoked keys or bypass the shared-storage purge guard. Permanent resource purge remains unavailable for shared durable environments.
+
+Owners and admins can view the archive on the Projects page; only an organization owner can restore a project. Restoring the project returns it to the active list without starting or restoring any environment. An authorized native environment-restore request also restores the project's visibility in the same transaction. Environment readiness, retention deadlines and the original lifecycle authority still apply. Archived project names remain reserved, and archived projects cannot receive new environments, be renamed or be moved before restoration.
+
+Management API routes:
+
+- `GET /management/v1/organizations/{id}/archived-projects` lists retained project metadata.
+- `DELETE /management/v1/projects/{id}` returns `{"deleted":true,"retained":true}` when archived; the original empty-project response remains `{"deleted":true}`.
+- `POST /management/v1/projects/{id}/restore` accepts no body or `{}` and restores visibility only.
+
+This adds catalog schema version 10. Archive metadata is created and the new version recorded in one transaction; existing project and environment rows are preserved. Older versions refuse the newer catalog. A rollback must use the guarded pre-upgrade control-state snapshot rather than opening the new store with old code.

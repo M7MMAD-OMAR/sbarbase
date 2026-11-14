@@ -27,6 +27,10 @@ export class ManagementSecurity {
     INSERT INTO management_token_epoch(actor,epoch) SELECT actor,epoch FROM management_mfa_epoch;`);
   }).immediate();
  }
+ /** Host-only recovery remains an admission latch after failure or process interruption. */
+ recovering(actor:string):boolean {
+  return !!this.db.query("SELECT 1 FROM management_mfa_recovery WHERE (actor='system:host:sole-owner' OR actor LIKE 'system:host:sole-owner:%') AND target=? AND state IN ('requested','failed')").get(actor);
+ }
  policy():{mfa_required:boolean;epoch:number} {
   const row=this.db.query<{mfa_required:number;epoch:number},[]>('SELECT mfa_required,epoch FROM management_auth_policy WHERE singleton=1').get()!;
   return {mfa_required:row.mfa_required===1,epoch:row.epoch};
@@ -36,7 +40,7 @@ export class ManagementSecurity {
  }
  grantPassword(actor:string,session:string,password:number,expires:number,epoch:number,policyEpoch:number):boolean {
   return this.db.transaction(()=>{
-  if(this.epoch(actor)!==epoch||this.policy().epoch!==policyEpoch)return false;
+  if(this.recovering(actor)||this.epoch(actor)!==epoch||this.policy().epoch!==policyEpoch)return false;
   this.db.query('DELETE FROM management_password_grant WHERE expires<=?').run(Math.floor(Date.now()/1000));
   this.db.query(`INSERT INTO management_password_grant VALUES (?,?,?,?,?,?) ON CONFLICT(session) DO UPDATE SET
    actor=excluded.actor,password=excluded.password,epoch=excluded.epoch,policy_epoch=excluded.policy_epoch,expires=excluded.expires`)
@@ -46,7 +50,7 @@ export class ManagementSecurity {
  }
  passwordGranted(actor:string,session:string,password:number,now=Math.floor(Date.now()/1000)):boolean {
   const policy=this.policy();
-  return !policy.mfa_required&&!!this.db.query(`SELECT 1 FROM management_password_grant
+  return !this.recovering(actor)&&!policy.mfa_required&&!!this.db.query(`SELECT 1 FROM management_password_grant
    WHERE actor=? AND session=? AND password=? AND epoch=? AND policy_epoch=? AND expires>?`)
    .get(actor,session,password,this.epoch(actor),policy.epoch,now);
  }
@@ -76,6 +80,10 @@ export class ManagementSecurity {
    const nonce=randomUUID();this.db.query('INSERT INTO management_mfa_lease VALUES (?,?,?)').run(actor,nonce,now+60000);return nonce;
   }).immediate();
  }
+ /** Extend only a lease that is still held, never resurrect an expired operation. */
+ renew(actor:string,nonce:string,now=Date.now()):boolean {
+  return this.db.query('UPDATE management_mfa_lease SET expires=? WHERE actor=? AND nonce=? AND expires>?').run(now+60000,actor,nonce,now).changes===1;
+ }
  release(actor:string,nonce:string):void {
   this.db.query('DELETE FROM management_mfa_lease WHERE actor=? AND nonce=?').run(actor,nonce);
  }
@@ -85,7 +93,7 @@ export class ManagementSecurity {
  grant(actor:string,session:string,factor:string,verified:number,expires:number,epoch:number):boolean {
   return this.db.transaction(()=>{
    const state=this.db.query<{epoch:number;revoked:number},[string]>('SELECT epoch,revoked FROM management_mfa_epoch WHERE actor=?').get(actor);
-   if((state?.epoch??0)!==epoch||verified<=(state?.revoked??0))return false;
+   if(this.recovering(actor)||(state?.epoch??0)!==epoch||verified<=(state?.revoked??0))return false;
    this.db.query('DELETE FROM management_mfa_grant WHERE expires<=?').run(Math.floor(Date.now()/1000));
    this.db.query(`INSERT INTO management_mfa_grant(session,actor,factor,verified,expires,epoch) VALUES (?,?,?,?,?,?)
     ON CONFLICT(session) DO UPDATE SET actor=excluded.actor,factor=excluded.factor,
@@ -94,6 +102,7 @@ export class ManagementSecurity {
   }).immediate();
  }
  grantedFactor(actor:string,session:string,verified:number,factors:readonly string[],now=Math.floor(Date.now()/1000)):string|null {
+  if(this.recovering(actor))return null;
   const row=this.db.query<{factor:string;epoch:number;expires:number},[string,string,number]>(
    'SELECT factor,epoch,expires FROM management_mfa_grant WHERE actor=? AND session=? AND verified=?').get(actor,session,verified);
   return row&&row.expires>now&&row.epoch===this.epoch(actor)&&factors.includes(row.factor)?row.factor:null;

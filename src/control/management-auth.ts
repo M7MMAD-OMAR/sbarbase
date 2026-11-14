@@ -67,7 +67,7 @@ export function managementAuth(catalog:Catalog,realm:ManagementRealm,
     }
     if(route==='policy'){
      let owner=false;try{catalog.assertManagementRecoveryOwner(identity!.actor);owner=true;}catch{}
-     if(request.method==='GET')return reply(200,{...security.policy(),needs_mfa:security.policy().mfa_required||identity!.factors.some(factor=>factor.status==='verified'),
+     if(request.method==='GET')return reply(200,{...security.policy(),sole_owner_recovery:'durable-latch-v1',recovery_pending:security.recovering(identity!.actor),needs_mfa:security.policy().mfa_required||identity!.factors.some(factor=>factor.status==='verified'),
       authorized:hasManagementAccess(identity!,security),can_manage_policy:owner});
      payload=await body(request);
      if(Object.keys(payload).length!==1||typeof payload.mfa_required!=='boolean')return reply(400,{message:'Invalid MFA policy'});
