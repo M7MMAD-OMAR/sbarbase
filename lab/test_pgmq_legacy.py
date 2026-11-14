@@ -268,6 +268,7 @@ class SupplementTests(unittest.TestCase):
         entry, text = self.capture(self.two_queues({'jobs': 0}))
         self.assertEqual([queue['name'] for queue in entry['queues']], ['mail'])
         self.assertIn('queue jobs: dropped or created again during the backup', entry['unsupported'][0])
+        self.assertEqual(entry['changed'], ['jobs'])
         self.assertNotIn("'jobs'", text)
         self.assertIn("SELECT pgmq.create_non_partitioned('mail');", text)
         self.assertTrue(backup.partial(self.write_manifest(entry)))

@@ -277,6 +277,25 @@ class LegacyQueueRunTests(Fixture):
         emit.assert_called_once_with('backup.failed', 'critical', 'backup.pgmq_incomplete|installation', {},
                                      'system:backup', 'export_failed', {'failed': 1})
 
+    def test_a_queue_still_changing_after_every_attempt_fails_the_run_so_an_upgrade_stops(self):
+        """0.13.3 ended such a run with 4, and an upgrade went on without those messages."""
+        entry = {'format': 2, 'file': 'pgmq.sql', 'queues': [], 'roles': [], 'changed': ['jobs'],
+                 'unsupported': ['queue jobs: dropped or created again during the backup']}
+        import notification_producers
+        with patch.object(notification_producers, 'emit') as emit:
+            code, errors = self.run_create(entry)
+        self.assertEqual(code, 1)
+        self.assertIn('changed during each of 3 attempts', errors)
+        emit.assert_not_called()
+
+    def test_a_changed_queue_beside_a_known_shape_still_fails_the_run(self):
+        entry = {'format': 2, 'file': 'pgmq.sql', 'queues': [], 'roles': [], 'changed': ['jobs'],
+                 'unsupported': ['queue big: partitioned queues need pg_partman',
+                                 'queue jobs: dropped or created again during the backup']}
+        import notification_producers
+        with patch.object(notification_producers, 'emit'):
+            self.assertEqual(self.run_create(entry)[0], 1)
+
     def test_a_complete_supplement_is_silent(self):
         import notification_producers
         with patch.object(notification_producers, 'emit') as emit:

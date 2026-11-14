@@ -26,7 +26,9 @@ qualify() refuses them. A queue whose tables carry a trigger, a rule, an index p
 or a publication keeps its messages, grants and policies in the supplement, but neither the dump
 nor the supplement keeps that definition: it is listed as unsupported too, so a restore needs
 --accept-pgmq-loss and qualify() refuses it. A queue dropped or created again while the backup
-reads it is left out of that backup and listed the same way; the other queues are kept.
+reads it is left out of that backup and listed the same way, and also under `changed`: that is
+a passing state, not a shape, so lab/backup.py takes the backup again from a new snapshot a few
+times, and a run whose queues still changed fails (an upgrade then changes nothing).
 
 Every backup that lists something unsupported counts apart in rotation (lab/backup.py prune), so
 it never takes the place of an older backup that holds every queue.
@@ -358,7 +360,7 @@ def capture(api, e, exported, path):
     if found is None:
         return None
     owner = quote(e + '_developer')
-    counts, roles, unsupported = [], set(), list(found['unsupported'])
+    counts, roles, unsupported, changed = [], set(), list(found['unsupported']), []
     target = path / FILE
     descriptor = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(descriptor, 'wb') as handle:
@@ -380,10 +382,11 @@ def capture(api, e, exported, path):
                 handle.truncate()
                 unsupported.append(f"queue {queue['name']}: dropped or created again during the backup, "
                                    'its messages are not in this backup')
+                changed.append(queue['name'])
     data = target.read_bytes()
     return {'format': FORMAT, 'file': FILE, 'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest(),
             'version': found['version'], 'queues': counts, 'unsupported': unsupported,
-            'roles': sorted(roles)}
+            'changed': changed, 'roles': sorted(roles)}
 
 
 def capture_queue(api, e, exported, queue, owner, handle, roles):

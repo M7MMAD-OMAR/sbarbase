@@ -77,6 +77,35 @@ class BackupFileRace(unittest.TestCase):
         self.assertEqual(self.manifest['reason'], 'upgrade')
         self.assertEqual(self.manifest['version'], 2)
 
+    def changing_capture(self, changes):
+        """A capture whose queue 'jobs' changed during its first `changes` attempts."""
+        self.attempts = 0
+        def capture(api, e, exported, target):
+            self.attempts += 1
+            (target / 'pgmq.sql').write_text(f'attempt {self.attempts}')
+            data = (target / 'pgmq.sql').read_bytes()
+            moved = self.attempts <= changes
+            return {'format': 2, 'file': 'pgmq.sql', 'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest(),
+                    'version': '1.5.1', 'queues': [] if moved else [{'name': 'jobs'}], 'roles': [],
+                    'unsupported': ['queue jobs: dropped or created again during the backup'] if moved else [],
+                    'changed': ['jobs'] if moved else []}
+        return capture
+
+    def test_a_queue_that_changed_once_is_taken_again_from_a_new_snapshot(self):
+        errors = io.StringIO()
+        with patch.object(backup, 'PGMQ_CHANGED_PAUSE', 0), contextlib.redirect_stderr(errors):
+            self.assertTrue(self.run_backup(lambda obj: None, self.changing_capture(1)))
+        self.assertEqual(self.attempts, 2)
+        self.assertEqual(self.manifest['pgmq']['changed'], [])
+        self.assertEqual(self.manifest['pgmq']['unsupported'], [])
+        self.assertIn('taking it again (2 of 3)', errors.getvalue())
+
+    def test_a_queue_that_keeps_changing_stops_after_the_last_attempt_and_records_it(self):
+        with patch.object(backup, 'PGMQ_CHANGED_PAUSE', 0), contextlib.redirect_stderr(io.StringIO()):
+            self.assertTrue(self.run_backup(lambda obj: None, self.changing_capture(99)))
+        self.assertEqual(self.attempts, backup.PGMQ_CHANGED_ATTEMPTS)
+        self.assertEqual(self.manifest['pgmq']['changed'], ['jobs'])
+
     def test_a_backup_without_legacy_queues_keeps_manifest_version_one(self):
         self.assertTrue(self.run_backup(lambda obj: None))
         self.assertEqual(self.manifest['version'], 1)

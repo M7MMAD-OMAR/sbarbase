@@ -775,7 +775,7 @@ class BackUpTests(unittest.TestCase):
         self.assertIn('does not keep every legacy PGMQ queue', errors.getvalue())
 
     def test_an_off_site_or_other_failure_code_still_stops_the_upgrade(self):
-        for code in (2, 3, 5):
+        for code in (1, 2, 3, 5):
             with patch.object(subprocess, 'run', return_value=subprocess.CompletedProcess([], code)), \
                     patch.object(backup, 'upgrade_run_times', return_value=set()):
                 with self.assertRaisesRegex(upgrade.UpgradeError, 'backup before the upgrade failed'):

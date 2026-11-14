@@ -514,7 +514,9 @@ def back_up():
                             cwd=ROOT, text=True)
     if result.returncode == backup.PGMQ_INCOMPLETE:
         # Every backup was written, and the run already reported which PGMQ queues one of them
-        # does not keep: the same shape the daily backup has, so the upgrade goes on, said.
+        # does not keep for a known unsupported shape, which no retry changes: the same shape the
+        # daily backup has, so the upgrade goes on, said. A queue that only changed while it was
+        # read is retried by backup.py and, still changing, ends the run with 1: refused below.
         print('The backup before the upgrade does not keep every legacy PGMQ queue (see above); '
               'a rollback restore would need --accept-pgmq-loss for that environment', file=sys.stderr)
     elif result.returncode:

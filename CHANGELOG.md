@@ -6,7 +6,17 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-This source release is 0.13.3. Check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for publication and downloadable assets. [Status](docs/reference/status.md) distinguishes source from the installed revision.
+This source release is 0.13.4. Check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for publication and downloadable assets. [Status](docs/reference/status.md) distinguishes source from the installed revision.
+
+## [0.13.4] - 2026-11-14
+
+### Fixed
+
+- A legacy PGMQ queue dropped or created again while a backup reads it no longer lets an update go on without its messages. That is a passing state, so the backup of that environment is taken again from a new snapshot, up to 3 attempts with a short pause. If the queue still changed in the last attempt, the run fails with exit code 1 and an update started from the console stops before it changes anything; the last attempt stays as a partial backup that counts apart in rotation. In 0.13.3 such a run exited 4 like a known unsupported shape, and the update went on. A known unsupported shape (a partitioned queue, an extra definition) is not retried and keeps exit code 4.
+
+### Limits
+
+- Covered by unit tests only; no queue was dropped during a real backup.
 
 ## [0.13.3] - 2026-11-14
 

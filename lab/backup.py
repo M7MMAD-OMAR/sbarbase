@@ -103,6 +103,11 @@ RUNTIME = re.compile(r'e_[a-f0-9]{24}')
 UUID = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')
 STAMP = re.compile(r'\d{8}T\d{6}Z')
 DEFAULT_KEEP = 7
+# Attempts at one environment's backup while a legacy PGMQ queue keeps being dropped or created
+# again as it is read, and the pause (seconds, times the attempt) between them. A queue that still
+# changed in the last attempt fails the run: its messages are in no backup of it.
+PGMQ_CHANGED_ATTEMPTS = 3
+PGMQ_CHANGED_PAUSE = 2
 REASONS = ('upgrade',)
 UPGRADE_RUNS_KEPT = 3
 
@@ -441,26 +446,37 @@ def create(e, keep=DEFAULT_KEEP, now=None, reason=None, protected=None):
     if target.exists():
         raise BackupError('A backup with this time already exists')
     private_dir(target)
-    # pg_dump reads the snapshot the counts were taken in, while the environment keeps serving.
-    fd = os.open(target / 'database.dump', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(fd, 'wb') as handle, snapshot(e) as (exported, before):
-        run(['docker', 'exec', admitted['db'], 'pg_dump', '-U', 'supabase_admin', '-Fc', f'--snapshot={exported}', '-d', e],
-            stdout=handle, text=False)
-        try:
-            object_rows = backup_consistency.inventory(sys.modules[__name__], e, exported)
-        except backup_consistency.ConsistencyError as error:
-            raise BackupError(str(error)) from None
-        # Queues of an extension the PGMQ repair has not reconciled are not in the dump: their
-        # rows go beside it, read in the same snapshot (lab/pgmq_legacy.py). A failure there never
-        # costs the rest of the backup: the manifest says the queues were not kept, and a restore
-        # of the archive is then refused without --accept-pgmq-loss.
-        try:
-            legacy_queues = pgmq_legacy.capture(sys.modules[__name__], e, exported, target)
-        except Exception as error:
-            (target / pgmq_legacy.FILE).unlink(missing_ok=True)
-            failure = str(error) if isinstance(error, pgmq_legacy.LegacyError) else type(error).__name__
-            legacy_queues = pgmq_legacy.not_kept(f'the legacy queues could not be read ({failure})')
-            print(f'backup {e}: {legacy_queues["unsupported"][0]}', file=sys.stderr)
+    for attempt in range(1, PGMQ_CHANGED_ATTEMPTS + 1):
+        # pg_dump reads the snapshot the counts were taken in, while the environment keeps serving.
+        fd = os.open(target / 'database.dump', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, 'wb') as handle, snapshot(e) as (exported, before):
+            run(['docker', 'exec', admitted['db'], 'pg_dump', '-U', 'supabase_admin', '-Fc', f'--snapshot={exported}', '-d', e],
+                stdout=handle, text=False)
+            try:
+                object_rows = backup_consistency.inventory(sys.modules[__name__], e, exported)
+            except backup_consistency.ConsistencyError as error:
+                raise BackupError(str(error)) from None
+            # Queues of an extension the PGMQ repair has not reconciled are not in the dump: their
+            # rows go beside it, read in the same snapshot (lab/pgmq_legacy.py). A failure there never
+            # costs the rest of the backup: the manifest says the queues were not kept, and a restore
+            # of the archive is then refused without --accept-pgmq-loss.
+            try:
+                legacy_queues = pgmq_legacy.capture(sys.modules[__name__], e, exported, target)
+            except Exception as error:
+                (target / pgmq_legacy.FILE).unlink(missing_ok=True)
+                failure = str(error) if isinstance(error, pgmq_legacy.LegacyError) else type(error).__name__
+                legacy_queues = pgmq_legacy.not_kept(f'the legacy queues could not be read ({failure})')
+                print(f'backup {e}: {legacy_queues["unsupported"][0]}', file=sys.stderr)
+        changed = (legacy_queues or {}).get('changed')
+        if not changed or attempt == PGMQ_CHANGED_ATTEMPTS:
+            break
+        # A queue dropped or created again while it was read is a passing state, not a shape:
+        # this unfinished attempt (no manifest yet) goes, and a new snapshot is read.
+        print(f"backup {e}: PGMQ queue(s) {', '.join(changed)} changed during the backup; "
+              f'taking it again ({attempt + 1} of {PGMQ_CHANGED_ATTEMPTS})', file=sys.stderr)
+        (target / 'database.dump').unlink()
+        (target / pgmq_legacy.FILE).unlink(missing_ok=True)
+        time.sleep(PGMQ_CHANGED_PAUSE * attempt)
     # Bind referenced native files to the exact exported database snapshot.
     fd = os.open(target / 'objects.tar', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, 'wb') as handle:
@@ -1340,7 +1356,9 @@ def environments():
 # and was already reported as backup.failed.
 OFFSITE_FAILED = 3
 # Exit code of a run whose backups were all written but at least one records legacy PGMQ queues
-# (or queue definitions) it did not keep. Already reported as backup.failed; an upgrade goes on.
+# (or queue definitions) of a known unsupported shape it did not keep. Already reported as
+# backup.failed; an upgrade goes on. A queue that only changed during the backup is retried
+# (PGMQ_CHANGED_ATTEMPTS) and, still changing, fails the run with 1 instead.
 PGMQ_INCOMPLETE = 4
 
 def main(argv=None):
@@ -1485,6 +1503,13 @@ def main(argv=None):
                                   + '; '.join(queues['unsupported']), file=sys.stderr)
                         if queues.get('failed'):
                             failed += 1
+                        elif queues.get('changed'):
+                            # Still changing after every attempt: the data was not saved, so the
+                            # run fails (an upgrade then changes nothing), unlike a known shape.
+                            failed += 1
+                            print(f"backup {e} {path.name}: PGMQ queue(s) {', '.join(queues['changed'])} "
+                                  f'changed during each of {PGMQ_CHANGED_ATTEMPTS} attempts; this run failed',
+                                  file=sys.stderr)
                         elif queues.get('unsupported'):
                             incomplete.append(e)
                     except BackupError as error:
