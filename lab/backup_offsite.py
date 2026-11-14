@@ -24,6 +24,7 @@ import datetime
 import hashlib
 import hmac
 import http.client
+import io
 import ipaddress
 import json
 import os
@@ -496,6 +497,9 @@ class S3:
         with path.open('rb') as handle:
             self.request('PUT', key, body=handle, length=path.stat().st_size, payload_hash=backup.digest(path))
 
+    def put_empty(self, key):
+        self.request('PUT', key, body=io.BytesIO(b''), length=0, payload_hash=EMPTY_SHA256)
+
     def get(self, key, path):
         fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, 'wb') as handle:
@@ -530,16 +534,34 @@ def set_names(client, prefix):
     return sorted(match[1] for key in client.list(prefix) if (match := pattern.fullmatch(key)))
 
 
+# A set holding a backup that records PGMQ queues it did not keep has this mark beside it.
+PARTIAL = '.partial'
+
+
 def prune_remote(client, prefix, keep, newest):
-    """Keep the newest ``keep`` sets, and only once the set just uploaded is listed."""
+    """Keep the newest ``keep`` sets, and only once the set just uploaded is listed. Partial sets
+    (marked, upload) are counted apart: the newest ``keep`` of them stay too, so they never push
+    out the last sets that hold every queue. A set uploaded before the mark existed counts as
+    complete."""
     if keep < 1:
         raise BackupError('Keep at least one backup')
-    names = set_names(client, prefix)
+    keys = client.list(prefix)
+    pattern = re.compile(re.escape(prefix) + r'(\d{8}T\d{6}Z)' + re.escape(SUFFIX))
+    names = sorted(match[1] for key in keys if (match := pattern.fullmatch(key)))
+    marks = re.compile(re.escape(prefix) + r'(\d{8}T\d{6}Z)' + re.escape(PARTIAL))
+    marked = {match[1] for key in keys if (match := marks.fullmatch(key))}
     if newest not in names:
         raise BackupError('The uploaded set is not listed on the target; nothing was pruned')
-    doomed = names[:-keep]
+    doomed = sorted([name for name in names if name not in marked][:-keep]
+                    + [name for name in names if name in marked][:-keep])
     for name in doomed:
         client.delete(f'{prefix}{name}{SUFFIX}')
+        if name in marked:
+            client.delete(f'{prefix}{name}{PARTIAL}')
+    # A mark whose set never arrived (an upload that failed after it) goes once a newer set is in.
+    for name in sorted(marked - set(names)):
+        if name < newest:
+            client.delete(f'{prefix}{name}{PARTIAL}')
     return doomed
 
 
@@ -553,6 +575,9 @@ def upload(stamp, runtimes, keep, config):
         fd = os.open(work, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, 'wb') as handle:
             members = pack(stamp, runtimes, key, handle)
+        if any(backup.partial(backup.BACKUPS / runtime / stamp) for runtime in runtimes):
+            # Before the set: a set that is listed is never mistaken for one that keeps everything.
+            client.put_empty(f"{config['prefix']}{stamp}{PARTIAL}")
         client.put(f"{config['prefix']}{stamp}{SUFFIX}", work)
     finally:
         work.unlink(missing_ok=True)

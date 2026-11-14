@@ -279,9 +279,10 @@ class Supervisor:
             self.backup = None
             self.refresh_current()
             count = len(runtime_files.read_endpoints(STATE, strict=True))
-            if status == 3:
-                # Local backups succeeded; the off-host copy failed and backup.py already
-                # reported that as backup.failed, so a 'completed' notice would contradict it.
+            if status in (3, 4):
+                # Local backups were written; the off-host copy failed (3) or a backup records
+                # PGMQ queues it did not keep (4), and backup.py already reported that as
+                # backup.failed, so a 'completed' notice would contradict it.
                 return
             if status == 0:
                 notification_producers.emit('backup.completed', 'info', 'backup.completed|installation', {},

@@ -22,8 +22,19 @@ This module keeps those queues recoverable while the repair is deferred:
   backup verified to hold every queue.
 
 Partitioned queues need pg_partman and are never captured: they are listed as unsupported, and
-qualify() refuses them. So are queue tables with a trigger, a rule, an index pgmq does not create
-or a publication: neither the dump nor the supplement would keep that definition.
+qualify() refuses them. A queue whose tables carry a trigger, a rule, an index pgmq does not create
+or a publication keeps its messages, grants and policies in the supplement, but neither the dump
+nor the supplement keeps that definition: it is listed as unsupported too, so a restore needs
+--accept-pgmq-loss and qualify() refuses it. A queue dropped or created again while the backup
+reads it is left out of that backup and listed the same way; the other queues are kept.
+
+Every backup that lists something unsupported counts apart in rotation (lab/backup.py prune), so
+it never takes the place of an older backup that holds every queue.
+
+Restored queues are owned by the environment's developer role. Grants the original owner (the
+cluster's `postgres` role on a legacy extension) held as owner are not recreated, and every grant
+is recreated by the restoring session, so the original grantor of a grant passed on WITH GRANT
+OPTION is not kept.
 
 A format 1 supplement (release 0.13.1) holds no grants or row level security. Its queues come
 back closed: only the developer role, which owns them, can reach them until the grants are
@@ -44,6 +55,10 @@ ENVIRONMENT = re.compile(r'e_[a-f0-9]{24}')
 QUEUE = re.compile(r'[a-z0-9_]{1,47}')
 COLUMN = re.compile(r'[a-z_][a-z0-9_]{0,62}')
 SUPPORTED_VERSION = '1.5.1'
+# The columns pgmq 1.5.1 gives a non-partitioned queue and its archive, in order. A restored queue
+# is created by pgmq itself, so only these columns can be written back into it.
+QUEUE_COLUMNS = ('msg_id', 'read_ct', 'enqueued_at', 'vt', 'message', 'headers')
+ARCHIVE_COLUMNS = ('msg_id', 'read_ct', 'enqueued_at', 'archived_at', 'vt', 'message', 'headers')
 
 EXTENSION_SQL = """SELECT json_build_object('version', e.extversion, 'owner', r.rolname, 'schema', n.nspname)
 FROM pg_catalog.pg_extension e JOIN pg_catalog.pg_roles r ON r.oid = e.extowner
@@ -120,6 +135,11 @@ EXTRAS_SQL = """SELECT pg_catalog.json_build_object(
     FROM pg_catalog.pg_index x JOIN pg_catalog.pg_class i ON i.oid = x.indexrelid
     JOIN pg_catalog.pg_class c ON c.oid = x.indrelid JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
     WHERE n.nspname = 'pgmq' AND c.relname IN {relations}), '[]'::json),
+  'constraints', coalesce((SELECT pg_catalog.json_agg(c.relname || '.' || k.conname ORDER BY 1)
+    FROM pg_catalog.pg_constraint k JOIN pg_catalog.pg_class c ON c.oid = k.conrelid
+    JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'pgmq' AND c.relname IN {relations}
+      AND k.conname NOT IN ('q_' || {name} || '_pkey', 'a_' || {name} || '_pkey')), '[]'::json),
   'publications', coalesce((SELECT pg_catalog.json_agg(p.pubname || ':' || c.relname ORDER BY 1)
     FROM pg_catalog.pg_publication_rel r JOIN pg_catalog.pg_publication p ON p.oid = r.prpubid
     JOIN pg_catalog.pg_class c ON c.oid = r.prrelid JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
@@ -128,6 +148,10 @@ EXTRAS_SQL = """SELECT pg_catalog.json_build_object(
 
 class LegacyError(RuntimeError):
     pass
+
+
+class Changed(LegacyError):
+    """One queue's tables were dropped or created again since the snapshot."""
 
 
 def relations(name):
@@ -197,14 +221,22 @@ def inventory(sql, e, exported=None):
             unsupported.append(f'queue {name!r}: name outside the supported form')
         elif queue.get('partitioned'):
             unsupported.append(f'queue {name}: partitioned queues need pg_partman')
-        elif not all(isinstance(table, list) and table and all(COLUMN.fullmatch(str(c)) for c in table) for table in tables):
-            unsupported.append(f'queue {name}: its tables are missing or have unexpected columns')
-        elif extras := unkept(sql, e, exported, name):
-            unsupported.append(f'queue {name}: ' + '; '.join(extras) + ' would not be kept')
+        elif not all(isinstance(table, list) and all(COLUMN.fullmatch(str(c)) for c in table) and set(standard) <= set(table)
+                     for table, standard in zip(tables, (QUEUE_COLUMNS, ARCHIVE_COLUMNS))):
+            unsupported.append(f'queue {name}: its tables are missing or lack a column pgmq {SUPPORTED_VERSION} creates')
         else:
+            # Its messages are kept either way; a definition neither the dump nor the supplement
+            # keeps is still listed, so a restore of it is never silent.
+            extras = [f'column {kind}_{name}.{column}' for kind, table, standard
+                      in (('q', tables[0], QUEUE_COLUMNS), ('a', tables[1], ARCHIVE_COLUMNS))
+                      for column in table if column not in standard]
+            if extras := extras + unkept(sql, e, exported, name):
+                unsupported.append(f'queue {name}: ' + '; '.join(extras)
+                                   + ' would not be kept; its messages are kept')
             supported.append({'name': name, 'unlogged': bool(queue.get('unlogged')),
-                              'created_at': queue.get('created_at'), 'queue_columns': tables[0],
-                              'archive_columns': tables[1]})
+                              'created_at': queue.get('created_at'),
+                              'queue_columns': [column for column in tables[0] if column in QUEUE_COLUMNS],
+                              'archive_columns': [column for column in tables[1] if column in ARCHIVE_COLUMNS]})
     for table in sorted(set(columns) - named):
         unsupported.append(f'table pgmq.{table} belongs to no queue in pgmq.meta')
     return {'version': found['version'], 'queues': supported, 'unsupported': unsupported}
@@ -212,8 +244,9 @@ def inventory(sql, e, exported=None):
 
 def unkept(sql, e, exported, name):
     """What a queue's tables carry that neither the dump nor the supplement keeps."""
-    found = json.loads(sql(in_snapshot(EXTRAS_SQL.format(relations=relations(name)), exported), e))
+    found = json.loads(sql(in_snapshot(EXTRAS_SQL.format(relations=relations(name), name=literal(name)), exported), e))
     extras = [f'trigger {item}' for item in found['triggers']] + [f'rule {item}' for item in found['rules']]
+    extras += [f'constraint {item}' for item in found['constraints']]
     extras += [f'index {item}' for item in sorted(set(found['indexes']) - expected_indexes(name))]
     extras += [f'publication {item}' for item in found['publications']]
     return extras
@@ -281,11 +314,19 @@ def identity(api, e, exported, name):
     return json.loads(api.sql(in_snapshot(IDENTITY_SQL.format(relations=relations(name)), exported), e))
 
 
+def moved(api, e, exported, name):
+    """Whether a queue's relations differ now from the snapshot's; False when that cannot be read."""
+    try:
+        return identity(api, e, exported, name) != identity(api, e, None, name)
+    except Exception:
+        return False
+
+
 def unchanged(api, e, exported, name):
     """Refuse a queue whose tables or sequence were dropped or created again since the snapshot:
     the supplement names them, so it would read other relations than the dump's."""
     if identity(api, e, exported, name) != identity(api, e, None, name):
-        raise LegacyError(f'The legacy queue {name} changed during the backup; take the backup again')
+        raise Changed(f'The legacy queue {name} changed during the backup; take the backup again')
 
 
 def sequence_value(api, e, exported, name):
@@ -317,49 +358,68 @@ def capture(api, e, exported, path):
     if found is None:
         return None
     owner = quote(e + '_developer')
-    counts, roles = [], set()
+    counts, roles, unsupported = [], set(), list(found['unsupported'])
     target = path / FILE
     descriptor = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(descriptor, 'wb') as handle:
         handle.write((f'-- Sbarbase legacy PGMQ supplement, format {FORMAT}. Replayed by lab/restore_cutover.py.\n'
                       'SET client_min_messages = warning;\n').encode())
         for queue in found['queues']:
-            name = queue['name']
-            create = 'create_unlogged' if queue['unlogged'] else 'create_non_partitioned'
-            unchanged(api, e, exported, name)
-            access = json.loads(api.sql(in_snapshot(ACCESS_SQL.format(relations=relations(name)), exported), e))
-            if not isinstance(access.get('statements'), list) or not isinstance(access.get('roles'), list):
-                raise LegacyError('The access of a legacy queue could not be read')
-            roles.update(access['roles'])
-            handle.write((f'SELECT pgmq.{create}({literal(name)});\n' + detach_sql(name)
-                          + f'ALTER TABLE pgmq.{quote("q_" + name)} OWNER TO {owner};\n'
-                          + f'ALTER TABLE pgmq.{quote("a_" + name)} OWNER TO {owner};\n'
-                          + closed_sql(name) + ''.join(statement + '\n' for statement in access['statements'])
-                          ).encode())
-            rows = {}
-            for kind, columns in (('q', queue['queue_columns']), ('a', queue['archive_columns'])):
-                listed = ', '.join(quote(column) for column in columns)
-                table = f'pgmq.{quote(kind + "_" + name)} ({listed})'
-                handle.write(f'COPY {table} FROM stdin;\n'.encode())
+            # A queue that changed while it was read is cut back out of the file, and only it.
+            handle.flush()
+            start = handle.tell()
+            try:
+                counts.append(capture_queue(api, e, exported, queue, owner, handle, roles))
+            except Exception as error:
+                # A read that failed because the queue was dropped in between is that change too;
+                # any other failure fails the whole supplement.
+                if not isinstance(error, Changed) and not moved(api, e, exported, queue['name']):
+                    raise
                 handle.flush()
-                rows[kind] = copy_out(api.psql(e), in_snapshot(f'COPY {table} TO STDOUT;', exported), handle)
-                handle.write(b'\\.\n')
-                expected = api.sql(in_snapshot(f'SELECT count(*) FROM pgmq.{quote(kind + "_" + name)};', exported), e)
-                if str(rows[kind]) != expected.strip():
-                    raise LegacyError('A legacy queue backup row count differs from its snapshot')
-            last, called = sequence_value(api, e, exported, name)
-            # Still the same relations once read: a drop in between would have changed what the
-            # names resolve to while their rows were copied.
-            unchanged(api, e, exported, name)
-            handle.write((f"SELECT pg_catalog.setval('pgmq.{quote('q_' + name + '_msg_id_seq')}', {last}, "
-                          f"{'true' if called else 'false'});\n"
-                          f'UPDATE pgmq.meta SET created_at = {literal(queue["created_at"])}::timestamptz '
-                          f'WHERE queue_name = {literal(name)};\n').encode())
-            counts.append({'name': name, 'messages': rows['q'], 'archived': rows['a'], 'unlogged': queue['unlogged']})
+                handle.seek(start)
+                handle.truncate()
+                unsupported.append(f"queue {queue['name']}: dropped or created again during the backup, "
+                                   'its messages are not in this backup')
     data = target.read_bytes()
     return {'format': FORMAT, 'file': FILE, 'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest(),
-            'version': found['version'], 'queues': counts, 'unsupported': found['unsupported'],
+            'version': found['version'], 'queues': counts, 'unsupported': unsupported,
             'roles': sorted(roles)}
+
+
+def capture_queue(api, e, exported, queue, owner, handle, roles):
+    """Append one queue to the supplement; its roles join `roles` only once it is all written."""
+    name = queue['name']
+    create = 'create_unlogged' if queue['unlogged'] else 'create_non_partitioned'
+    unchanged(api, e, exported, name)
+    access = json.loads(api.sql(in_snapshot(ACCESS_SQL.format(relations=relations(name)), exported), e))
+    if not isinstance(access.get('statements'), list) or not isinstance(access.get('roles'), list):
+        raise LegacyError('The access of a legacy queue could not be read')
+    handle.write((f'SELECT pgmq.{create}({literal(name)});\n' + detach_sql(name)
+                  + f'ALTER TABLE pgmq.{quote("q_" + name)} OWNER TO {owner};\n'
+                  + f'ALTER TABLE pgmq.{quote("a_" + name)} OWNER TO {owner};\n'
+                  + closed_sql(name) + ''.join(statement + '\n' for statement in access['statements'])
+                  ).encode())
+    rows = {}
+    for kind, columns in (('q', queue['queue_columns']), ('a', queue['archive_columns'])):
+        listed = ', '.join(quote(column) for column in columns)
+        table = f'pgmq.{quote(kind + "_" + name)} ({listed})'
+        handle.write(f'COPY {table} FROM stdin;\n'.encode())
+        handle.flush()
+        rows[kind] = copy_out(api.psql(e), in_snapshot(f'COPY {table} TO STDOUT;', exported), handle)
+        handle.write(b'\\.\n')
+        expected = api.sql(in_snapshot(f'SELECT count(*) FROM pgmq.{quote(kind + "_" + name)};', exported), e)
+        if str(rows[kind]) != expected.strip():
+            raise LegacyError('A legacy queue backup row count differs from its snapshot')
+    last, called = sequence_value(api, e, exported, name)
+    # Still the same relations once read: a drop in between would have changed what the
+    # names resolve to while their rows were copied.
+    unchanged(api, e, exported, name)
+    handle.write((f"SELECT pg_catalog.setval('pgmq.{quote('q_' + name + '_msg_id_seq')}', {last}, "
+                  f"{'true' if called else 'false'});\n"
+                  f'UPDATE pgmq.meta SET created_at = {literal(queue["created_at"])}::timestamptz '
+                  f'WHERE queue_name = {literal(name)};\n').encode())
+    roles.update(access['roles'])
+    return {'name': name, 'messages': rows['q'], 'archived': rows['a'], 'unlogged': queue['unlogged']}
 
 
 def not_kept(reason):
@@ -412,9 +472,38 @@ def restorable(shape, manifest, accept_loss=False):
                 'environment had would be lost. Restore a later backup, or pass --accept-pgmq-loss if the '
                 'environment had no queues')
     if entry.get('unsupported'):
-        return ('This backup could not keep every PGMQ queue (' + '; '.join(entry['unsupported']) + '). '
-                'Pass --accept-pgmq-loss to restore it without them')
+        return ('This backup does not keep everything its PGMQ queues had (' + '; '.join(entry['unsupported']) + '). '
+                'Restore an older backup that keeps every queue (lab/backup.py list), or pass --accept-pgmq-loss '
+                'to restore this one without what is listed')
     return None
+
+
+# Archive entries that hang on one pgmq relation by name; pg_dump writes these for a table it dumps.
+DEPENDENT = (re.compile(r'\s*\d+ \d+ (?:CONSTRAINT|FK CONSTRAINT|RULE|TRIGGER|POLICY|ROW SECURITY) pgmq ([a-z0-9_]+)\b'),
+             re.compile(r'\s*\d+ \d+ COMMENT pgmq (?:TABLE|COLUMN|SEQUENCE) ([a-z0-9_]+)\b'),
+             re.compile(r'\s*\d+ \d+ PUBLICATION TABLE pgmq \S+ ([a-z0-9_]+)\b'))
+
+
+def replay_dependents(toc):
+    """Archive entries of a legacy archive that hang on a pgmq relation it does not create, sorted.
+
+    pg_dump in the pinned image writes none for an extension member (lab/pgmq-access-check.py
+    proves it for a trigger, rule, index, constraint, publication, policy and row level security):
+    only grants, which replay_omits leaves out. Another pg_dump that wrote one would stop the
+    replay part way, so a restore refuses such an archive before it changes anything."""
+    defined, dependent = set(), set()
+    for line in toc.splitlines():
+        if line.startswith(';') or ';' not in line:
+            continue
+        entry = line.split(';', 1)[1]
+        if match := re.match(r'\s*\d+ \d+ (?:TABLE|SEQUENCE) pgmq ([a-z0-9_]+) ', entry):
+            defined.add(match[1])
+            continue
+        for pattern in DEPENDENT:
+            if match := pattern.match(entry):
+                dependent.add(match[1])
+                break
+    return sorted(dependent - defined)
 
 
 def replay_omits(toc):

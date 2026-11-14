@@ -333,6 +333,36 @@ class TargetTests(Fixture):
         self.assertEqual(server.bad_signatures, 0)
         self.assertEqual([path.name for path in self.backups.iterdir() if path.name.startswith('.')], [])
 
+    def test_sets_with_queues_not_kept_never_push_out_the_last_sets_that_hold_every_queue(self):
+        """Several daily cycles: two complete sets, then partial ones (a queue the backup cannot keep)."""
+        server = self.serve()
+        stamps = [f'202609{day:02d}T030000Z' for day in range(20, 27)]
+        for index, stamp in enumerate(stamps):
+            self.run_set(stamp)
+            if index >= 2:
+                manifest_path = self.backups / E1 / stamp / 'manifest.json'
+                manifest = json.loads(manifest_path.read_text())
+                manifest.update(version=2, pgmq=backup.pgmq_legacy.not_kept('queue big: partitioned queues need pg_partman'))
+                manifest['pgmq']['failed'] = False
+                manifest_path.write_text(json.dumps(manifest))
+            self.assertTrue(offsite.after_run(stamp, [E1, E2], 2))
+        self.assertEqual(offsite.list_remote(), stamps[:2] + stamps[-2:])
+        self.assertEqual(sorted(key for key in server.objects if key.endswith('.partial')),
+                         [f'sbarbase/{stamp}.partial' for stamp in stamps[-2:]])
+        # A complete set again: the oldest complete one goes, the partial ones stay counted apart.
+        stamp = '20260927T030000Z'
+        self.run_set(stamp)
+        self.assertTrue(offsite.after_run(stamp, [E1, E2], 2))
+        self.assertEqual(offsite.list_remote(), [stamps[1], *stamps[-2:], stamp])
+
+    def test_a_mark_whose_set_never_arrived_is_removed_once_a_newer_set_is_in(self):
+        server = self.serve()
+        server.objects['sbarbase/20260920T030000Z.partial'] = b''
+        stamp = '20260924T030000Z'
+        self.run_set(stamp)
+        self.assertTrue(offsite.after_run(stamp, [E1, E2], 2))
+        self.assertNotIn('sbarbase/20260920T030000Z.partial', server.objects)
+
     def test_a_set_is_fetched_back_verified_and_an_existing_local_backup_is_left_alone(self):
         self.serve()
         stamp = '20260924T030000Z'

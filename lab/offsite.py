@@ -381,14 +381,29 @@ def remember(names):
     backup.write_private(RECORD, json.dumps({'uploaded': sorted(names)}) + '\n')
 
 
-def remote_backups(bucket, config, e):
-    """Complete backups in the bucket for one environment, oldest first."""
+def remote_sets(bucket, config, e):
+    """{stamp: names of its objects} in the bucket for one environment."""
     stamps = {}
     for key in bucket.keys(f"{config['prefix']}/{e}/"):
         parts = key.split('/')
         if len(parts) >= 2 and backup.STAMP.fullmatch(parts[-2]):
             stamps.setdefault(parts[-2], set()).add(parts[-1])
-    return sorted(stamp for stamp, names in stamps.items() if 'complete' in names)
+    return stamps
+
+
+def remote_backups(bucket, config, e):
+    """Complete backups in the bucket for one environment, oldest first."""
+    return sorted(stamp for stamp, names in remote_sets(bucket, config, e).items() if 'complete' in names)
+
+
+def remote_doomed(stamps, keep):
+    """The copies to remove: the newest ``keep`` complete copies stay, and apart from them the
+    newest ``keep`` partial ones (marked ``partial``, lab/backup.py partial), so partial copies
+    never push out the last copies that hold every queue. A copy uploaded before the mark
+    existed counts as complete."""
+    complete = sorted(stamp for stamp, names in stamps.items() if 'complete' in names)
+    return sorted([stamp for stamp in complete if 'partial' not in stamps[stamp]][:-keep]
+                  + [stamp for stamp in complete if 'partial' in stamps[stamp]][:-keep])
 
 
 def push(targets, config=None):
@@ -398,20 +413,30 @@ def push(targets, config=None):
     bucket, done = Bucket(config), uploaded()
     copied = []
     for e in targets:
+        stamps = remote_sets(bucket, config, e)
         for path in backup.complete_backups(e):
             name = f'{e}/{path.name}'
+            base = f"{config['prefix']}/{e}/{path.name}"
+            partial = backup.partial(path)
             if name in done:
+                if partial and 'complete' in stamps.get(path.name, ()) and 'partial' not in stamps[path.name]:
+                    # Copied before the mark existed: marked now, while the local backup says so.
+                    bucket.put_bytes(f'{base}/partial', b'')
+                    stamps[path.name].add('partial')
                 continue
             backup.verify(e, path)
-            base = f"{config['prefix']}/{e}/{path.name}"
             for file in backup.files_of(path):
                 bucket.put_file(f'{base}/{file}.sbb', path / file, config['passphrase'])
+            if partial:
+                # Before `complete`: a copy that is listed is never mistaken for one that keeps everything.
+                bucket.put_bytes(f'{base}/partial', b'')
             # Written last: a copy without it is an interrupted upload and is never fetched.
             bucket.put_bytes(f'{base}/complete', b'')
+            stamps.setdefault(path.name, set()).update({'complete', *(['partial'] if partial else [])})
             done.add(name)
             remember(done)
             copied.append(name)
-        for stamp in remote_backups(bucket, config, e)[:-config['keep']]:
+        for stamp in remote_doomed(remote_sets(bucket, config, e), config['keep']):
             for key in bucket.keys(f"{config['prefix']}/{e}/{stamp}/"):
                 bucket.request('DELETE', key)
     return copied

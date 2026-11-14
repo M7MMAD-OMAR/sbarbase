@@ -512,7 +512,12 @@ def back_up():
     # Marked as an upgrade's, so count-based pruning keeps them (lab/backup.py UPGRADE_RUNS_KEPT).
     result = subprocess.run(['/usr/bin/python3', 'lab/backup.py', 'create', 'all', '--local-only', '--reason', 'upgrade'],
                             cwd=ROOT, text=True)
-    if result.returncode:
+    if result.returncode == backup.PGMQ_INCOMPLETE:
+        # Every backup was written, and the run already reported which PGMQ queues one of them
+        # does not keep: the same shape the daily backup has, so the upgrade goes on, said.
+        print('The backup before the upgrade does not keep every legacy PGMQ queue (see above); '
+              'a rollback restore would need --accept-pgmq-loss for that environment', file=sys.stderr)
+    elif result.returncode:
         raise UpgradeError('The backup before the upgrade failed; nothing was changed')
     # The upgrade lock is held, so the only upgrade run that can have appeared is this one.
     return max(backup.upgrade_run_times() - before, default=None)

@@ -6,7 +6,24 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-This source release is 0.13.2. Check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for publication and downloadable assets. [Status](docs/reference/status.md) distinguishes source from the installed revision.
+This source release is 0.13.3. Check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for publication and downloadable assets. [Status](docs/reference/status.md) distinguishes source from the installed revision.
+
+## [0.13.3] - 2026-11-14
+
+### Changed
+
+- A legacy PGMQ queue dropped and created again while a backup reads it is now left out of that backup and listed as not kept; the other queues are kept. In 0.13.2 the whole capture was refused. A queue whose tables carry an extra column, a constraint, a trigger, a rule, an index pgmq does not create or a publication now has its messages, grants and policies kept, and only that definition is listed as not kept.
+- A backup run whose backups were all written but one of them lists PGMQ queues or definitions it did not keep exits with code 4 and sends a critical `backup.failed` notice instead of `backup.completed`. An update from the console goes on after such a run and says so: restoring that environment from the update's backup then needs `--accept-pgmq-loss`. A failed capture still exits 1 and stops the update.
+
+### Fixed
+
+- Rotation no longer lets backups that miss PGMQ queues push out the last backups that hold every queue. Local backups, off-site sets and off-site copies count partial backups apart from complete ones: the newest `keep` of each stay, so up to twice `keep` can be kept. A backup whose manifest cannot be read counts as partial. Off-site copies are marked `partial` before `complete`, and a copy uploaded before the mark is marked from its local backup.
+- A restore refuses, before changing anything, a legacy archive with an entry (constraint, trigger, rule, policy, row level security, comment or publication) on a PGMQ queue table it does not create. The pinned pg_dump writes none; another one would stop the replay part way.
+- A restore that refuses a partial backup names the way out: restore an older backup that keeps every queue, or pass `--accept-pgmq-loss`.
+
+### Limits
+
+- Checked with real pgmq 1.5.1 on a disposable database (`lab/pgmq-access-check.py`, 25 checks, [evidence](docs/evidence/pgmq-access-2026-11-14.json)) and by unit tests. Rotation of partial backups is covered by unit tests only. Restored queues are owned by the environment's developer role; grants the original owner held as owner, and the original grantor of a grant passed on WITH GRANT OPTION, are not kept. Service image locks do not change.
 
 ## [0.13.2] - 2026-11-14
 

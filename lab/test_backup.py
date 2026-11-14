@@ -75,6 +75,68 @@ class RetentionTests(Fixture):
         self.assertEqual(len(doomed), 2)
         self.assertEqual([path.name for path in backup.complete_backups(E)], ['20260902T030000Z', '20260903T030000Z'])
 
+    def partial(self, stamp, reason=None, failed=False):
+        path = self.complete(stamp, reason=reason)
+        manifest = json.loads((path / 'manifest.json').read_text())
+        manifest.update(version=2, pgmq={'format': 2, 'file': None, 'queues': [], 'failed': failed,
+                                         'unsupported': ['queue big: partitioned queues need pg_partman']})
+        (path / 'manifest.json').write_text(json.dumps(manifest))
+        return path
+
+    def test_partial_backups_never_push_out_the_last_backups_that_hold_every_queue(self):
+        """Many daily cycles with keep 7: three good backups, then a queue the backup cannot keep."""
+        good = [f'202609{day:02d}T030000Z' for day in (1, 2, 3)]
+        for stamp in good:
+            self.complete(stamp)
+            backup.prune(E, 7)
+        later = [f'2026{month:02d}{day:02d}T030000Z' for month in (9, 10) for day in range(4 if month == 9 else 1, 29)]
+        for stamp in later:
+            self.partial(stamp)
+            backup.prune(E, 7)
+        self.assertEqual([path.name for path in backup.complete_backups(E)], good + later[-7:])
+
+    def test_failed_captures_and_unreadable_manifests_count_as_partial(self):
+        good = ['20260901T030000Z', '20260902T030000Z']
+        for stamp in good:
+            self.complete(stamp)
+        for day in range(3, 10):
+            self.partial(f'202609{day:02d}T030000Z', failed=True)
+            backup.prune(E, 2)
+        broken = backup.private_dir(self.backups / E / '20260910T030000Z')
+        (broken / 'manifest.json').write_text('{not json')
+        backup.prune(E, 2)
+        self.assertEqual([path.name for path in backup.complete_backups(E)],
+                         good + ['20260909T030000Z', '20260910T030000Z'])
+
+    def test_alternating_backups_keep_the_newest_of_each_kind(self):
+        for day in range(1, 13):
+            stamp = f'202609{day:02d}T030000Z'
+            (self.partial if day % 2 else self.complete)(stamp)
+            backup.prune(E, 2)
+        self.assertEqual([path.name for path in backup.complete_backups(E)],
+                         ['20260909T030000Z', '20260910T030000Z', '20260911T030000Z', '20260912T030000Z'])
+
+    def test_a_release_0_13_1_backup_with_every_queue_counts_as_whole(self):
+        path = self.complete('20260901T030000Z')
+        manifest = json.loads((path / 'manifest.json').read_text())
+        manifest.update(version=2, pgmq={'format': 1, 'file': 'pgmq.sql', 'queues': [{'name': 'jobs'}], 'unsupported': []})
+        (path / 'manifest.json').write_text(json.dumps(manifest))
+        self.assertFalse(backup.partial(path))
+        self.complete('20260902T030000Z')
+        backup.prune(E, 1)
+        self.assertEqual([path.name for path in backup.complete_backups(E)], ['20260902T030000Z'])
+
+    def test_upgrade_backups_stay_protected_among_partial_ones(self):
+        upgrade = '20260902T100000Z'
+        self.partial(upgrade, reason='upgrade')
+        backup.mark_moved(upgrade)
+        self.complete('20260901T030000Z')
+        for day in range(3, 9):
+            self.partial(f'202609{day:02d}T030000Z')
+            backup.prune(E, 2)
+        self.assertEqual([path.name for path in backup.complete_backups(E)],
+                         ['20260901T030000Z', upgrade, '20260907T030000Z', '20260908T030000Z'])
+
     def test_keeping_nothing_is_refused(self):
         with self.assertRaises(backup.BackupError):
             backup.prune(E, 0)
@@ -203,16 +265,28 @@ class LegacyQueueRunTests(Fixture):
         self.assertEqual(code, 1)
         self.assertIn('does not keep every PGMQ queue', errors)
 
-    def test_a_known_unsupported_queue_is_said_and_the_run_succeeds(self):
+    def test_a_known_unsupported_queue_is_said_reported_and_the_run_ends_with_its_own_code(self):
+        """0.13.2 ended such a run with 0 and a line on stderr only."""
         entry = {'format': 2, 'file': 'pgmq.sql', 'queues': [], 'roles': [],
                  'unsupported': ['queue big: partitioned queues need pg_partman']}
-        code, errors = self.run_create(entry)
-        self.assertEqual(code, 0)
+        import notification_producers
+        with patch.object(notification_producers, 'emit') as emit:
+            code, errors = self.run_create(entry)
+        self.assertEqual(code, backup.PGMQ_INCOMPLETE)
         self.assertIn('queue big', errors)
+        emit.assert_called_once_with('backup.failed', 'critical', 'backup.pgmq_incomplete|installation', {},
+                                     'system:backup', 'export_failed', {'failed': 1})
 
     def test_a_complete_supplement_is_silent(self):
-        code, errors = self.run_create({'format': 2, 'file': 'pgmq.sql', 'queues': [], 'roles': [], 'unsupported': []})
+        import notification_producers
+        with patch.object(notification_producers, 'emit') as emit:
+            code, errors = self.run_create({'format': 2, 'file': 'pgmq.sql', 'queues': [], 'roles': [], 'unsupported': []})
         self.assertEqual((code, errors), (0, ''))
+        emit.assert_not_called()
+
+    def test_the_supervisor_sends_no_completed_notice_after_an_incomplete_run(self):
+        source = (Path(backup.__file__).parent / 'dev.py').read_text()
+        self.assertIn('if status in (3, 4):', source)
 
 
 class RepairPgmqTests(unittest.TestCase):

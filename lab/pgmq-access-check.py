@@ -10,10 +10,14 @@ What it covers, on real PostgreSQL and real pgmq 1.5.1:
 - a format 2 supplement restores the exact queue grants (table, archive, sequence, column),
   row level security with FORCE, a permissive and a restrictive policy, and nothing more;
 - row level security filters rows for `authenticated`, and `pgmq.send` works through the grants;
-- a queue dropped and created again during the backup is refused, not copied from another table;
+- a queue dropped and created again during the backup is left out of it and listed, never copied
+  from another table, while the other queues are kept;
 - a restored sequence continues past every id the source handed out while the backup ran;
 - an unlogged queue comes back unlogged with its rows;
-- a queue with a trigger is reported unsupported, and restore refuses it without the flag;
+- a queue whose tables carry a trigger, a rule, an extra index, constraint or column, or a
+  publication keeps its messages; the lost definition is listed, and restore refuses it without the
+  flag; pg_dump writes no archive entry for any of them, nor for a queue's policies or row level
+  security, so the archive replays (lab/pgmq_legacy.py replay_dependents);
 - `--accept-pgmq-loss` without a supplement replays without error;
 - a format 1 supplement (the real 0.13.1 code) restores the rows with the queues closed;
 - the qualified repair keeps all of it, and a native dump then holds the policies.
@@ -189,7 +193,15 @@ CREATE POLICY readable ON pgmq.q_jobs FOR SELECT TO authenticated USING ((messag
 CREATE POLICY writable ON pgmq.q_jobs FOR INSERT TO authenticated WITH CHECK ((message ->> 'public')::boolean);
 CREATE POLICY fresh ON pgmq.q_jobs AS RESTRICTIVE FOR ALL TO authenticated USING (read_ct < 5);
 CREATE FUNCTION public.noop() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NEW; END $$;
-CREATE TRIGGER noop BEFORE INSERT ON pgmq.q_hooked FOR EACH ROW EXECUTE FUNCTION public.noop();""")
+CREATE TRIGGER noop BEFORE INSERT ON pgmq.q_hooked FOR EACH ROW EXECUTE FUNCTION public.noop();
+SELECT pgmq.send('hooked', '{"n": 1}');
+SELECT pgmq.create('indexed'); CREATE INDEX indexed_extra ON pgmq.q_indexed (enqueued_at);
+SELECT pgmq.create('ruled'); CREATE RULE keep_rows AS ON DELETE TO pgmq.q_ruled WHERE false DO INSTEAD NOTHING;
+SELECT pgmq.create('checked'); ALTER TABLE pgmq.q_checked ADD CONSTRAINT positive CHECK (read_ct >= 0);
+SELECT pgmq.create('widened'); ALTER TABLE pgmq.q_widened ADD COLUMN tenant text;
+SELECT pgmq.create('published'); CREATE PUBLICATION queues FOR TABLE pgmq.q_published;
+SELECT pgmq.send(name, '{"n": 1}') FROM unnest(ARRAY['indexed', 'ruled', 'checked', 'widened', 'published']) name;
+UPDATE pgmq.q_widened SET tenant = 'a';""")
         record('fixture is a legacy extension', pgmq_legacy.legacy(pgmq_legacy.extension(Api.sql, E)))
         container = json.loads(docker('inspect', DB).stdout)[0]['Id']
         studio.studio_extensions.install(lambda *args, data=None: docker(*args, data=data), container, image, PREFIX)
@@ -206,12 +218,13 @@ CREATE TRIGGER noop BEFORE INSERT ON pgmq.q_hooked FOR EACH ROW EXECUTE FUNCTION
         # table than the dump's, and the capture refuses instead of copying it.
         sql("SELECT pgmq.drop_queue('plain'); SELECT pgmq.create('plain');")
         raced = Path(tempfile.mkdtemp(prefix='sbarbase-pgmq-access-race-', dir=WORK))
-        try:
-            pgmq_legacy.capture(Api, E, exported, raced)
-            refused = ''
-        except pgmq_legacy.LegacyError as error:
-            refused = str(error)
-        record('a queue dropped and created again during the backup is refused', 'plain changed' in refused, refused)
+        raced_entry = pgmq_legacy.capture(Api, E, exported, raced)
+        raced_text = pgmq_legacy.verify(raced_entry, raced).decode()
+        record('a queue dropped and created again during the backup is left out and listed; the others are kept',
+               'plain' not in [queue['name'] for queue in raced_entry['queues']]
+               and any(item.startswith('queue plain: dropped or created again') for item in raced_entry['unsupported'])
+               and "'plain'" not in raced_text and 'jobs' in [queue['name'] for queue in raced_entry['queues']],
+               json.dumps(raced_entry))
         holder.stdin.write('COMMIT;\n')
         holder.stdin.close()
         holder.wait(timeout=60)
@@ -231,16 +244,27 @@ CREATE TRIGGER noop BEFORE INSERT ON pgmq.q_hooked FOR EACH ROW EXECUTE FUNCTION
         holder.stdin.close()
         holder.wait(timeout=60)
         supplement = pgmq_legacy.verify(entry, folder).decode()
-        record('supplement keeps the supported queues and names its roles',
-               [queue['name'] for queue in entry['queues']] == ['fast', 'jobs', 'plain']
+        extras = ['checked', 'hooked', 'indexed', 'published', 'ruled', 'widened']
+        record('supplement keeps every queue, those with definitions it cannot keep too, and names its roles',
+               [queue['name'] for queue in entry['queues']] == sorted(['fast', 'jobs', 'plain', *extras])
                and {'anon', 'authenticated'} <= set(entry['roles']), json.dumps(entry))
-        record('a queue with a trigger is unsupported and restore refuses it without the flag',
-               any('trigger q_hooked.noop' in item for item in entry['unsupported'])
-               and pgmq_legacy.restorable('legacy', {'pgmq': entry}) is not None
+        lost = ' | '.join(entry['unsupported'])
+        record('each definition neither the dump nor the supplement keeps is listed, with its messages kept',
+               all(word in lost for word in ('trigger q_hooked.noop', 'index indexed_extra', 'rule q_ruled.keep_rows',
+                                             'constraint q_checked.positive', 'column q_widened.tenant',
+                                             'publication queues:q_published'))
+               and len(entry['unsupported']) == len(extras) and lost.count('its messages are kept') == len(extras), lost)
+        record('restore refuses such a backup without the flag and takes it with the flag',
+               pgmq_legacy.restorable('legacy', {'pgmq': entry}) is not None
                and pgmq_legacy.restorable('legacy', {'pgmq': entry}, accept_loss=True) is None)
         record('pgmq 1.5.1 creates exactly the indexes the check expects',
-               not any('index' in item for item in entry['unsupported']), json.dumps(entry['unsupported']))
+               not re.search(r'\bindex (?!indexed_extra\b)', lost), lost)
         toc = docker('exec', '-i', DB, 'pg_restore', '-l', data=dump, binary=True).stdout.decode()
+        record('pg_dump writes no archive entry hanging on a queue table it leaves out (policy, row level '
+               'security, trigger, rule, index, constraint, publication)',
+               pgmq_legacy.replay_dependents(toc) == []
+               and not re.search(r'(INDEX pgmq indexed_extra|PUBLICATION TABLE pgmq|POLICY pgmq|ROW SECURITY pgmq)', toc),
+               '\n'.join(line for line in toc.splitlines() if 'pgmq' in line))
         omit = pgmq_legacy.replay_omits(toc)
         record('archive is legacy and its queue grants are listed for omission',
                pgmq_legacy.archive_shape(toc) == 'legacy'
@@ -264,11 +288,13 @@ CREATE TRIGGER noop BEFORE INSERT ON pgmq.q_hooked FOR EACH ROW EXECUTE FUNCTION
         record('format 2 supplement replays in the held restore session', failed is None, str(failed))
         restored = access(target)
         record('restored queue access equals the original, with nothing added',
-               restored == [row for row in original if 'q_hooked' not in row and 'a_hooked' not in row],
+               restored == original,
                json.dumps({'original': original, 'restored': restored}))
         rows = value("SELECT string_agg(message->>'n', ',' ORDER BY msg_id) FROM pgmq.q_jobs;"
                      "SELECT count(*) FROM pgmq.a_jobs; SELECT count(*) FROM pgmq.q_plain;", target).split()
         record('queue rows and archive rows are restored as the snapshot had them', rows == ['1,2', '1', '3'], rows)
+        kept = value(' '.join(f'SELECT count(*) FROM pgmq.q_{name};' for name in extras), target).split()
+        record('the messages of queues with definitions the backup cannot keep are restored', kept == ['1'] * len(extras), kept)
         fast = value("SELECT relpersistence FROM pg_class WHERE relname = 'q_fast';"
                      "SELECT count(*) FROM pgmq.q_fast; SELECT pgmq.send('fast', '{}');", target).split()
         record('an unlogged queue comes back unlogged with its rows and sequence', fast == ['u', '2', '3'], fast)
@@ -299,7 +325,9 @@ CREATE TRIGGER noop BEFORE INSERT ON pgmq.q_hooked FOR EACH ROW EXECUTE FUNCTION
         spec = importlib.util.spec_from_file_location('pgmq_legacy_0131', old / 'pgmq_legacy_0131.py')
         legacy_0131 = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(legacy_0131)
-        sql("SELECT pgmq.drop_queue('hooked');")
+        # 0.13.1 copied an added column it could not write back; the other shapes it read as they were.
+        sql("SELECT pgmq.drop_queue(name) FROM unnest(ARRAY['hooked', 'indexed', 'ruled', 'checked', 'widened', "
+            "'published']) name;")
         holder = subprocess.Popen(psql(E), stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         holder.stdin.write('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;\nSELECT pg_export_snapshot();\n')
         holder.stdin.flush()

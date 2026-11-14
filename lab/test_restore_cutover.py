@@ -322,6 +322,15 @@ class CutoverTests(Fixture):
             restore_cutover.restore(backup, E, NAME, NOW, accept_pgmq_loss=True)
             self.assertEqual(model.supplements, [])
 
+    def test_a_legacy_archive_with_objects_on_queue_tables_it_does_not_create_refuses_before_anything_changes(self):
+        """The pinned pg_dump writes none (lab/pgmq-access-check.py); another one would stop the replay part way."""
+        legacy = '3; 3079 16384 EXTENSION - pgmq\n9; 3256 16853 POLICY pgmq q_jobs own postgres\n'
+        with NativeModel(self) as model, patch.object(backup, 'archive_toc', lambda *a: legacy):
+            with self.assertRaisesRegex(backup.BackupError, r'does not create \(q_jobs\).*Nothing was changed'):
+                restore_cutover.restore(backup, E, NAME, NOW, accept_pgmq_loss=True)
+            self.assertEqual(model.events, [])
+            self.assertIsNone(model.journal())
+
     def test_legacy_pgmq_supplement_is_verified_and_replayed_in_the_fenced_stage(self):
         import hashlib
         path = backup.BACKUPS / E / NAME

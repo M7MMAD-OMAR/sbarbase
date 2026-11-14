@@ -765,6 +765,23 @@ class BackUpTests(unittest.TestCase):
                 upgrade.back_up()
 
 
+    def test_a_backup_that_keeps_every_backup_but_not_every_pgmq_queue_lets_the_upgrade_go_on_and_says_so(self):
+        """Exit 4: every backup was written and the run reported the queues it does not keep."""
+        runs = iter([set(), {'20260926T030000Z'}])
+        errors = io.StringIO()
+        with patch.object(subprocess, 'run', return_value=subprocess.CompletedProcess([], backup.PGMQ_INCOMPLETE)), \
+                patch.object(backup, 'upgrade_run_times', side_effect=lambda: next(runs)), patch('sys.stderr', errors):
+            self.assertEqual(upgrade.back_up(), '20260926T030000Z')
+        self.assertIn('does not keep every legacy PGMQ queue', errors.getvalue())
+
+    def test_an_off_site_or_other_failure_code_still_stops_the_upgrade(self):
+        for code in (2, 3, 5):
+            with patch.object(subprocess, 'run', return_value=subprocess.CompletedProcess([], code)), \
+                    patch.object(backup, 'upgrade_run_times', return_value=set()):
+                with self.assertRaisesRegex(upgrade.UpgradeError, 'backup before the upgrade failed'):
+                    upgrade.back_up()
+
+
 class CommandTests(unittest.TestCase):
     def test_the_backup_before_an_upgrade_is_marked_as_one_and_names_its_run(self):
         directory = tempfile.TemporaryDirectory()

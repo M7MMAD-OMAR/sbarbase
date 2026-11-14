@@ -374,6 +374,25 @@ class PushAndFetchTests(unittest.TestCase):
         offsite.fetch(E, stamp, self.config)
         self.assertEqual((path / 'pgmq.sql').read_bytes(), b'SELECT 1;\n')
 
+    def test_partial_copies_never_push_out_the_last_copies_that_hold_every_queue(self):
+        partial = {'format': 2, 'file': None, 'queues': [], 'unsupported': ['queue big: partitioned queues need pg_partman']}
+        self.make('20260901T030000Z')
+        self.make('20260902T030000Z')
+        offsite.push([E], self.config)
+        for day in range(3, 8):
+            self.legacy(f'202609{day:02d}T030000Z', partial)
+            offsite.push([E], self.config)
+        self.assertEqual(offsite.remote_backups(MemoryBucket(self.config), self.config, E),
+                         ['20260901T030000Z', '20260902T030000Z', '20260906T030000Z', '20260907T030000Z'])
+
+    def test_a_partial_copy_uploaded_before_the_mark_is_marked_from_its_local_backup(self):
+        partial = {'format': 2, 'file': None, 'queues': [], 'unsupported': ['queue big: partitioned queues need pg_partman']}
+        self.legacy('20260901T030000Z', partial)
+        offsite.push([E], self.config)
+        del MemoryBucket.objects[f'sbarbase/{E}/20260901T030000Z/partial']
+        offsite.push([E], self.config)
+        self.assertIn(f'sbarbase/{E}/20260901T030000Z/partial', MemoryBucket.objects)
+
     def test_an_interrupted_upload_is_never_fetched(self):
         self.make('20260901T030000Z')
         offsite.push([E], self.config)

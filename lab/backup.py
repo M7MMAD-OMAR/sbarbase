@@ -643,11 +643,24 @@ def upgrade_runs(limit=UPGRADE_RUNS_KEPT, current=None):
     return set(sorted(runs)[-limit:]) if limit > 0 else set()
 
 
+def partial(path):
+    """Whether a complete backup records legacy PGMQ queues (or queue definitions) it did not
+    keep, or has a manifest that cannot be read. Such a backup never takes the place of one that
+    holds everything (prune)."""
+    try:
+        entry = json.loads((path / 'manifest.json').read_text()).get('pgmq')
+    except (OSError, ValueError, AttributeError):
+        return True
+    return isinstance(entry, dict) and bool(entry.get('unsupported') or entry.get('failed'))
+
+
 def prune(e, keep, protected=None):
     """Keep the newest ``keep`` complete backups; interrupted ones older than the newest go too.
 
     Backups of the last UPGRADE_RUNS_KEPT upgrades are kept whatever their age and are not
-    counted: ``keep`` applies to the others."""
+    counted: ``keep`` applies to the others. A partial backup (one that records PGMQ queues it
+    did not keep) is counted apart: the newest ``keep`` of them stay too, so a run of partial
+    backups never pushes out the last backups that hold every queue."""
     no_pending_completion()
     if keep < 1:
         raise BackupError('Keep at least one backup')
@@ -655,7 +668,10 @@ def prune(e, keep, protected=None):
     protected = upgrade_runs() if protected is None else protected
     completion = completion_path(e) if e in DATABASE_SCOPES or RUNTIME.fullmatch(e) else None
     completed_backup = json.loads(completion.read_text())['backup'] if completion and completion.exists() else None
-    doomed = [path for path in complete if path.name not in protected and path.name != completed_backup][:-keep]
+    counted = [path for path in complete if path.name not in protected and path.name != completed_backup]
+    marked = {path.name for path in counted if partial(path)}
+    doomed = sorted([path for path in counted if path.name not in marked][:-keep]
+                    + [path for path in counted if path.name in marked][:-keep])
     newest = complete[-1].name if complete else ''
     folder = BACKUPS / e
     if folder.is_dir():
@@ -1323,6 +1339,9 @@ def environments():
 # Exit code of `create all` when every local backup succeeded but the off-host copy failed
 # and was already reported as backup.failed.
 OFFSITE_FAILED = 3
+# Exit code of a run whose backups were all written but at least one records legacy PGMQ queues
+# (or queue definitions) it did not keep. Already reported as backup.failed; an upgrade goes on.
+PGMQ_INCOMPLETE = 4
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description='Per-environment backup and restore')
@@ -1450,7 +1469,7 @@ def main(argv=None):
                 if every:
                     import cluster_inventory
                     cluster = cluster_inventory.take()
-                failed, created = 0, []
+                failed, created, incomplete = 0, [], []
                 for e in targets:
                     try:
                         path, manifest = create(e, args.keep, now=now, reason=args.reason, protected=protected)
@@ -1458,13 +1477,16 @@ def main(argv=None):
                         print(f"backup {e} {path.name}: database {manifest['database']['bytes']} B, "
                               f"{manifest['objects']['files']} file(s), {manifest['counts']['auth.users']} user(s)")
                         # Legacy PGMQ queues not kept: an error fails the run (an upgrade then
-                        # changes nothing); a known unsupported shape is said, and restore refuses.
+                        # changes nothing); a known unsupported shape is said, reported to the
+                        # operator, and restore refuses it without --accept-pgmq-loss.
                         queues = manifest.get('pgmq') or {}
                         if queues.get('unsupported'):
                             print(f"backup {e} {path.name} does not keep every PGMQ queue: "
                                   + '; '.join(queues['unsupported']), file=sys.stderr)
                         if queues.get('failed'):
                             failed += 1
+                        elif queues.get('unsupported'):
+                            incomplete.append(e)
                     except BackupError as error:
                         failed += 1
                         print(f'backup {e} failed: {error}', file=sys.stderr)
@@ -1511,7 +1533,13 @@ def main(argv=None):
                     except Exception as error:
                         failed += 1
                         print(f'off-site copy failed: {error}', file=sys.stderr)
-                return 1 if failed else OFFSITE_FAILED if copied is False else 0
+                if incomplete:
+                    print(f'PGMQ queues not all kept in {len(incomplete)} backup(s) of this run; '
+                          'older backups that hold every queue are kept apart from the count', file=sys.stderr)
+                    import notification_producers
+                    notification_producers.emit('backup.failed', 'critical', 'backup.pgmq_incomplete|installation', {},
+                                                'system:backup', 'export_failed', {'failed': len(incomplete)})
+                return 1 if failed else OFFSITE_FAILED if copied is False else PGMQ_INCOMPLETE if incomplete else 0
             if args.command == 'offsite-fetch':
                 import backup_offsite
                 placed = backup_offsite.fetch(args.backup)

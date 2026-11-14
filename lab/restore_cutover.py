@@ -151,6 +151,9 @@ def restore(api, scope, name, now, accept_pgmq_loss=False):
             # Grants on queue tables the archive does not create would stop the replay; the
             # supplement sets them once the tables exist (lab/pgmq_legacy.py replay_omits).
             omit = pgmq_legacy.replay_omits(toc)
+            if dependents := pgmq_legacy.replay_dependents(toc):
+                raise api.BackupError('This archive defines objects on PGMQ queue tables it does not create ('
+                                      + ', '.join(dependents) + '); this release cannot replay it. Nothing was changed')
         if shape == 'legacy' and manifest.get('pgmq') and manifest['pgmq'].get('file'):
             try:
                 supplement = pgmq_legacy.verify(manifest['pgmq'], archive).decode('utf-8')
