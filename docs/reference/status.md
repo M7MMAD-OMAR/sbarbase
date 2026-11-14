@@ -8,13 +8,13 @@ Observed through 2026-11-14. A published source release, an installed revision a
 
 | Item | Current observation |
 |---|---|
-| Source release | 0.13.0; check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for publication and downloadable assets |
+| Source release | 0.13.1; check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for publication and downloadable assets |
 | Owner installation | Source revision `0044cb6`, deployed and confirmed by the guarded updater on 2026-11-14; this does not identify a public 0.13.0 installation |
 | Documentation website | [base.sbarah.com](https://base.sbarah.com/), Arabic at `/docs/`, English at `/en/docs/` |
 | Owner console | `https://sbarbase.sbarah.com`; other installations use their own configured origin |
 | Development checkout | May contain unreleased changes. Read its Git revision and manifest; do not infer an installed version from it |
 
-Version 0.13.0 retains `minimum_from: 0.3.1` and the inherited PGMQ ownership and backup-metadata migration declaration. The update class remains manual and automatic updates are refused. Migration handling is required before installation; the version number does not prove completion, and no completion check qualifies this transition. Service image locks do not change. The November 13 private console and SMTP observations below remain historical and do not qualify the migration.
+Version 0.13.1 drops the inherited PGMQ migration declaration, so the ordinary updater of 0.11.2 and later classifies the move as a normal update. The PGMQ repair is deferred: it runs only through `lab/backup.py repair-pgmq` after a verified backup that holds the legacy queues, or on a restored archive that passed the legacy guard. See [upgrades](../guides/upgrades.md). Service image locks do not change. The November 13 private console and SMTP observations below remain historical.
 
 ## What changed in the console
 
@@ -46,7 +46,7 @@ The subsequent SMTP repair candidate passed 1657 Bun tests, typechecking and 18 
 
 - Physical purge remains refused. Full Storage qualification and overall Studio latency remain open; the bounded repairs do not establish general performance.
 - The SMTP and template compatibility repairs are limited to the pinned Studio build. Public v0.12.2 does not include these repairs.
-- The public 0.12.2 source declares a manual PGMQ ownership and backup-metadata migration. A normal 0.11.2 update refuses it. Do not remove that declaration or force the update; see [upgrades](../guides/upgrades.md).
+- The 0.13.1 PGMQ bridge is checked on a disposable database (`lab/pgmq-check.py`) and by unit tests. `repair-pgmq` and a full `backup.py restore` that replays a supplement have not run on a real installation with queues, and unlogged queues are covered by unit tests only. Partitioned queues are not supported. Versions before 0.13.1 cannot fetch an off-site set or restore a backup that carries `pgmq.sql`.
 - Service image upgrades, including PostgreSQL 17.11, remain subject to independent compatibility, migration and recovery checks. No candidate image set was adopted by the private console update.
 - Shared `pg_stat_statements` remains blocked for tenant isolation. Hosted billing, Git branching and other unsupported capabilities are not provided by a self-hosted Studio page.
 

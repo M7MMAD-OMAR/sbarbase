@@ -60,11 +60,13 @@ Reader guides and references are in English and Arabic. The dated engineering no
 
 ## Status
 
-Source release: 0.13.0. Check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for the published release and verified downloadable assets. The owner's guarded updater confirmed source revision `0044cb6` on 2026-11-14; that observation does not identify an installed public 0.13.0 release.
+Source release: 0.13.1. Check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for the published release and verified downloadable assets. The owner's guarded updater confirmed source revision `0044cb6` on 2026-11-14; that observation does not identify an installed public 0.13.0 release.
 
 The console uses filled surfaces for elevation, persistent navigation, direct project/environment selectors, themed native pickers and project-labelled browser tabs. Original Studio remains a full page.
 
-Version 0.13.0 adds scoped API/MCP tokens, project archive and owner restore, sole-owner recovery through a local root command and native lifecycle fixes, pinned Studio SMTP/template loading and private asset cache repairs, and portable gzip release verification. This release retains the declared PGMQ migration and requires manual migration handling before installation; automatic updates are refused. Service image locks do not change. Physical purge, full Storage qualification and overall Studio latency remain open.
+Version 0.13.1 makes the update from 0.11.2 and later available from the console again: it drops the PGMQ migration declaration and defers the PGMQ repair behind a verified backup that holds legacy queues ([upgrades](docs/guides/upgrades.md)).
+
+Version 0.13.0 adds scoped API/MCP tokens, project archive and owner restore, sole-owner recovery through a local root command and native lifecycle fixes, pinned Studio SMTP/template loading and private asset cache repairs, and portable gzip release verification. Service image locks do not change. Physical purge, full Storage qualification and overall Studio latency remain open.
 
 Read [current status](docs/reference/status.md), [upgrade requirements](docs/guides/upgrades.md) and the [API/MCP guide](docs/guides/agents.md). Development metadata and unreleased changelog entries do not identify a published or installed release. Full production qualification remains open.
 

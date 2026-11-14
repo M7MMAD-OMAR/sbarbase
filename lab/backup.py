@@ -451,11 +451,16 @@ def create(e, keep=DEFAULT_KEEP, now=None, reason=None, protected=None):
         except backup_consistency.ConsistencyError as error:
             raise BackupError(str(error)) from None
         # Queues of an extension the PGMQ repair has not reconciled are not in the dump: their
-        # rows go beside it, read in the same snapshot (lab/pgmq_legacy.py).
+        # rows go beside it, read in the same snapshot (lab/pgmq_legacy.py). A failure there never
+        # costs the rest of the backup: the manifest says the queues were not kept, and a restore
+        # of the archive is then refused without --accept-pgmq-loss.
         try:
             legacy_queues = pgmq_legacy.capture(sys.modules[__name__], e, exported, target)
-        except pgmq_legacy.LegacyError as error:
-            raise BackupError(str(error)) from None
+        except Exception as error:
+            (target / pgmq_legacy.FILE).unlink(missing_ok=True)
+            reason = str(error) if isinstance(error, pgmq_legacy.LegacyError) else type(error).__name__
+            legacy_queues = pgmq_legacy.not_kept(f'the legacy queues could not be read ({reason})')
+            print(f'backup {e}: {legacy_queues["unsupported"][0]}', file=sys.stderr)
     # Bind referenced native files to the exact exported database snapshot.
     fd = os.open(target / 'objects.tar', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, 'wb') as handle:

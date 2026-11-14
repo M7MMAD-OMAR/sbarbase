@@ -146,7 +146,7 @@ def restore(api, scope, name, now, accept_pgmq_loss=False):
         refusal = pgmq_legacy.restorable(shape, manifest, accept_pgmq_loss)
         if refusal:
             raise api.BackupError(refusal)
-        if shape == 'legacy' and manifest.get('pgmq'):
+        if shape == 'legacy' and manifest.get('pgmq') and manifest['pgmq'].get('file'):
             try:
                 supplement = pgmq_legacy.verify(manifest['pgmq'], archive).decode('utf-8')
             except (pgmq_legacy.LegacyError, UnicodeDecodeError) as error:

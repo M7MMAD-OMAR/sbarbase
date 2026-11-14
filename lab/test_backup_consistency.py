@@ -16,7 +16,7 @@ VERSION = '11111111-2222-3333-4444-555555555555'
 
 
 class BackupFileRace(unittest.TestCase):
-    def run_backup(self, mutation):
+    def run_backup(self, mutation, capture=lambda *a: None):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             tree = root / 'files' / E
@@ -42,13 +42,15 @@ class BackupFileRace(unittest.TestCase):
                                     ('ownership', lambda e: None), ('storage_image', lambda: 'fixture'),
                                     ('sql', lambda *args: json.dumps(inventory))]:
                     stack.enter_context(patch.object(backup, name, value))
-                stack.enter_context(patch.object(backup.pgmq_legacy, 'capture', lambda *a: None))
+                stack.enter_context(patch.object(backup.pgmq_legacy, 'capture', capture))
                 try:
                     result = backup.create(E)
                 except backup.BackupError:
                     self.assertEqual(list((root / 'backups').rglob('manifest.json')), [])
                     return False
                 self.assertTrue((result[0] / 'manifest.json').exists())
+                self.manifest, self.files = result[1], sorted(item.name for item in result[0].iterdir())
+                backup.verify(E, result[0])
                 return True
 
     def test_delete_after_dump_is_refused_before_manifest(self):
@@ -59,6 +61,17 @@ class BackupFileRace(unittest.TestCase):
 
     def test_unchanged_object_is_accepted(self):
         self.assertTrue(self.run_backup(lambda obj: None))
+
+    def test_a_failed_legacy_queue_capture_keeps_the_backup_and_records_it(self):
+        def capture(api, e, exported, target):
+            (target / 'pgmq.sql').write_text('partial')
+            raise OSError('broken pipe')
+        import contextlib, io
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.assertTrue(self.run_backup(lambda obj: None, capture))
+        self.assertIsNone(self.manifest['pgmq']['file'])
+        self.assertIn('OSError', self.manifest['pgmq']['unsupported'][0])
+        self.assertNotIn('pgmq.sql', self.files)
 
 class ArchiveContract(unittest.TestCase):
     def test_real_archive_preserves_native_attributes_and_restores_them(self):

@@ -4,7 +4,7 @@
 
 Runbook for the native Linux supervisor installation. [Install with Docker](docker.md) is the primary container workflow. Validate host admission and the actual installation before using these commands; earlier rehearsal results do not automatically accept a new host.
 
-The owner server runs base 0.11.2 with private console revision `53b43da`. The latest public source release is 0.12.2 and its declared PGMQ migration needs a separate supported path. See [current status](../reference/status.md) and [deployment readiness](../reference/deployment-readiness.md). Older rehearsal details are retained in [historical readiness](../reference/deployment-readiness-history-2026-11-13.md).
+The owner server's installed revision is recorded in [current status](../reference/status.md). The latest public source release is 0.13.1, which the ordinary updater offers without a manual migration. See [current status](../reference/status.md) and [deployment readiness](../reference/deployment-readiness.md). Older rehearsal details are retained in [historical readiness](../reference/deployment-readiness-history-2026-11-13.md).
 
 ## Prerequisites
 

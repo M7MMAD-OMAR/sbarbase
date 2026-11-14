@@ -100,6 +100,15 @@ class ArchiveTests(unittest.TestCase):
             with self.assertRaisesRegex(pgmq_legacy.LegacyError, 'format'):
                 pgmq_legacy.verify({**entry, 'file': '../x'}, path)
 
+    def test_a_backup_that_could_not_keep_its_queues_says_so(self):
+        entry = pgmq_legacy.not_kept('the legacy queues could not be read (x)')
+        with tempfile.TemporaryDirectory() as folder:
+            self.assertIsNone(pgmq_legacy.verify(entry, Path(folder)))
+            (Path(folder) / pgmq_legacy.FILE).write_text('stray')
+            with self.assertRaisesRegex(pgmq_legacy.LegacyError, 'does not name'):
+                pgmq_legacy.verify(entry, Path(folder))
+        self.assertIn('could not keep', pgmq_legacy.restorable('legacy', {'pgmq': entry}))
+
     def test_backup_files_include_the_supplement_only_when_present(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder)

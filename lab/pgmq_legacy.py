@@ -22,6 +22,7 @@ qualify() refuses them.
 """
 import hashlib
 import json
+import os
 import re
 import subprocess
 
@@ -167,7 +168,8 @@ def capture(api, e, exported, path):
     owner = quote(e + '_developer')
     counts = []
     target = path / FILE
-    with target.open('xb') as handle:
+    descriptor = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, 'wb') as handle:
         handle.write(('-- Sbarbase legacy PGMQ supplement, format 1. Replayed by lab/restore_cutover.py.\n'
                       'SET client_min_messages = warning;\n').encode())
         for queue in found['queues']:
@@ -201,8 +203,19 @@ def capture(api, e, exported, path):
             'version': found['version'], 'queues': counts, 'unsupported': found['unsupported']}
 
 
+def not_kept(reason):
+    """The manifest entry of a legacy backup whose queues could not be captured."""
+    return {'format': FORMAT, 'file': None, 'queues': [], 'unsupported': [reason]}
+
+
 def verify(entry, path):
-    """The supplement named by a manifest entry, matching its digest; its bytes."""
+    """The supplement named by a manifest entry, matching its digest; its bytes (None when the
+    backup records that its queues could not be kept)."""
+    if isinstance(entry, dict) and entry.get('format') == FORMAT and entry.get('file') is None \
+            and entry.get('unsupported'):
+        if (path / FILE).exists():
+            raise LegacyError('A legacy PGMQ supplement is present that the manifest does not name')
+        return None
     if not isinstance(entry, dict) or entry.get('format') != FORMAT or entry.get('file') != FILE:
         raise LegacyError('Unknown legacy PGMQ supplement format')
     file = path / FILE

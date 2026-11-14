@@ -6,7 +6,19 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-This source release is 0.13.0. Check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for publication and downloadable assets. [Status](docs/reference/status.md) distinguishes source from the installed revision.
+This source release is 0.13.1. Check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for publication and downloadable assets. [Status](docs/reference/status.md) distinguishes source from the installed revision.
+
+## [0.13.1] - 2026-11-14
+
+### Fixed
+
+- The update from 0.11.2 and later is available from the console again. The manifest drops the inherited PGMQ migration declaration that made 0.12.0 to 0.13.0 manual, and the classifiers of 0.11.2 and `0044cb6` read the move as safe.
+- The PGMQ repair no longer runs from Studio, direct database access or a write pause. A legacy `pgmq` extension, still owned by the cluster's `postgres` role, keeps its shape until `lab/backup.py repair-pgmq` takes a verified backup holding its queues, repairs it in one transaction and verifies a native backup holding every queue.
+- Backups of a legacy extension write `pgmq.sql`, the rows of every ordinary queue read in the dump's snapshot. A restore replays it in the fenced stage and refuses a legacy archive without it unless `--accept-pgmq-loss` is passed. A failed capture records that the queues were not kept and never fails the rest of the backup. Off-site copies carry the file.
+
+### Limits
+
+- Checked on a disposable database and by unit tests. `repair-pgmq` and a supplement restore have not run on a real installation with queues; unlogged queues are covered by unit tests only, and partitioned queues are not supported. Versions before 0.13.1 cannot fetch or restore a set that carries `pgmq.sql`. Service image locks do not change.
 
 ## [0.13.0] - 2026-11-14
 
