@@ -82,6 +82,20 @@ export class LifecycleAuthorizationStore {
   }finally{closeSync(fd);}
  }
 }
+/** The installed realm is raw GoTrue; SDK identity calls use its /auth/v1 prefix. */
+function lifecycleIdentity(store:LifecycleAuthorizationStore,realm:LifecycleRealm,transport:typeof fetch){
+ if(store.fixture)return managementPasswordIdentity(realm.auth,realm.key,transport);
+ if(transport!==fetch)return refused();
+ const endpoint=new URL(realm.auth);
+ if(!['http:','https:'].includes(endpoint.protocol)||endpoint.username||endpoint.password||endpoint.pathname!=='/'||endpoint.search||endpoint.hash)return refused();
+ const native=(async(input,init)=>{
+  const url=new URL(input instanceof Request?input.url:String(input));
+  if(url.origin!==endpoint.origin||url.username||url.password||url.hash||!url.pathname.startsWith('/auth/v1/'))return refused();
+  const target=new URL(endpoint);target.pathname=url.pathname.slice('/auth/v1'.length);target.search=url.search;
+  return transport(target,{...init,redirect:'error'});
+ }) as typeof fetch;
+ return managementPasswordIdentity(realm.auth,realm.key,native);
+}
 /** A concrete native lookup capability. An installed worker cannot supply an identity callback. */
 export class NativeLifecycleAuthority {
  private fresh:PasswordIdentity|null=null;private digest:string|null=null;private material:Material|null=null;
@@ -90,7 +104,7 @@ export class NativeLifecycleAuthority {
  static async request(catalog:Catalog,store:LifecycleAuthorizationStore,request:Request,transport:typeof fetch=fetch){
   if(!store.fixture&&transport!==fetch)return refused();store.assertOwned();const realm=await store.realm();
   const bearer=request.headers.get('authorization');if(!bearer||bearer.length>8192||!/^Bearer \S+$/i.test(bearer))return refused();
-  const identify=managementPasswordIdentity(realm.auth,realm.key,transport),identity=await identify(new Request('http://management.internal',{headers:{authorization:bearer}}));
+  const identify=lifecycleIdentity(store,realm,transport),identity=await identify(new Request('http://management.internal',{headers:{authorization:bearer}}));
    if(!identity||!hasManagementAccess(identity,catalog.managementSecurity))return refused();
    const factor=catalog.managementSecurity.grantedFactor(identity.actor,identity.session,identity.verifiedAt,
     identity.factors.filter(value=>value.status==='verified'&&value.factor_type==='totp').map(value=>value.id));
@@ -114,7 +128,7 @@ export class NativeLifecycleAuthority {
  }
   async refresh(row?:LifecycleOperation):Promise<void>{
   this.fresh=null;this.store.assertOwned();const realm=await this.store.realm();if(hash(realm)!==hash(this.realm))return refused();
-  const identity=await managementPasswordIdentity(realm.auth,realm.key,this.transport)(new Request('http://management.internal',{headers:{authorization:this.bearer}}));
+  const identity=await lifecycleIdentity(this.store,realm,this.transport)(new Request('http://management.internal',{headers:{authorization:this.bearer}}));
   const after=await this.store.realm();this.store.assertOwned();if(hash(after)!==hash(this.realm)||!identity||
    identity.actor!==this.identity.actor||identity.session!==this.identity.session||identity.expiresAt!==this.identity.expiresAt||
    identity.passwordAt!==this.identity.passwordAt||identity.verifiedAt!==this.identity.verifiedAt||identity.aal!==this.identity.aal)return refused();
