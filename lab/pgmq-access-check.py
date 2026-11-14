@@ -26,6 +26,7 @@ import datetime
 import importlib.util
 import json
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -45,6 +46,8 @@ DB, NET = PREFIX + '-db', PREFIX + '-net'
 E = 'e_' + 'c' * 24
 PASSWORD = 'isolated-pgmq-access-fixture-only'
 RESULTS = []
+# Every file the check writes, removed at the end (never /tmp: other sessions may clear it).
+WORK = Path(tempfile.mkdtemp(prefix='sbarbase-pgmq-access-', dir=Path.home() / '.cache'))
 
 
 def docker(*args, data=None, check=True, binary=False):
@@ -127,7 +130,7 @@ class Shim:
 def stage(name, dump, omit, supplement=None):
     """Replay as lab/restore_cutover.py does: the archive planned by archive_sql, then in one
     HeldSession the replay, the supplement and the database metadata. Returns (plan, failure)."""
-    archive = Path(tempfile.mkdtemp(prefix='sbarbase-pgmq-access-archive-', dir=Path.home() / '.cache'))
+    archive = Path(tempfile.mkdtemp(prefix='sbarbase-pgmq-access-archive-', dir=WORK))
     (archive / 'database.dump').write_bytes(dump)
     with restore_cutover.archive_sql(Shim, {'db': DB}, archive, E, name, omit) as (plan, replay):
         sql(plan.create, 'postgres')
@@ -202,7 +205,7 @@ CREATE TRIGGER noop BEFORE INSERT ON pgmq.q_hooked FOR EACH ROW EXECUTE FUNCTION
         # A queue dropped and created again after the snapshot: its name now resolves to another
         # table than the dump's, and the capture refuses instead of copying it.
         sql("SELECT pgmq.drop_queue('plain'); SELECT pgmq.create('plain');")
-        raced = Path(tempfile.mkdtemp(prefix='sbarbase-pgmq-access-race-', dir=Path.home() / '.cache'))
+        raced = Path(tempfile.mkdtemp(prefix='sbarbase-pgmq-access-race-', dir=WORK))
         try:
             pgmq_legacy.capture(Api, E, exported, raced)
             refused = ''
@@ -222,7 +225,7 @@ CREATE TRIGGER noop BEFORE INSERT ON pgmq.q_hooked FOR EACH ROW EXECUTE FUNCTION
         sql("SELECT pgmq.send('plain', '{\"n\": 99}');")
         dump = docker('exec', DB, 'pg_dump', '-U', 'supabase_admin', '-Fc', '--snapshot=' + exported, '-d', E,
                       binary=True).stdout
-        folder = Path(tempfile.mkdtemp(prefix='sbarbase-pgmq-access-', dir=Path.home() / '.cache'))
+        folder = Path(tempfile.mkdtemp(prefix='sbarbase-pgmq-access-', dir=WORK))
         entry = pgmq_legacy.capture(Api, E, exported, folder)
         holder.stdin.write('COMMIT;\n')
         holder.stdin.close()
@@ -289,7 +292,7 @@ CREATE TRIGGER noop BEFORE INSERT ON pgmq.q_hooked FOR EACH ROW EXECUTE FUNCTION
         sql('DROP DATABASE ' + target + ';', 'postgres')
 
         # Format 1, written by the real 0.13.1 code: the rows come back, the queues closed.
-        old = Path(tempfile.mkdtemp(prefix='sbarbase-pgmq-access-old-', dir=Path.home() / '.cache'))
+        old = Path(tempfile.mkdtemp(prefix='sbarbase-pgmq-access-old-', dir=WORK))
         source = subprocess.run(['git', 'show', '992be52:lab/pgmq_legacy.py'], cwd=ROOT, capture_output=True,
                                 text=True, check=True).stdout
         (old / 'pgmq_legacy_0131.py').write_text(source)
@@ -321,6 +324,7 @@ CREATE TRIGGER noop BEFORE INSERT ON pgmq.q_hooked FOR EACH ROW EXECUTE FUNCTION
                'closed' in (pgmq_legacy.restore_notice({'pgmq': entry_old}) or ''))
         sql('DROP DATABASE ' + target + ';', 'postgres')
     finally:
+        shutil.rmtree(WORK, ignore_errors=True)
         docker('rm', '-f', DB, check=False)
         docker('network', 'rm', NET, check=False)
     if evidence:
