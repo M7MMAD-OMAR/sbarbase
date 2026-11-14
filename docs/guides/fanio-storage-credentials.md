@@ -1,3 +1,5 @@
+[العربية](fanio-storage-credentials.ar.md)
+
 # Fanio Storage credential issuer
 
 This release adds a Storage-only credential issuer for the existing Fanio runtime. It does not create buckets or database roles, migrate objects, change images or enable native serving. Fanio keeps R2 serving until its separate migration gates pass.

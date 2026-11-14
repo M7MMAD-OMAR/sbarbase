@@ -2,19 +2,19 @@
 
 # Status
 
-Observed on 2026-11-13. A published source release, an installed revision and a completed production qualification are separate facts.
+Observed through 2026-11-14. A published source release, an installed revision and a completed production qualification are separate facts.
 
 ## Versions and addresses
 
 | Item | Current observation |
 |---|---|
-| Public source release | [v0.12.2](https://github.com/M7MMAD-OMAR/sbarbase/releases/tag/v0.12.2), commit `b73d57a`, with a source archive and SHA256SUMS |
-| Owner installation | Base version `0.11.2` with private console revision `7f602cdcf00bf9c359c11ec2bb63f58d0910a7bc`; the guarded updater confirmed it |
+| Source release | 0.13.0; check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for publication and downloadable assets |
+| Owner installation | Source revision `0044cb6`, deployed and confirmed by the guarded updater on 2026-11-14; this does not identify a public 0.13.0 installation |
 | Documentation website | [base.sbarah.com](https://base.sbarah.com/), Arabic at `/docs/`, English at `/en/docs/` |
 | Owner console | `https://sbarbase.sbarah.com`; other installations use their own configured origin |
 | Development checkout | May contain unreleased changes. Read its Git revision and manifest; do not infer an installed version from it |
 
-The private console and SMTP revision keeps the installed dependency lock, service images and database runtime unchanged. It does not contain the PGMQ adapter, newer SDKs or capability-discovery additions from the public 0.12.2 source.
+Version 0.13.0 retains `minimum_from: 0.3.1` and the inherited PGMQ ownership and backup-metadata migration declaration. The update class remains manual and automatic updates are refused. Migration handling is required before installation; the version number does not prove completion, and no completion check qualifies this transition. Service image locks do not change. The November 13 private console and SMTP observations below remain historical and do not qualify the migration.
 
 ## What changed in the console
 
@@ -26,7 +26,13 @@ The private console and SMTP revision keeps the installed dependency lock, servi
 
 [Console design](console-design.md) and [Studio](../guides/studio.md) explain the behavior.
 
-## Observed checks
+## November 14 observation
+
+Source `0044cb6` was deployed and its guarded activation confirmed on the owner server. Deletion through the Management API and project archive were exercised for project `i2s`, and native factor recovery was verified. These observations concern that revision only; the final 0.13.0 source identity and installed outcome require their own release verification.
+
+Version 0.13.0 includes 20 token capabilities for 39 API/MCP operations, read defaults and explicit dangerous grants, legacy-token read migration, project archive with retained deleted environments and owner restore, sole-owner recovery through a local root command with factor verification through the management proxy and a separate 2-owner flow, the native lifecycle Auth path repair, Studio SMTP/template loading and private asset cache fixes, and portable gzip release verification. See the [release notes](../../CHANGELOG.md).
+
+## Historical checks on November 13
 
 The initial console-only candidate at `53b43da` passed 1610 Bun tests, 185 upgrade-related Python tests, typechecks, the UI and website builds, and 46 isolated console browser checks. A separate browser check used the actual pinned Studio on the owner's public server and confirmed the project title, readable URL, authenticated identity assets and reload behavior. Auth health and REST requests returned HTTP 200 for each of the 4 environments using their existing publishable keys.
 
@@ -38,7 +44,8 @@ The subsequent SMTP repair candidate passed 1657 Bun tests, typechecking and 18 
 
 ## Remaining work
 
-- The SMTP bridge is limited to the pinned Studio build and supported SMTP fields. Public v0.12.2 does not include it; other native auth settings need their own compatibility work.
+- Physical purge remains refused. Full Storage qualification and overall Studio latency remain open; the bounded repairs do not establish general performance.
+- The SMTP and template compatibility repairs are limited to the pinned Studio build. Public v0.12.2 does not include these repairs.
 - The public 0.12.2 source declares a manual PGMQ ownership and backup-metadata migration. A normal 0.11.2 update refuses it. Do not remove that declaration or force the update; see [upgrades](../guides/upgrades.md).
 - Service image upgrades, including PostgreSQL 17.11, remain subject to independent compatibility, migration and recovery checks. No candidate image set was adopted by the private console update.
 - Shared `pg_stat_statements` remains blocked for tenant isolation. Hosted billing, Git branching and other unsupported capabilities are not provided by a self-hosted Studio page.

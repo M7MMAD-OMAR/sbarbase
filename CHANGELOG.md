@@ -6,19 +6,26 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-The latest public source release is 0.12.2. Unreleased entries describe development work; [status](docs/reference/status.md) identifies the installed revision and its verification scope.
+This source release is 0.13.0. Check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for publication and downloadable assets. [Status](docs/reference/status.md) distinguishes source from the installed revision.
 
-## [Unreleased]
+## [0.13.0] - 2026-11-14
 
-### Still open
+### Changed
 
-- **Purging a deleted environment is refused**, because nothing proves that only that environment wrote the shared PostgreSQL cluster and Storage objects; delete and restore are soft.
+- Personal access tokens now select from 20 capabilities covering 39 API and MCP operations. New tokens default to reads; dangerous operations require explicit grants. Existing tokens migrate to read capabilities and must be reissued for writes.
+- Startup advances the catalog schema from 9 to 10 and the personal-access-token schema from 0 to 1. Upgrade snapshots preserve the previous state; downgrade to an older catalog or personal-access-token schema is refused after guarded confirmation.
+- Projects can be archived while retaining deleted environments. An owner can restore the project. Physical purging remains refused.
+- Sole-owner account recovery uses a local root command with factor verification through the management proxy. A separate recovery flow requires 2 owners. Native environment lifecycle actions use the corrected Auth path.
 
-### Fixed in development
+### Fixed
 
-- Restore SMTP save and readback in the pinned self-hosted Studio through authorized private environment settings. Retain blank passwords and templates, and version verified native modules through browser/CDN caches. This repair is in development source, not public v0.12.2.
+- Restore SMTP save and readback, email-template loading and private asset caching in the pinned self-hosted Studio. Blank password fields retain saved passwords; disabling SMTP retains templates.
+- Release verification compares the signed source payload and downloaded SHA256SUMS independently of gzip encoding. Verified partial drafts keep their archive and receive its matching checksum.
 
-- Verify the signed source payload and downloaded SHA256SUMS independently of gzip encoding. Published releases can be checked across zlib implementations; partial drafts retain their verified archive and complete its matching checksum.
+### Upgrade boundary and remaining limits
+
+- The manifest retains `minimum_from: 0.3.1` and the inherited PGMQ ownership and backup-metadata migration declaration. The update class remains manual: the migration needs manual handling before installation, and automatic updates are refused. A version number does not prove migration completion; no completion check qualifies this transition. Service image locks do not change.
+- Physical purge, full Storage qualification and overall Studio latency remain open. Bounded fixes do not establish general performance or production qualification.
 
 ## [0.12.2] - 2026-11-13
 

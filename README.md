@@ -60,9 +60,11 @@ Reader guides and references are in English and Arabic. The dated engineering no
 
 ## Status
 
-Latest public source release: [v0.12.2](https://github.com/M7MMAD-OMAR/sbarbase/releases/tag/v0.12.2). The owner server runs base version 0.11.2 with the separately verified private console and SMTP revision `7f602cd`. This revision did not change the dependency lock, service images or PostgreSQL runtime.
+Source release: 0.13.0. Check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for the published release and verified downloadable assets. The owner's guarded updater confirmed source revision `0044cb6` on 2026-11-14; that observation does not identify an installed public 0.13.0 release.
 
-The console uses filled surfaces for elevation, persistent navigation, direct project/environment selectors, themed native pickers and project-labelled browser tabs. Original Studio remains a full page. Native SMTP compatibility is available in development source and the private owner revision, with a pinned-image boundary; it is not included in public v0.12.2. PGMQ migration and service-image upgrades remain separate unfinished work.
+The console uses filled surfaces for elevation, persistent navigation, direct project/environment selectors, themed native pickers and project-labelled browser tabs. Original Studio remains a full page.
+
+Version 0.13.0 adds scoped API/MCP tokens, project archive and owner restore, sole-owner recovery through a local root command and native lifecycle fixes, pinned Studio SMTP/template loading and private asset cache repairs, and portable gzip release verification. This release retains the declared PGMQ migration and requires manual migration handling before installation; automatic updates are refused. Service image locks do not change. Physical purge, full Storage qualification and overall Studio latency remain open.
 
 Read [current status](docs/reference/status.md), [upgrade requirements](docs/guides/upgrades.md) and the [API/MCP guide](docs/guides/agents.md). Development metadata and unreleased changelog entries do not identify a published or installed release. Full production qualification remains open.
 

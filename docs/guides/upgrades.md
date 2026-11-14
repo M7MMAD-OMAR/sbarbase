@@ -2,13 +2,17 @@
 
 # Upgrades
 
-Reviewed 2026-11-13. This guide describes supported update paths and rollback boundaries. Check [current status](../reference/status.md) before selecting a release: a public release, an installed revision and development changes are different facts.
+Reviewed 2026-11-14. This guide describes supported update paths and rollback boundaries. Check [current status](../reference/status.md) before selecting a release: a public release, an installed revision and development changes are different facts.
 
 ## Current release advisory
 
 Public release 0.12.2 declares a manual PGMQ ownership and backup-metadata migration. The ordinary 0.11.2 updater refuses it; acknowledging a console prompt cannot override that classification. A qualified general migration path for this transition is still incomplete. Do not remove the migration from `release.json` or use `--to` to force it.
 
-The owner's private revision `7f602cd` includes the console and pinned Studio SMTP repair above base 0.11.2, with no service-image, dependency or PGMQ migration change. Its guarded activation was confirmed. It is not a public downloadable release and does not prove a 0.12.2 migration. API and MCP capability-discovery additions in the newer public source were not included in it.
+Version 0.13.0 retains `minimum_from: 0.3.1` and the inherited PGMQ ownership and backup-metadata migration declaration. The update class remains manual: the migration needs manual handling before installation, and automatic updates are refused. Running version 0.12.2 does not prove migration completion, and no completion check qualifies this transition. Do not remove the declaration or force the ordinary updater. Service image locks do not change.
+
+Startup migrates catalog schema 9 to 10 and personal-access-token schema 0 to 1. Legacy tokens retain reads only; issue new tokens with explicit write capabilities when needed. New tokens default to reads, and dangerous operations need explicit grants. The upgrade takes control-state snapshots for failure recovery. After guarded confirmation, downgrade to an older catalog or personal-access-token schema is refused; rollback between revisions with compatible schemas is not excluded by this boundary. Do not treat snapshots as an unrestricted downgrade path.
+
+The owner's source revision `0044cb6` was deployed and its guarded activation confirmed on 2026-11-14. This is a bounded observation, not verification of an installed public 0.13.0 release or a general migration path from 0.11.2.
 
 ## Where you see an update
 
@@ -380,7 +384,7 @@ python3 lab/release.py publish --tag vX.Y.Z
 
 Use `--latest` to request Latest for an eligible stable release; the tag workflow requests it for stable tags. The tool does not promote an older version over a newer eligible published stable version. Assets are source archives and SHA256SUMS, not executable binaries. Latest designation does not change upgrade eligibility or classification.
 
-The published 0.12.2 assets passed checksum verification. Its publisher can reject a replay on another host when gzip encoders produce different compressed bytes for identical source. Portable payload comparison is still [unreleased work](../../CHANGELOG.md). Do not describe development behavior as shipped behavior or replace published assets without investigating a mismatch.
+The published 0.12.2 assets passed checksum verification. Its publisher can reject a replay on another host when gzip encoders produce different compressed bytes for identical source. [Version 0.13.0](../../CHANGELOG.md) compares the signed source payload independently of gzip encoding and verifies the downloaded SHA256SUMS. Check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for publication and downloadable assets; do not replace existing release assets without investigating a mismatch.
 
 ## SMTP and image qualification
 
