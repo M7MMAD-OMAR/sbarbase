@@ -223,7 +223,9 @@ CREDENTIAL_SHAPES = (
     re.compile(r'apikey', re.I),
     re.compile(r'authorization:', re.I),
     re.compile(r'BEGIN PRIVATE KEY'),
-    re.compile(r'^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$'),
+    # A token with three dot-separated parts. Each part of a real one is long; a version such as
+    # 0.13.5 has the same outline and must not be held back.
+    re.compile(r'^[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}$'),
     re.compile(r'(?<![0-9a-fA-F])[0-9a-fA-F]{64}(?![0-9a-fA-F])'),
     re.compile(r'[A-Za-z0-9_-]{32,}'),
 )

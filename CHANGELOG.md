@@ -6,7 +6,13 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-This source release is 0.13.5. Check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for publication and downloadable assets. [Status](docs/reference/status.md) distinguishes source from the installed revision.
+This source release is 0.13.6. Check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for publication and downloadable assets. [Status](docs/reference/status.md) distinguishes source from the installed revision.
+
+## [0.13.6] - 2026-11-21
+
+### Fixed
+
+- The notification that Sbarbase was updated was held back as "looked like it held a secret" on every update, because the secret check read a version number such as `0.13.5` as a three part token. The check now needs each part to be long, so versions pass and real tokens are still held back. The operator got a critical notice about the held-back message instead of the update notice.
 
 ## [0.13.5] - 2026-11-21
 

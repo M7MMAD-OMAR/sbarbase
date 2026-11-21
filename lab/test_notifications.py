@@ -472,6 +472,14 @@ class VocabularyTests(unittest.TestCase):
         self.assertFalse(notify.credential_shape('provision.capacity_refused'))
         self.assertFalse(notify.credential_shape('measurement_unavailable'))
 
+    def test_a_version_number_is_not_held_back_as_a_token_but_a_real_token_still_is(self):
+        # 0.13.5 has the outline of a three part token, and every update notice carries it.
+        for version in ('0.13.5', '1.0.0', '10.20.30', '0.13.5-rc.1'):
+            self.assertFalse(notify.credential_shape(version), version)
+            self.assertEqual(notify.refusal_shapes({}, {'version': version, 'trigger': 'cli'}), [])
+        token = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dBjftJeZ4CVPmB92K27uhbUJU1p1r'
+        self.assertTrue(notify.credential_shape(token))
+
     def test_two_renderings_of_one_row_agree_on_everything_but_the_waiting_seconds(self):
         """render() recomputes the suppression seconds, so two renderings can differ by one.
 
