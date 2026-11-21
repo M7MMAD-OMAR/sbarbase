@@ -6,9 +6,9 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-This source release is 0.13.9. Check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for publication and downloadable assets. [Status](docs/reference/status.md) distinguishes source from the installed revision.
+This source release is 0.13.10. Check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for publication and downloadable assets. [Status](docs/reference/status.md) distinguishes source from the installed revision.
 
-## [0.13.9] - 2026-11-22
+## [0.13.10] - 2026-11-22
 
 ### Changed
 
