@@ -147,8 +147,8 @@ STUDIO_CONNECTIONS = connection_budget.STUDIO_CONNECTIONS
 def open_connections(e):
     """Room for the Studio login in the database limit, while the cluster can spare it."""
     limits = runtime_sql("SELECT current_setting('max_connections')::int - current_setting('superuser_reserved_connections')::int "
-                         "- current_setting('reserved_connections')::int, coalesce(sum(greatest(datconnlimit, 0)), 0) "
-                         "FROM pg_database WHERE datallowconn AND datname <> 'template1';").split('|')
+                         "- current_setting('reserved_connections')::int, coalesce(sum(greatest(datconnlimit, 0)), 0) " +
+                         connection_budget.PROMISED_FROM + ';').split('|')
     available, promised = int(limits[0]), int(limits[1])
     if promised + STUDIO_CONNECTIONS > available:
         raise StudioError('The database has no connections to spare for Studio')

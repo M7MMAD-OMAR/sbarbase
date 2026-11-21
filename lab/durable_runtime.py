@@ -1900,8 +1900,8 @@ GRANT CREATE ON DATABASE {e} TO {role};
         if not direct_on(e):
             available, promised = (int(value) for value in self.sql(
                 "SELECT current_setting('max_connections')::int - current_setting('superuser_reserved_connections')::int "
-                "- current_setting('reserved_connections')::int, coalesce(sum(greatest(datconnlimit, 0)), 0) "
-                "FROM pg_database WHERE datallowconn AND datname <> 'template1';").stdout.strip().split('|'))
+                "- current_setting('reserved_connections')::int, coalesce(sum(greatest(datconnlimit, 0)), 0) " +
+                connection_budget.PROMISED_FROM + ';').stdout.strip().split('|'))
             if promised + connection_budget.DIRECT_CONNECTIONS > available:
                 raise AdmissionLimitError('Connection headroom unavailable')
 
@@ -2215,8 +2215,8 @@ GRANT CREATE ON DATABASE {e} TO {role};
                 # The connections Realtime adds must fit what the cluster can serve, as Studio's do.
                 available, promised = (int(value) for value in self.sql(
                     "SELECT current_setting('max_connections')::int - current_setting('superuser_reserved_connections')::int "
-                    "- current_setting('reserved_connections')::int, coalesce(sum(greatest(datconnlimit, 0)), 0) "
-                    "FROM pg_database WHERE datallowconn AND datname <> 'template1';").stdout.strip().split('|'))
+                    "- current_setting('reserved_connections')::int, coalesce(sum(greatest(datconnlimit, 0)), 0) " +
+                    connection_budget.PROMISED_FROM + ';').stdout.strip().split('|'))
                 if promised + connection_budget.REALTIME_CONNECTIONS > available:
                     raise AdmissionLimitError('Connection headroom unavailable')
             asleep = endpoints[e].get('asleep', {}).get('realtime') if wake else None
@@ -2312,8 +2312,8 @@ END $$;""")
         if not cron_on(e):
             available, promised = (int(value) for value in self.sql(
                 "SELECT current_setting('max_connections')::int - current_setting('superuser_reserved_connections')::int "
-                "- current_setting('reserved_connections')::int, coalesce(sum(greatest(datconnlimit, 0)), 0) "
-                "FROM pg_database WHERE datallowconn AND datname <> 'template1';").stdout.strip().split('|'))
+                "- current_setting('reserved_connections')::int, coalesce(sum(greatest(datconnlimit, 0)), 0) " +
+                connection_budget.PROMISED_FROM + ';').stdout.strip().split('|'))
             if promised + connection_budget.SCHEDULER_CONNECTIONS > available:
                 raise AdmissionLimitError('Connection headroom unavailable')
         # Closed while its grants are written, so no session of an older turn holds what they need.

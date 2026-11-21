@@ -35,3 +35,19 @@ class ConnectionBudgetTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class PromisedLimitsTests(unittest.TestCase):
+    def test_a_database_with_every_environment_login_closed_promises_nothing(self):
+        sql = budget.PROMISED_FROM
+        self.assertIn('rolcanlogin', sql)
+        for suffix in ('_auth', '_rest', '_storage'):
+            self.assertIn(f"d.datname || '{suffix}'", sql)
+        self.assertIn('d.datallowconn', sql)
+
+    def test_every_admission_check_counts_with_that_rule(self):
+        from pathlib import Path
+        for name in ('durable_runtime.py', 'rolling.py', 'studio.py'):
+            text = (Path(__file__).parent / name).read_text()
+            self.assertNotIn("FROM pg_database WHERE datallowconn", text, name)
+            self.assertIn('connection_budget.PROMISED_FROM', text, name)

@@ -433,8 +433,8 @@ def admitted(runtime, e):
             return False
         available, promised = (int(value) for value in runtime.sql(
             "SELECT current_setting('max_connections')::int - current_setting('superuser_reserved_connections')::int "
-            "- current_setting('reserved_connections')::int, coalesce(sum(greatest(datconnlimit, 0)), 0) "
-            "FROM pg_database WHERE datallowconn AND datname <> 'template1';").stdout.strip().split('|'))
+            "- current_setting('reserved_connections')::int, coalesce(sum(greatest(datconnlimit, 0)), 0) " +
+            connection_budget.PROMISED_FROM + ';').stdout.strip().split('|'))
         return connection_budget.swap_fits(available, promised)
     except Exception:
         return False

@@ -47,3 +47,13 @@ def swap_fits(available, promised):
     if any(type(value) is not int or value < 0 for value in (available, promised)):
         raise ValueError('Invalid connection budget measurement')
     return promised + SWAP_CONNECTIONS + OPERATIONS_RESERVE <= available
+
+
+# The connection limits every database promises, for the admission checks (database access, Studio,
+# Realtime, scheduled jobs and the side by side swap). A deleted environment keeps its database for the
+# retention with its logins closed (lab/durable_lifecycle.py quarantine): nothing can use its limit, so
+# it promises nothing until a restore opens the logins again. Any database with a login still open counts.
+PROMISED_FROM = (
+    "FROM pg_database d WHERE d.datallowconn AND d.datname <> 'template1' AND NOT ("
+    "EXISTS (SELECT 1 FROM pg_roles WHERE rolname = d.datname || '_auth') AND NOT EXISTS ("
+    "SELECT 1 FROM pg_roles WHERE rolcanlogin AND rolname IN (d.datname || '_auth', d.datname || '_rest', d.datname || '_storage')))")
