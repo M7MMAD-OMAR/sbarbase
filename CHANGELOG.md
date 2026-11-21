@@ -6,7 +6,15 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-This source release is 0.13.8. Check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for publication and downloadable assets. [Status](docs/reference/status.md) distinguishes source from the installed revision.
+This source release is 0.13.9. Check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for publication and downloadable assets. [Status](docs/reference/status.md) distinguishes source from the installed revision.
+
+## [0.13.9] - 2026-11-22
+
+### Changed
+
+- Opening the Supabase dashboard is faster and no longer starts with a blank tab. A start asked its parts whether they were ready every two seconds; it now asks every 0.3 seconds, and it asks Studio for its first pages in parallel before it counts as running, so the first visit does not wait for Studio to load them. On the owner server a start took about twelve seconds.
+- While Studio starts, the console lists each step as it happens, with the seconds so far, and opens the dashboard in a new tab when every step is done. If the browser blocks that tab, an Open Supabase dashboard button appears. The journal records how long each step took.
+- Deleting an environment is one step. It used to refuse until the owner had found and turned off the dashboard, Realtime, Edge Functions, scheduled jobs and direct database access, one by one. It now asks each of them that is on to turn off, shows that it is doing so, and deletes when they have stopped. The confirmation is a panel under the table instead of text squeezed into a table cell, and Rename and Delete no longer open together.
 
 ## [0.13.8] - 2026-11-22
 

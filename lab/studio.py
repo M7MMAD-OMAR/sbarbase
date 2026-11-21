@@ -333,6 +333,75 @@ def unexposed(shared):
         raise StudioError(f'Studio answers on the shared runtime network (port {port}); it was stopped')
 
 
+# How often a start asks whether a part answers yet. A part that is ready a moment after it starts would
+# otherwise wait out the rest of a longer interval, which added several seconds to every start.
+POLL_SECONDS = 0.3
+# The steps of a start, in order, as the console shows them (ui/Studio.tsx, src/control/studio-progress.ts).
+STEPS = ('checks', 'database', 'network', 'studio', 'meta', 'serving', 'warm', 'route')
+# What a first visit asks Studio for. Its Next.js server loads each page and API route on first use, which on its
+# 0.5 CPU limit took seconds per route while the person waited; asking once here moves that wait before "ready".
+WARM_PATHS = ('/project/default', '/project/default/editor', '/project/default/sql/new', '/api/platform/profile',
+              '/api/platform/organizations', '/api/platform/projects/default', '/api/platform/projects/default/settings',
+              '/api/platform/props/project/default/api')
+WARM_SECONDS = 25
+
+
+def progress_path(e):
+    return runtime.STATE / 'studio-progress' / (e + '.json')
+
+
+def mark(e, step, started=[None]):
+    """Records which step of a start is running, for the console. Never fails a start."""
+    try:
+        now = int(time.time() * 1000)
+        if step == STEPS[0] or started[0] is None:
+            started[0] = now
+        directory = runtime.STATE / 'studio-progress'
+        if not runtime.STATE.is_dir():
+            return
+        directory.mkdir(mode=0o700, exist_ok=True)
+        path = progress_path(e)
+        try:
+            steps = json.loads(path.read_text()).get('steps', []) if step != STEPS[0] else []
+        except (OSError, ValueError, AttributeError):
+            steps = []
+        steps = [item for item in steps if isinstance(item, dict) and item.get('id') in STEPS and item['id'] != step]
+        steps.append({'id': step, 'at': now})
+        temporary = path.with_suffix('.tmp')
+        temporary.write_text(json.dumps({'started': started[0], 'step': step, 'steps': steps}))
+        os.replace(temporary, path)
+        print(f'studio {e}: {step} +{(now - started[0]) / 1000:.1f}s', flush=True)
+    except (OSError, ValueError):
+        pass
+
+
+def clear_progress(e):
+    try:
+        progress_path(e).unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def warm(address):
+    """Asks Studio for the pages and routes a first visit needs, in parallel, within WARM_SECONDS. A refusal or a
+    slow answer is ignored: this only makes the first visit faster."""
+    import concurrent.futures
+
+    def ask(path):
+        try:
+            request = urllib.request.Request(f'http://{address}:3000{path}', headers={'Accept': 'text/html,application/json'})
+            with urllib.request.urlopen(request, timeout=WARM_SECONDS) as response:
+                response.read(1 << 20)
+        except Exception:
+            pass
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+    try:
+        futures = [pool.submit(ask, path) for path in WARM_PATHS]
+        concurrent.futures.wait(futures, timeout=WARM_SECONDS)
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
+
+
 def meta_ready(meta, timeout=120):
     """postgres-meta answers its root without a database connection, so any reply means it
     listens. It listens on loopback inside Studio's namespace, so it is asked from there."""
@@ -341,7 +410,7 @@ def meta_ready(meta, timeout=120):
     while time.monotonic() < deadline:
         if lab.docker('exec', meta, 'node', '-e', probe, check=False).returncode == 0:
             return
-        time.sleep(2)
+        time.sleep(POLL_SECONDS)
     raise StudioError('postgres-meta did not become ready')
 
 
@@ -359,7 +428,7 @@ def wait_ready(url, timeout=120, any_answer=False, what='Studio'):
                 return
         except Exception:
             pass
-        time.sleep(2)
+        time.sleep(POLL_SECONDS)
     raise StudioError(f'{what} did not become ready')
 
 
@@ -373,7 +442,7 @@ def route_ready(studio, url, timeout=30):
     while time.monotonic() < deadline:
         if lab.docker('exec', studio, 'node', '-e', probe, url, check=False).returncode == 0:
             return
-        time.sleep(2)
+        time.sleep(POLL_SECONDS)
     raise StudioError(f'Studio cannot reach its route to Auth and Storage ({url}); '
                       'the host firewall must accept TCP from Docker bridges to this port')
 
@@ -413,6 +482,7 @@ def display_names(e):
 def up(e):
     if not RUNTIME_ID.fullmatch(e):
         raise StudioError('Invalid environment')
+    mark(e, 'checks')
     endpoints = runtime_files.read_endpoints(runtime.STATE, strict=True)
     if e not in endpoints:
         raise StudioError('Only a published environment can open Studio')
@@ -440,12 +510,15 @@ def up(e):
     # waits, then stops this Studio and closes the login (lab/write_pause.py).
     try:
         with write_pause.unpaused(e, 'open Studio'):
+            mark(e, 'database')
             open_connections(e)
             runtime_sql(role_sql(e, password), e)
             try:
+                mark(e, 'network')
                 address = open_network_retrying(e)
                 organization, environment = display_names(e)
                 served = rest_settings(e)
+                mark(e, 'studio')
                 item = launch(studio, 'operator.studio', {
                     'HOSTNAME': address, 'STUDIO_PG_META_URL': 'http://127.0.0.1:8080',
                     'POSTGRES_HOST': runtime.DB, 'POSTGRES_PORT': '5432', 'POSTGRES_DB': e, 'POSTGRES_PASSWORD': password,
@@ -459,13 +532,17 @@ def up(e):
                     image['studio'], session_network(e), address=address, attach=(runtime.NETWORK,), health=STUDIO_HEALTH)
                 shared = isolated(item, e, address)
                 copy_functions(studio, e)
+                mark(e, 'meta')
                 launch(meta, 'operator.meta', {
                     'PG_META_HOST': '127.0.0.1', 'PG_META_PORT': '8080',
                     'PG_META_DB_HOST': runtime.DB, 'PG_META_DB_PORT': '5432', 'PG_META_DB_NAME': e,
                     'PG_META_DB_USER': f'{e}_studio', 'PG_META_DB_PASSWORD': password, 'PG_META_DB_SSL_MODE': 'disable',
                     'CRYPTO_KEY': crypto}, image['meta'], f'container:{studio}')
                 meta_ready(meta)
+                mark(e, 'serving')
                 wait_ready(f'http://{address}:3000/api/platform/profile')
+                mark(e, 'warm')
+                warm(address)
                 unexposed(shared)
             except BaseException:
                 remove(meta)
@@ -481,6 +558,7 @@ def up(e):
             # The console opens Studio's internal route to Auth and Storage when it sees the state
             # above, within a couple of seconds. Studio counts as running only once that route
             # answers Studio itself, so its first user or bucket page never meets a closed port.
+            mark(e, 'route')
             try:
                 route_ready(studio, f"http://{state['upstream']['host']}:{UPSTREAM_PORT}/")
             except StudioError:
@@ -546,7 +624,10 @@ def main(argv=None):
             raise StudioError('Name the environment by its runtime id')
         if args.command == 'up':
             record(args.environment, 'starting')
-            session = up(args.environment)
+            try:
+                session = up(args.environment)
+            finally:
+                clear_progress(args.environment)
             record(args.environment, 'running')
             print(f'Studio for {args.environment} is running at {session["url"]}')
             return 0

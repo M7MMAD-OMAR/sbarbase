@@ -105,7 +105,7 @@ class LifecycleTests(unittest.TestCase):
         waited = []
         with patch.object(studio, 'launch', side_effect=lambda name, tier, env, image, network, **options:
                           launched.append((env, network, options)) or {}), \
-             patch.object(studio, 'wait_ready', side_effect=lambda url, **options: waited.append(url)), \
+             patch.object(studio, 'warm'), patch.object(studio, 'wait_ready', side_effect=lambda url, **options: waited.append(url)), \
              patch.object(studio, 'route_ready', side_effect=lambda name, url: waited.append((name, url))):
             session = studio.up(E)
         # Studio, on its own address, then the console's route to Auth and Storage, asked from Studio.
@@ -149,7 +149,7 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual(self.removed, self.cleanup())
 
     def test_a_route_that_never_opens_stops_studio_again(self):
-        with patch.object(studio, 'launch', return_value={}), patch.object(studio, 'wait_ready'), \
+        with patch.object(studio, 'launch', return_value={}), patch.object(studio, 'warm'), patch.object(studio, 'wait_ready'), \
              patch.object(studio, 'route_ready', side_effect=studio.StudioError('Studio cannot reach its route')):
             with self.assertRaisesRegex(studio.StudioError, 'route'):
                 studio.up(E)
@@ -176,7 +176,7 @@ class LifecycleTests(unittest.TestCase):
         images = []
         with patch.object(studio, 'pins', side_effect=AssertionError('lock must not be read twice')), \
              patch.object(studio, 'launch', side_effect=lambda name, tier, env, image, network, **options: images.append(image) or {}), \
-             patch.object(studio, 'wait_ready'), patch.object(studio, 'route_ready'):
+             patch.object(studio, 'warm'), patch.object(studio, 'wait_ready'), patch.object(studio, 'route_ready'):
             studio.up(E)
         self.assertEqual(images, ['studio-reference', 'meta-reference'])
 
@@ -296,7 +296,7 @@ class NetworkTests(unittest.TestCase):
                 patch.object(studio, 'remove_network', side_effect=lambda e: removed.append('net')),
                 patch.object(studio, 'open_network', return_value='10.0.0.2'), patch.object(studio, 'launch', return_value={}),
                 patch.object(studio, 'isolated', return_value='172.16.1.9'), patch.object(studio, 'meta_ready'),
-                patch.object(studio, 'wait_ready'), patch.object(studio, 'copy_functions'),
+                patch.object(studio, 'warm'), patch.object(studio, 'wait_ready'), patch.object(studio, 'copy_functions'),
                 patch.object(studio, 'unexposed', side_effect=studio.StudioError('Studio answers on the shared runtime network')),
             ]
             # One ExitStack, not one with-statement: Python 3.12 refuses more than 20 nested blocks.
@@ -392,3 +392,38 @@ class ScheduleTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class StartProgressTests(unittest.TestCase):
+    def test_polling_is_fast_and_the_steps_run_in_order(self):
+        self.assertLess(studio.POLL_SECONDS, 1)
+        source = Path(studio.__file__).read_text()
+        order = [source.index(f"mark(e, '{step}')") for step in studio.STEPS]
+        self.assertEqual(order, sorted(order))
+
+    def test_progress_is_recorded_per_environment_and_never_fails_a_start(self):
+        import tempfile
+        e = 'e_' + 'a' * 24
+        with tempfile.TemporaryDirectory() as directory, patch.object(studio.runtime, 'STATE', Path(directory)):
+            studio.mark(e, 'checks')
+            studio.mark(e, 'database')
+            value = json.loads(studio.progress_path(e).read_text())
+            self.assertEqual(value['step'], 'database')
+            self.assertEqual([item['id'] for item in value['steps']], ['checks', 'database'])
+            studio.mark(e, 'checks')
+            self.assertEqual([item['id'] for item in json.loads(studio.progress_path(e).read_text())['steps']], ['checks'])
+            studio.clear_progress(e)
+            self.assertFalse(studio.progress_path(e).exists())
+        with patch.object(studio.runtime, 'STATE', Path('/nonexistent/state')):
+            studio.mark(e, 'checks')
+
+    def test_warming_asks_only_for_pages_and_ignores_refusals(self):
+        asked = []
+
+        def refuse(request, timeout):
+            asked.append(request.full_url)
+            raise OSError('refused')
+        with patch.object(studio.urllib.request, 'urlopen', side_effect=refuse):
+            studio.warm('172.31.0.2')
+        self.assertEqual(len(asked), len(studio.WARM_PATHS))
+        self.assertTrue(all(url.startswith('http://172.31.0.2:3000/') for url in asked))

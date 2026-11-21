@@ -519,3 +519,14 @@ th,td{padding:12px}
 .agent-access .confirm{white-space:normal;min-width:200px}
 @media(max-width:640px){.agent-access .agent-form-grid,.agent-access .agent-permission-grid{grid-template-columns:1fr}.agent-access .agent-permissions{padding:12px}.agent-access .details{min-width:0}}
 .agent-access .table-wrap::after{content:'Scroll the table sideways to see all actions'}
+
+.studio-start{margin:12px 0}
+.studio-steps{list-style:none;margin:8px 0;padding:0;display:grid;gap:6px;font-size:13px}
+.studio-steps li{display:flex;gap:8px;align-items:baseline;color:var(--muted)}
+.studio-steps li::before{content:'\25CB';flex:none;width:1em;text-align:center}
+.studio-steps li[data-state=done]{color:var(--text)}
+.studio-steps li[data-state=done]::before{content:'\2713';color:var(--ok-fg)}
+.studio-steps li[data-state=active]{color:var(--text);font-weight:500}
+.studio-steps li[data-state=active]::before{content:'\25CF';color:var(--ok-fg)}
+@media(prefers-reduced-motion:no-preference){.studio-steps li[data-state=active]::before{animation:studio-pulse 1.2s ease-in-out infinite}}
+@keyframes studio-pulse{50%{opacity:.35}}

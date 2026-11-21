@@ -252,6 +252,9 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
         }
         if(!keys)return reply(500,{message:'Key revocation unavailable'});
         await refreshLifecycleRequest(catalog);
+        // Turning the optional services off is part of deleting: they are asked to stop and the console asks again
+        // until the supervisor has done it. Nothing is deleted while any is still on.
+        if(catalog.turnOffServicesForDeletion(actor,id))return reply(202,{deleted:false,turning_off:true});
         await catalog.prepareDeletion(actor,id);
         const {runtime}=catalog.deleteEnvironment(actor,id);
         // The catalog commits first, so a refusal changes nothing. From then on the gateway
