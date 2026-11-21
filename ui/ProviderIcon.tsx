@@ -12,12 +12,13 @@ import linkedin_oidc from './assets/providers/linkedin_oidc.svg';
 import notion from './assets/providers/notion.svg';
 import slack_oidc from './assets/providers/slack_oidc.svg';
 import spotify from './assets/providers/spotify.svg';
+import telegram from './assets/providers/telegram.svg';
 import twitch from './assets/providers/twitch.svg';
 import twitter from './assets/providers/twitter.svg';
 import zoom from './assets/providers/zoom.svg';
 
 /** Local brand marks (ui/assets/providers/SOURCES.md). A provider without a file shows a monogram tile. */
-const ICONS:Record<string,string>={apple,bitbucket,discord,facebook,figma,github,gitlab,google,kakao,keycloak,linkedin_oidc,notion,slack_oidc,spotify,twitch,twitter,zoom};
+const ICONS:Record<string,string>={apple,bitbucket,discord,facebook,figma,github,gitlab,google,kakao,keycloak,linkedin_oidc,notion,slack_oidc,spotify,telegram,twitch,twitter,zoom};
 
 export function ProviderIcon({name,label}:{name:string;label:string}){
  const source=ICONS[name];

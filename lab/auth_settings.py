@@ -51,7 +51,12 @@ RUNTIME = re.compile(r'e_[a-f0-9]{24}')
 # The providers the pinned Auth offers that need nothing beyond a client id and secret,
 # and an address for the few that run on a server of their own choosing.
 PROVIDERS = ('apple', 'azure', 'bitbucket', 'discord', 'facebook', 'figma', 'github', 'gitlab', 'google', 'kakao',
-             'keycloak', 'linkedin_oidc', 'notion', 'slack_oidc', 'spotify', 'twitch', 'twitter', 'workos', 'zoom')
+             'keycloak', 'linkedin_oidc', 'notion', 'slack_oidc', 'spotify', 'twitch', 'twitter', 'workos', 'zoom',
+             'telegram')
+# Providers Auth has no GOTRUE_EXTERNAL_<NAME>_* variables for: a row of its custom provider table, written through its admin API after
+# it starts (`custom_providers`, `lab/durable_runtime.py apply_custom_providers`). Telegram's issuer is a constant, never input.
+CUSTOM_PROVIDERS = {'telegram': 'custom:telegram'}
+TELEGRAM_ISSUER = 'https://oauth.telegram.org'
 PROVIDER_URL = {'azure': False, 'gitlab': False, 'keycloak': True, 'workos': False}
 MAX_REDIRECTS = 50
 # The file format this version reads. A file from a newer version is refused, never half read.
@@ -178,6 +183,11 @@ def validate(settings):
             raise SettingsError(name)
         if nonce and name not in NONCE_PROVIDERS:
             raise SettingsError(name)
+        if name in CUSTOM_PROVIDERS:
+            # Telegram: the client id is the bot id (digits), the issuer is fixed, and it sends no email, so a person without one signs in.
+            if client and not re.fullmatch(r'[0-9]{1,20}', client):
+                raise SettingsError(name)
+            optional = True
         if enabled and (not client or not secret):
             raise SettingsError(name)
         if url:
@@ -312,7 +322,8 @@ def configuration(e, settings):
             # JWT_EXP is a count of seconds; the two caps are Go duration strings.
             config[variable] = str(session[name]) if name == 'access_token_seconds' else f'{session[name]}s'
     for name, entry in settings['providers'].items():
-        if not entry['enabled']:
+        # A custom provider has no variables: Auth reads it from its own table, written after it starts.
+        if not entry['enabled'] or name in CUSTOM_PROVIDERS:
             continue
         prefix = 'GOTRUE_EXTERNAL_' + name.upper() + '_'
         config.update({prefix + 'ENABLED': 'true', prefix + 'CLIENT_ID': entry['client_id'],
@@ -324,6 +335,29 @@ def configuration(e, settings):
         if entry.get('email_optional'):
             config[prefix + 'EMAIL_OPTIONAL'] = 'true'
     return config
+
+
+def custom_providers(settings, applied=None):
+    """The custom provider rows these settings own, as {identifier: payload or None}. None means the row is deleted: its provider
+    is saved disabled, or it was in the last applied settings (`applied`) and these settings no longer name it (the entry was
+    removed, or the whole settings file was). An identifier no settings ever named is absent, so a row a tenant made under another
+    name, or one nobody saved a Telegram entry for, is never touched. The payload is the body of Auth's POST /admin/custom-providers."""
+    result = {}
+    for name, identifier in CUSTOM_PROVIDERS.items():
+        entry = ((settings or {}).get('providers') or {}).get(name)
+        if entry is None:
+            if ((applied or {}).get('providers') or {}).get(name) is not None:
+                result[identifier] = None
+            continue
+        if not entry['enabled']:
+            result[identifier] = None
+            continue
+        result[identifier] = {'provider_type': 'oidc', 'identifier': identifier, 'name': 'Telegram', 'client_id': entry['client_id'],
+                              'client_secret': entry['secret'], 'issuer': TELEGRAM_ISSUER, 'scopes': ['openid', 'profile'],
+                              'pkce_enabled': True, 'email_optional': True, 'enabled': True,
+                              # Telegram's numeric user id is the claim `id`; Auth keeps only the typed claims unless a key is listed here.
+                              'custom_claims_allowlist': ['id']}
+    return result
 
 
 def record(e, state, failure=None, revision=None):

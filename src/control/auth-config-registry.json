@@ -614,6 +614,12 @@
   "zoom": {
    "label": "Zoom",
    "url": "none"
+  },
+  "telegram": {
+   "label": "Telegram",
+   "url": "none",
+   "mechanism": "custom_oidc",
+   "identifier": "custom:telegram"
   }
  },
  "nonce_providers": [

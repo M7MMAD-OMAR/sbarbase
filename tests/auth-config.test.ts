@@ -137,3 +137,14 @@ test('Confirm email and the mail limits are sign-in settings on the Emails page,
  expect(field(view,'MAILER_AUTOCONFIRM')).toMatchObject({value:false,from_default:false});
  expect(field(view,'SMTP_MAX_FREQUENCY')).toMatchObject({value:90,from_default:false});
 });
+
+test('telegram is a custom provider: named custom_provider:telegram.*, never EXTERNAL_TELEGRAM_*, and its secret is never returned',()=>{
+ expect(REGISTRY.providers.telegram).toMatchObject({mechanism:'custom_oidc',identifier:'custom:telegram',url:'none'});
+ const settings={...github,providers:{telegram:{enabled:true,client_id:'123456789',secret:'TG-SECRET-VALUE',url:'',skip_nonce_check:false,email_optional:true}}} as never;
+ const view=authConfigView(settings,'e_'+'a'.repeat(24),'http://localhost');
+ const telegram=view.providers.find(provider=>provider.id==='telegram')!;
+ expect(telegram.fields.some(entry=>entry.key.startsWith('EXTERNAL_TELEGRAM_'))).toBe(false);
+ expect(telegram.fields.find(entry=>entry.key==='custom_provider:telegram.client_id')).toMatchObject({value:'123456789'});
+ expect(telegram.fields.find(entry=>entry.key==='custom_provider:telegram.secret')).toMatchObject({secret_set:true});
+ expect(JSON.stringify(view)).not.toContain('TG-SECRET-VALUE');
+});

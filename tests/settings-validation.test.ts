@@ -40,3 +40,12 @@ describe('settings input validation',()=>{
   expect(signInErrors('https://example.com','',{azure:{...provider,url:'not a URL'}})['azure-url']).toBeDefined();
  });
 });
+
+describe('telegram input validation',()=>{
+ test('the bot id is digits only, up to 20, and an enabled entry still needs its secret',()=>{
+  const provider={enabled:true,client_id:'123456789',secret:'',secret_set:true,url:''};
+  expect(signInErrors('https://example.com','',{telegram:provider})).toEqual({});
+  for(const id of ['bot','12 34','1'.repeat(21)])expect(signInErrors('https://example.com','',{telegram:{...provider,client_id:id}})['telegram-client']).toBeDefined();
+  expect(signInErrors('https://example.com','',{telegram:{...provider,secret_set:false}})['telegram-secret']).toBeDefined();
+ });
+});

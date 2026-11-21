@@ -28,7 +28,7 @@ export const PROVIDERS:Record<string,{label:string;url?:'optional'|'required'}>=
  facebook:{label:'Facebook'},figma:{label:'Figma'},github:{label:'GitHub'},gitlab:{label:'GitLab',url:'optional'},google:{label:'Google'},
  kakao:{label:'Kakao'},keycloak:{label:'Keycloak',url:'required'},linkedin_oidc:{label:'LinkedIn'},notion:{label:'Notion'},
  slack_oidc:{label:'Slack'},spotify:{label:'Spotify'},twitch:{label:'Twitch'},twitter:{label:'X (Twitter)'},workos:{label:'WorkOS',url:'optional'},
- zoom:{label:'Zoom'}};
+ zoom:{label:'Zoom'},telegram:{label:'Telegram'}};
 const EMPTY:Settings={site_url:'http://localhost:3000',redirect_urls:[],signup:true,anonymous:false,manual_linking:false,
  session:{access_token_seconds:null,timebox_seconds:null,inactivity_seconds:null},providers:{}};
 type SessionText={token:string;timebox:string;inactivity:string};
@@ -234,17 +234,17 @@ export function SignInSection({path,request}:{path:string;request:Api}){
   <div className="aw-drawer-head"><ProviderIcon name={open} label={meta.label}/><h3 id="aw-drawer-title">{meta.label}</h3><button type="button" className="aw-close" aria-label="Close" onClick={close}><X aria-hidden="true"/></button></div>
   <div className="aw-drawer-body">
    <Switch id={open+'-enabled'} checked={entry.enabled} disabled={busy} label={'Enable Sign in with '+meta.label} hint="Turns this provider on for this environment only." onChange={value=>provider(open,{enabled:value})}/>
-   <div className="aw-field"><label htmlFor={open+'-client'}>{open==='google'?'Client IDs':'Client ID'}</label><input id={open+'-client'} maxLength={512} autoFocus aria-required={entry.enabled} {...field(open+'-client')} value={entry.client_id} onChange={event=>provider(open,{client_id:event.target.value})}/>{fieldMessage(open+'-client')}{open==='google'&&<p className="aw-hint">Comma-separated list of client IDs for Web, OAuth, Android apps, One Tap and Chrome extensions.</p>}</div>
+   <div className="aw-field"><label htmlFor={open+'-client'}>{open==='google'?'Client IDs':open==='telegram'?'Bot ID (Client ID)':'Client ID'}</label><input id={open+'-client'} maxLength={512} autoFocus aria-required={entry.enabled} {...field(open+'-client')} value={entry.client_id} onChange={event=>provider(open,{client_id:event.target.value})}/>{fieldMessage(open+'-client')}{open==='telegram'&&<p className="aw-hint">The numeric Client ID that BotFather shows under your bot's Login Widget settings, with the Client Secret.</p>}{open==='google'&&<p className="aw-hint">Comma-separated list of client IDs for Web, OAuth, Android apps, One Tap and Chrome extensions.</p>}</div>
    <div className="aw-field"><label htmlFor={open+'-secret'}>Client secret</label><input id={open+'-secret'} type="password" autoComplete="off" maxLength={4096} aria-required={entry.enabled&&!entry.secret_set} {...field(open+'-secret')} value={entry.secret??''}
     placeholder={entry.secret_set?'Saved. Leave empty to keep it.':''} onChange={event=>provider(open,{secret:event.target.value})}/>{fieldMessage(open+'-secret')}
     <p className="aw-hint">The secret stays on the server. It is never shown again.</p></div>
    {meta.url&&<div className="aw-field"><label htmlFor={open+'-url'}>Server address{meta.url==='optional'?' (optional)':''}</label>
     <input id={open+'-url'} type="url" maxLength={2048} aria-required={meta.url==='required'&&entry.enabled} {...field(open+'-url')} value={entry.url} onChange={event=>provider(open,{url:event.target.value})} placeholder="https://"/>{fieldMessage(open+'-url')}</div>}
    {NONCE_PROVIDERS.includes(open)&&<Switch id={open+'-nonce'} checked={Boolean(entry.skip_nonce_check)} disabled={busy} label="Skip nonce checks" hint="Allows ID tokens with any nonce to be accepted, which is less secure. Useful when you cannot get the nonce used to issue the token, as on iOS." onChange={value=>provider(open,{skip_nonce_check:value})}/>}
-   <Switch id={open+'-email-optional'} checked={Boolean(entry.email_optional)} disabled={busy} label="Allow users without an email" hint="Lets a person sign in when this provider does not return an email address." onChange={value=>provider(open,{email_optional:value})}/>
+   {open!=='telegram'&&<Switch id={open+'-email-optional'} checked={Boolean(entry.email_optional)} disabled={busy} label="Allow users without an email" hint="Lets a person sign in when this provider does not return an email address." onChange={value=>provider(open,{email_optional:value})}/>}
    <div className="aw-field"><label htmlFor="callback">Callback URL (for OAuth)</label>
     <div className="aw-copy"><input id="callback" readOnly value={current?.callback_url??''}/><button type="button" className="aw-ghost" onClick={()=>void copy(current!.callback_url)}><Copy aria-hidden="true"/>Copy</button></div>
-    <p className="aw-hint" role="status">{copied||'Register this address with '+meta.label+' for this environment.'}</p></div>
+    <p className="aw-hint" role="status">{copied||(open==='telegram'?'Add this address to Allowed URLs in BotFather (Bot Settings, Login Widget). Apps sign in with provider custom:telegram.':'Register this address with '+meta.label+' for this environment.')}</p></div>
    {(form.providers[open]?.secret_set||current?.settings?.providers[open])&&<button type="button" className="aw-danger" disabled={busy} onClick={()=>remove(open)}><Trash2 aria-hidden="true"/>Remove saved credentials</button>}
   </div>
   <div className="aw-drawer-foot"><p className="aw-hint">Changes apply when you save from the bar at the bottom of the page.</p><button type="button" className="aw-primary" onClick={close}>Done</button></div>

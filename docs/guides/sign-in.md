@@ -41,6 +41,26 @@ In your application, sign in the usual way:
 await supabase.auth.signInWithOAuth({ provider: 'github', options: { redirectTo: 'https://app.example.com/welcome' } })
 ```
 
+### Log In With Telegram
+
+Telegram is in the list as **Telegram**. It is an OpenID Connect provider with a fixed server (`https://oauth.telegram.org`), so the panel has no server address and no email switch. People sign in without an email: Auth keeps their Telegram identity only.
+
+1. In Telegram, open @BotFather, choose your bot, then **Bot Settings** and **Login Widget**. Add the **Callback URL (for OAuth)** from the Telegram panel to **Allowed URLs**. Keep the signing algorithm at its default, RS256.
+2. Copy the **Client ID** (the bot's number) and the **Client Secret** that BotFather shows there into the Telegram panel, as **Bot ID (Client ID)** and **Client secret**. The bot ID is digits only.
+3. Turn on **Enable Sign in with Telegram**, press **Done**, then **Save and apply**.
+
+The application signs in with the provider name `custom:telegram`:
+
+```js
+await supabase.auth.signInWithOAuth({ provider: 'custom:telegram', options: { redirectTo: 'https://app.example.com/welcome' } })
+```
+
+- Telegram sends no email, so the new user has no email address. The identity holds `sub`, `name`, `preferred_username` and `picture`. Telegram's numeric user id, the one a bot needs to message the person, is in the identity as `custom_claims.id` (`auth.identities.identity_data -> 'custom_claims' ->> 'id'`); `sub` is a different identifier.
+- Behind the panel, Telegram is a custom provider of Auth, not a variable: after Auth starts, Sbarbase creates, updates or removes the row `custom:telegram` through Auth's admin API. Only that row is touched; any other custom provider an application made stays as it is. The row is made again from scratch if one with that name is not Telegram's (another type or issuer). It is removed when the Telegram entry is saved turned off, when the entry is taken out of the saved settings after it was applied, and when the environment's whole sign-in settings are removed. If Auth refuses the change, the row is put back as it was before the save. An environment whose settings never had a Telegram entry keeps a hand-made row `custom:telegram` untouched.
+- Auth fetches Telegram's discovery document when the row is created, so this environment's Auth gets outbound network access while Telegram is on, like every enabled provider. If it cannot reach `oauth.telegram.org`, the save is **Not applied** with "Custom sign-in provider creation was refused by Auth".
+- **The client secret of this provider is kept in this environment's own database** (`auth.custom_oauth_providers`), not only in Auth's environment as for the other providers. The console never shows it again, but a person with SQL access as the developer or service role of this environment can read it, and a backup of the environment contains it. Rotate it in BotFather if that matters to you.
+- Not checked against a real bot: the login itself needs your bot's credentials. The live check (`lab/telegram-oidc-check.py`) starts the pinned Auth with a throwaway database, applies a Telegram entry and confirms that sign-in redirects to Telegram's authorization address with the right client ID, scopes and PKCE challenge.
+
 ## 4. Choose how long a session lasts
 
 Page **Sessions** sets three lifetimes. All three are optional, and an empty field means no cap: Auth sets no variable there, so the session does not end on that count. With all three empty, a person who signs in once stays signed in, which is what a store that never wants to log a buyer out wants.

@@ -32,6 +32,7 @@ export function signInErrors(site:string,redirects:string,providers:Record<strin
  for(const [name,entry] of Object.entries(providers)){
   const ids=name==='google'?entry.client_id.split(',').map(part=>part.trim()).join(','):entry.client_id;
   if(name==='google'&&ids&&ids.split(',').includes(''))errors[name+'-client']='Separate client IDs with single commas, with no empty entry.';
+  else if(name==='telegram'&&ids&&!/^[0-9]{1,20}$/.test(ids))errors[name+'-client']='The bot ID is a number of up to 20 digits.';
   else if(ids.length>(name==='google'?2048:512)||/\s/.test(ids))errors[name+'-client']=`Use at most ${name==='google'?2048:512} characters without spaces.`;
   else if(entry.enabled&&!entry.client_id)errors[name+'-client']='Enter a client ID for this enabled provider.';
   const secret=entry.secret??'';

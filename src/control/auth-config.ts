@@ -10,7 +10,7 @@ import type {SignInSettings} from './sign-in';
 type CoreEntry={key:string;page:string;label:string;type:'url'|'list'|'bool'|'seconds'|'int'|'text';from:string;invert?:boolean;default:unknown;null_text?:string;owner:string;
  store?:'config';hint?:string;unit?:string;min?:number;max?:number;pattern?:string;example?:string};
 type ProviderField={suffix:string;type:'bool'|'text'|'secret'|'url'|'callback';from?:string;default?:unknown;only?:string;secret?:boolean;computed?:boolean};
-type ProviderEntry={label:string;url:'none'|'optional'|'required'};
+type ProviderEntry={label:string;url:'none'|'optional'|'required';mechanism?:'custom_oidc';identifier?:string};
 type Registry={version:number;pages:{id:string;label:string}[];core:CoreEntry[];provider_fields:ProviderField[];providers:Record<string,ProviderEntry>;nonce_providers:string[]};
 export const REGISTRY=registryFile as unknown as Registry;
 
@@ -50,12 +50,16 @@ function providerFields(name:string,settings:SignInSettings|null,callback:string
  const meta=REGISTRY.providers[name]!,saved=settings?.providers?.[name];
  // lab/auth_settings.py `configuration` passes nothing for a disabled provider.
  const inactive=!!saved&&!saved.enabled;
- const prefix='EXTERNAL_'+name.toUpperCase()+'_';
+ // A custom provider (Telegram) has no GOTRUE_EXTERNAL_ names: it is a row of Auth's custom provider table (lab/auth_settings.py `custom_providers`).
+ const custom=meta.mechanism==='custom_oidc';
+ const prefix=custom?'':'EXTERNAL_'+name.toUpperCase()+'_';
+ // Its keys are not variables, so they are not named like them: custom_provider:telegram.client_id.
+ const keyOf=(suffix:string)=>custom?`custom_provider:${name}.${suffix.toLowerCase()}`:prefix+suffix;
  const fields:ConfigField[]=[];
  for(const field of REGISTRY.provider_fields) {
   if(field.only==='url'&&meta.url==='none')continue;
   if(field.only==='nonce'&&!REGISTRY.nonce_providers.includes(name))continue;
-  const key=prefix+field.suffix,label=field.suffix.toLowerCase().replace(/_/g,' ');
+  const key=keyOf(field.suffix),label=field.suffix.toLowerCase().replace(/_/g,' ');
   if(field.type==='callback'){fields.push({key,label,type:'callback',value:callback,from_default:false});continue;}
   if(field.secret){fields.push({key,label,type:'secret',secret_set:!!saved?.secret,from_default:!saved,...(inactive?{inactive:true}:{})});continue;}
   const value=saved?(saved as unknown as Record<string,unknown>)[field.from!]:undefined;

@@ -19,6 +19,7 @@ import secrets
 import subprocess
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import run as lab
 import resource_admission
@@ -724,6 +725,93 @@ def token(secret, role):
     message = encode({'alg': 'HS256', 'typ': 'JWT'}) + '.' + encode({'role': role, 'iss': 'sbarbase-internal'})
     signature = base64.urlsafe_b64encode(hmac.new(secret.encode(), message.encode(), hashlib.sha256).digest()).rstrip(b'=').decode()
     return message + '.' + signature
+
+
+def apply_custom_providers(base, secret, wanted, send=None, record=None):
+    """Write the custom provider rows the sign-in settings own into one environment's Auth, through its admin API
+    (GOTRUE_ has no variables for them: docs/engineering/plans/2026-11-21-telegram-login.md). `base` is the Auth container's
+    address, `secret` the environment's JWT secret, `wanted` what `auth_settings.custom_providers` returns. Only the identifiers
+    in `wanted` are listed, created, updated or deleted; any other row is left alone. The list has no type filter, so a row of
+    another type under an owned name is seen: a row that is not the fixed OIDC provider (another type or issuer) is deleted and
+    created again, so the row always ends as the settings say. An update never names the issuer, so Auth fetches nothing then; a
+    create fetches the issuer's discovery document, which is why Auth needs its outbound network first. Returns which owned
+    identifiers had a row before, for `restore_custom_providers`; `record`, when given, is filled with the same as soon as the list is read, so a failure
+    half way still leaves it (an empty record means nothing was changed). A refusal raises with the status and Auth's error code, never a body
+    (it may hold the secret)."""
+    if not wanted:
+        return {}
+    headers = {'authorization': 'Bearer ' + token(secret, 'service_role'), 'content-type': 'application/json'}
+
+    def call(method, path, body=None):
+        if send is not None:
+            return send(method, base + path, body, headers)
+        request = urllib.request.Request(base + path, data=None if body is None else json.dumps(body).encode(), method=method, headers=headers)
+        try:
+            response = urllib.request.urlopen(request, timeout=45)
+        except urllib.error.HTTPError as error:
+            response = error
+        with response:
+            return response.status, response.read()
+
+    def fail(step, status, text):
+        try:
+            code = str(json.loads(text).get('error_code', ''))[:60]
+        except (ValueError, AttributeError, TypeError):
+            code = ''
+        raise RuntimeError(f'Custom sign-in provider {step} was refused by Auth (HTTP {status}{", " + code if code else ""})')
+
+    status, text = call('GET', '/admin/custom-providers')
+    if status != 200:
+        fail('list', status, text)
+    try:
+        present = {row.get('identifier'): row for row in json.loads(text).get('providers', [])}
+    except (ValueError, AttributeError, TypeError):
+        raise RuntimeError('Auth answered the custom provider list with something unreadable') from None
+    before = {identifier: identifier in present for identifier in wanted}
+    if record is not None:
+        record.update(before)
+    for identifier, payload in sorted(wanted.items()):
+        path = '/admin/custom-providers/' + urllib.parse.quote(identifier, safe=':')
+        row = present.get(identifier)
+        if row is not None and payload is not None and (row.get('provider_type') != 'oidc' or row.get('issuer') != payload['issuer']):
+            status, text = call('DELETE', path)
+            if status not in (200, 204):
+                fail('removal', status, text)
+            row = None
+        if payload is None:
+            if row is not None:
+                status, text = call('DELETE', path)
+                if status not in (200, 204):
+                    fail('removal', status, text)
+        elif row is not None:
+            update = {key: value for key, value in payload.items() if key not in ('provider_type', 'identifier', 'issuer')}
+            status, text = call('PUT', path, update)
+            if status != 200:
+                fail('update', status, text)
+        else:
+            status, text = call('POST', '/admin/custom-providers', payload)
+            if status != 201:
+                fail('creation', status, text)
+    return before
+
+
+def restore_custom_providers(base, secret, new, prior, before, send=None):
+    """Put the rows `apply_custom_providers` changed back to what they were: `new` is what it was given, `prior` what the last
+    applied settings owned (`auth_settings.custom_providers` of them) and `before` what it returned. An owned row the applied
+    settings had gets those settings again (the secret of a present row is never readable, so it comes from the applied copy);
+    one they did not have and that did not exist before is removed; a row that existed with no applied settings behind it (made
+    by hand, then overwritten) cannot be restored and is left. Best effort: returns None when done, or the refusal's message."""
+    undo = {}
+    for identifier in new:
+        if identifier in prior:
+            undo[identifier] = prior[identifier]
+        elif not before.get(identifier):
+            undo[identifier] = None
+    try:
+        apply_custom_providers(base, secret, undo, send=send)
+    except Exception as error:  # best effort: any failure is reported, never raised over the original one
+        return f'{type(error).__name__}: {error}'
+    return None
 
 
 def studio_identity_sql(e):
@@ -1561,6 +1649,15 @@ class Runtime:
             desired = lab.auth_configuration(e, self.values['environments'][e], DB, mail, settings)
         except CONFIG_ERRORS as error:
             raise RuntimeError(f'Email templates or phone settings cannot be used ({error}); Auth was not changed') from error
+        # The custom provider rows (Telegram) live in the environment's database, not in Auth: what the last apply left is `prior`, and a
+        # failure below puts the rows back to it, so the Auth that comes back serves what it did before.
+        try:
+            applied = auth_settings.load_applied(e)
+        except (auth_settings.SettingsError, ValueError, OSError):
+            applied = None
+        custom_wanted = auth_settings.custom_providers(settings, applied)
+        custom_prior = auth_settings.custom_providers(applied)
+        custom_before = {}
         # The running Auth steps aside rather than going away, so a new one that does not
         # start leaves the environment exactly as it was.
         if inspect('container', previous):
@@ -1571,6 +1668,9 @@ class Runtime:
             self.launch(name, 'auth', desired, '256m', .25, tier='production')
             egress(name, egress_wanted(mail, settings, e, phone=phone))
             self.wait(self.endpoint(name, 9999)+'/health')
+            # Telegram (and any later custom provider): rows of Auth's own table, written once it answers and before the copy below,
+            # so a refusal rolls back like a failed start. The outbound network above is what lets Auth fetch the issuer's document.
+            apply_custom_providers(self.endpoint(name, 9999), self.values['environments'][e]['jwt'], custom_wanted, record=custom_before)
             # The copy every restart uses, from the very settings this Auth started with, kept before the
             # old Auth is removed: a failure here rolls back like a failed start.
             if settings is None:
@@ -1587,6 +1687,15 @@ class Runtime:
             lab.docker('start', name)
             self.wait(self.endpoint(name, 9999)+'/health')
             self.publish_auth(e, name)
+            if custom_before:
+                # The rows were written: put them back through the Auth that is running again. A refusal here cannot hide the
+                # failure that brought us here, so it is only added to the log.
+                try:
+                    refused = restore_custom_providers(self.endpoint(name, 9999), self.values['environments'][e]['jwt'], custom_wanted, custom_prior, custom_before)
+                except Exception as error:
+                    refused = f'{type(error).__name__}: {error}'
+                if refused:
+                    print(f'Custom sign-in providers of {e} could not be put back: {refused}', file=sys.stderr)
             raise
         lab.docker('rm', '-f', previous)
         self.publish_auth(e, name)

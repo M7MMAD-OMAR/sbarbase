@@ -22,6 +22,7 @@ The marks are trademarks of their owners. CC0 covers the files, not the trademar
 | notion.svg | Notion | notion |
 | slack_oidc.svg | Slack | slack |
 | spotify.svg | Spotify | spotify |
+| telegram.svg | Telegram | telegram |
 | twitch.svg | Twitch | twitch |
 | twitter.svg | X | x |
 | zoom.svg | Zoom | zoom |

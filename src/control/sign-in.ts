@@ -15,7 +15,10 @@ import {ensureSamlKey} from './saml-key';
  * The rules mirror lab/auth_settings.py `validate`. */
 
 export const PROVIDERS=['apple','azure','bitbucket','discord','facebook','figma','github','gitlab','google','kakao',
- 'keycloak','linkedin_oidc','notion','slack_oidc','spotify','twitch','twitter','workos','zoom'] as const;
+ 'keycloak','linkedin_oidc','notion','slack_oidc','spotify','twitch','twitter','workos','zoom','telegram'] as const;
+/** Providers with no GOTRUE_EXTERNAL_<NAME>_* variables: a row of Auth's custom provider table, written through its admin API
+ * after it starts (lab/auth_settings.py CUSTOM_PROVIDERS). Their server is fixed, so they take no address. */
+export const CUSTOM_PROVIDERS:readonly string[]=['telegram'];
 /** Providers that may name their own server; true where it is required. */
 export const PROVIDER_URL:Record<string,boolean>={azure:false,gitlab:false,keycloak:true,workos:false};
 const MAX_REDIRECTS=50;
@@ -146,10 +149,12 @@ export function settingsFromInput(input:unknown,current:SignInSettings|null):Sig
   if(name==='google'&&ids&&ids.split(',').includes(''))throw new SettingsError(name);
   if(ids.length>(name==='google'?2048:512)||secret.length>4096||/\s/.test(ids+secret))throw new SettingsError(name);
   if(nonce===true&&!NONCE_PROVIDERS.includes(name))throw new SettingsError(name);
+  // Telegram: the client id is the bot id (digits), and it sends no email, so a person without one signs in.
+  if(CUSTOM_PROVIDERS.includes(name)&&ids&&!/^[0-9]{1,20}$/.test(ids))throw new SettingsError(name);
   if(enabled&&(!client||!secret))throw new SettingsError(name);
   if(url){if(!(name in PROVIDER_URL))throw new SettingsError(name);webAddress(url,name);}
   else if(enabled&&PROVIDER_URL[name])throw new SettingsError(name);
-  providers[name]={enabled,client_id:ids,secret,url,skip_nonce_check:nonce,email_optional:optional};
+  providers[name]={enabled,client_id:ids,secret,url,skip_nonce_check:nonce,email_optional:CUSTOM_PROVIDERS.includes(name)||optional};
  }
  return {version:FILE_VERSION,revision:(current?.revision??0)+1,site_url,redirect_urls:redirects.map(redirectAddress),signup,anonymous,manual_linking:linking,
   session:sessionFromInput(value.session,current?.session??null),config:configFromInput(value.config,current?.config??{}),providers};
@@ -181,11 +186,11 @@ export function changedKeys(before:SignInSettings|null,after:SignInSettings):str
  if(was.timebox_seconds!==after.session.timebox_seconds)keys.push('SESSIONS_TIMEBOX');
  if(was.inactivity_seconds!==after.session.inactivity_seconds)keys.push('SESSIONS_INACTIVITY_TIMEOUT');
  for(const name of new Set([...Object.keys(before?.providers??{}),...Object.keys(after.providers)])) {
-  const old=before?.providers?.[name],next=after.providers[name],prefix='EXTERNAL_'+name.toUpperCase()+'_';
+  const old=before?.providers?.[name],next=after.providers[name],prefix=CUSTOM_PROVIDERS.includes(name)?`custom_provider:${name}.`:'EXTERNAL_'+name.toUpperCase()+'_';
   const pairs:[string,unknown,unknown][]=[['ENABLED',old?.enabled??false,next?.enabled??false],['CLIENT_ID',old?.client_id??'',next?.client_id??''],
    ['SECRET',old?.secret??'',next?.secret??''],['URL',old?.url??'',next?.url??''],['SKIP_NONCE_CHECK',old?.skip_nonce_check??false,next?.skip_nonce_check??false],
    ['EMAIL_OPTIONAL',old?.email_optional??false,next?.email_optional??false]];
-  for(const [suffix,left,right] of pairs)if(left!==right)keys.push(prefix+suffix);
+  for(const [suffix,left,right] of pairs)if(left!==right)keys.push(CUSTOM_PROVIDERS.includes(name)?prefix+suffix.toLowerCase():prefix+suffix);
  }
  return keys.length>60?[...keys.slice(0,60),'AND_MORE']:keys;
 }

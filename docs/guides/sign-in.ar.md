@@ -41,6 +41,26 @@
 await supabase.auth.signInWithOAuth({ provider: 'github', options: { redirectTo: 'https://app.example.com/welcome' } })
 ```
 
+### تسجيل الدخول عبر Telegram
+
+يظهر Telegram في القائمة باسم **Telegram**. هو مزوّد OpenID Connect بخادم ثابت (`https://oauth.telegram.org`)، لذلك لا يحتوي لوحه على عنوان خادم ولا على مفتاح البريد. يدخل الناس بلا بريد إلكتروني: يحتفظ Auth بهويتهم في Telegram فقط.
+
+1. في Telegram افتح @BotFather واختر البوت، ثم **Bot Settings** ثم **Login Widget**. أضف **Callback URL (for OAuth)** من لوح Telegram إلى **Allowed URLs**. أبقِ خوارزمية التوقيع على قيمتها الافتراضية RS256.
+2. انسخ **Client ID** (رقم البوت) و**Client Secret** اللذين يعرضهما BotFather هناك إلى لوح Telegram، في **Bot ID (Client ID)** و**Client secret**. معرّف البوت أرقام فقط.
+3. فعّل **Enable Sign in with Telegram** واضغط **Done** ثم **Save and apply**.
+
+يسجّل التطبيق الدخول باسم المزوّد `custom:telegram`:
+
+```js
+await supabase.auth.signInWithOAuth({ provider: 'custom:telegram', options: { redirectTo: 'https://app.example.com/welcome' } })
+```
+
+- لا يرسل Telegram بريدًا إلكترونيًا، فلا عنوان بريد للمستخدم الجديد. تحمل الهوية `sub` و`name` و`preferred_username` و`picture`. أما المعرّف الرقمي للمستخدم في Telegram، وهو ما يحتاجه البوت ليراسل الشخص، فيوجد في الهوية باسم `custom_claims.id` (`auth.identities.identity_data -> 'custom_claims' ->> 'id'`)، و`sub` معرّف آخر مختلف.
+- خلف اللوح، Telegram مزوّد مخصّص في Auth وليس متغيّرًا: بعد أن يبدأ Auth، ينشئ صباربيز الصف `custom:telegram` أو يحدّثه أو يحذفه عبر واجهة الإدارة في Auth. لا يمسّ إلا هذا الصف، وأي مزوّد مخصّص آخر أنشأه تطبيق يبقى كما هو. ويُنشأ الصف من جديد إذا كان الصف الموجود بهذا الاسم ليس صف Telegram (نوع آخر أو مُصدِر آخر). ويُحذف حين يُحفظ إدخال Telegram معطّلًا، وحين يُزال الإدخال من الإعدادات المحفوظة بعد أن طُبّق، وحين تُزال إعدادات الدخول كلها للبيئة. وإن رفض Auth التغيير يعود الصف كما كان قبل الحفظ. أما البيئة التي لم يرد في إعداداتها إدخال Telegram قط فيبقى فيها الصف `custom:telegram` المصنوع يدويًا كما هو.
+- يجلب Auth وثيقة الاكتشاف من Telegram عند إنشاء الصف، لذلك تُمنح Auth هذه البيئة وصولًا إلى الشبكة الخارجية ما دام Telegram مفعّلًا، كأي مزوّد مفعّل. وإن تعذّر عليه الوصول إلى `oauth.telegram.org` يظهر الحفظ **Not applied** مع الرسالة "Custom sign-in provider creation was refused by Auth".
+- **سرّ العميل لهذا المزوّد يُحفظ في قاعدة بيانات هذه البيئة نفسها** (`auth.custom_oauth_providers`)، لا في بيئة Auth وحدها كما في بقية المزوّدين. لا تعرضه الواجهة مرة أخرى، لكن من له وصول SQL بدور المطوّر أو بدور الخدمة في هذه البيئة يستطيع قراءته، وتحتويه النسخة الاحتياطية للبيئة. جدّده في BotFather إن كان ذلك يهمّك.
+- لم يُجرَّب مع بوت حقيقي: الدخول الفعلي يحتاج بيانات بوتك. الفحص الحي (`lab/telegram-oidc-check.py`) يشغّل Auth المثبّت على قاعدة مؤقتة، ويطبّق إدخال Telegram، ويتأكد أن الدخول يحوّل إلى عنوان التفويض في Telegram بمعرّف العميل والنطاقات وتحدّي PKCE الصحيحة.
+
 ## 4. اختر عمر الجلسة
 
 صفحة **Sessions** تضبط ثلاثة أعمار. كلها اختيارية، والحقل الفارغ يعني بلا سقف: لا يضع Auth أي متغيّر هناك، فلا تنتهي الجلسة من هذا الباب. إذا بقيت الحقول الثلاثة فارغة، يبقى من سجّل الدخول مرة واحدة مسجّلًا، وهذا ما يريده متجر لا يريد أن يُخرج المشتري أبدًا.

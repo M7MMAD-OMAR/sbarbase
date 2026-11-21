@@ -294,3 +294,18 @@ test('turning SAML on makes the environment signing key once, a refused save mak
   expect(answer).not.toContain(JSON.parse(made).private_key);
  } finally {catalog.close();}
 });
+
+test('telegram takes a numeric bot id, no address and no nonce switch, always allows users without an email, and is named as a custom provider in the audit',()=>{
+ const telegram={enabled:true,client_id:'123456789',secret:'bot-secret'};
+ const saved=settingsFromInput({...valid,providers:{telegram}},null);
+ expect(saved.providers.telegram).toMatchObject({enabled:true,client_id:'123456789',url:'',email_optional:true,skip_nonce_check:false});
+ expect(settingsFromInput({...valid,providers:{telegram:{...telegram,email_optional:false}}},null).providers.telegram!.email_optional).toBe(true);
+ for(const change of [{client_id:'bot-1'},{client_id:'1'.repeat(21)},{url:'https://oauth.telegram.org'},{skip_nonce_check:true},{secret:''}]) {
+  try{settingsFromInput({...valid,providers:{telegram:{...telegram,...change}}},null);throw new Error('accepted '+JSON.stringify(change));}
+  catch(error){expect(error).toBeInstanceOf(SettingsError);expect((error as Error).message).toBe('telegram');}
+ }
+ const keys=changedKeys(null,saved);
+ expect(keys).toContain('custom_provider:telegram.enabled');
+ expect(keys.some(key=>key.startsWith('EXTERNAL_TELEGRAM_'))).toBe(false);
+ expect(keys.join(' ')).not.toContain('bot-secret');
+});

@@ -19,7 +19,7 @@ CONFIG = {entry['key']: (True if entry['type'] == 'bool' else entry['example'] i
 FULL = {'revision': 1, 'config': CONFIG, 'site_url': 'https://app.example.com', 'redirect_urls': ['https://app.example.com/**', 'myapp://cb'],
         'signup': False, 'anonymous': True, 'manual_linking': True,
         'session': {'access_token_seconds': 1800, 'timebox_seconds': 7200, 'inactivity_seconds': 600},
-        'providers': {name: {'enabled': True, 'client_id': 'id-' + name, 'secret': 'secret-' + name,
+        'providers': {name: {'enabled': True, 'client_id': '123456789' if meta.get('mechanism') == 'custom_oidc' else 'id-' + name, 'secret': 'secret-' + name,
                              'url': 'https://idp.example.com/' + name if meta['url'] != 'none' else '',
                              'skip_nonce_check': name in REGISTRY['nonce_providers'], 'email_optional': True}
                       for name, meta in REGISTRY['providers'].items()}}
@@ -33,6 +33,10 @@ class RegistryParityTests(unittest.TestCase):
 
     def test_the_providers_are_the_ones_this_side_accepts(self):
         self.assertEqual(sorted(REGISTRY['providers']), sorted(auth_settings.PROVIDERS))
+        self.assertEqual(sorted(n for n, m in REGISTRY['providers'].items() if m.get('mechanism') == 'custom_oidc'), sorted(auth_settings.CUSTOM_PROVIDERS))
+        for name, meta in REGISTRY['providers'].items():
+            if meta.get('mechanism') == 'custom_oidc':
+                self.assertEqual(meta['identifier'], auth_settings.CUSTOM_PROVIDERS[name])
         for name, meta in REGISTRY['providers'].items():
             self.assertEqual(meta['url'] != 'none', name in auth_settings.PROVIDER_URL, name)
             self.assertEqual(meta['url'] == 'required', auth_settings.PROVIDER_URL.get(name) is True, name)
@@ -62,6 +66,10 @@ class RegistryParityTests(unittest.TestCase):
         callback = auth_settings.public_url() + '/' + E + '/auth/v1/callback'
         for name, meta in REGISTRY['providers'].items():
             prefix = 'GOTRUE_EXTERNAL_' + name.upper() + '_'
+            if meta.get('mechanism') == 'custom_oidc':
+                # A custom provider has no variables at all: it is a row of Auth's own table (test_telegram_custom_provider.py).
+                self.assertEqual([k for k in self.config if k.startswith(prefix)], [], name)
+                continue
             for field in REGISTRY['provider_fields']:
                 if field.get('only') == 'url' and meta['url'] == 'none':
                     self.assertNotIn(prefix + 'URL', self.config, name)
@@ -82,7 +90,8 @@ class RegistryParityTests(unittest.TestCase):
         # The reverse direction: a variable this module owns and writes must be explained by the registry.
         # The SAML key is not a setting: it is the environment's own file (lab/saml_key.py).
         known = {'GOTRUE_' + e['key'] for e in REGISTRY['core']} | {'API_EXTERNAL_URL', 'GOTRUE_SAML_PRIVATE_KEY'}
-        known |= {'GOTRUE_EXTERNAL_' + n.upper() + '_' + f['suffix'] for n in REGISTRY['providers'] for f in REGISTRY['provider_fields']}
+        known |= {'GOTRUE_EXTERNAL_' + n.upper() + '_' + f['suffix'] for n, m in REGISTRY['providers'].items() if m.get('mechanism') != 'custom_oidc'
+                  for f in REGISTRY['provider_fields']}
         for variable in self.config:
             self.assertIn(variable, known, variable)
 
