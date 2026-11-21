@@ -1,9 +1,9 @@
 {
-  "version": "0.13.5",
+  "version": "0.13.6",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "The off-host backup copy no longer fails once a daily set passes 5 GiB: large sets are uploaded in parts, dropped requests are retried, and a refusal names its HTTP status.",
-    "ar": "لم تعد النسخة خارج الخادم تفشل عندما تتجاوز مجموعة النسخ اليومية 5 GiB: تُرفع المجموعات الكبيرة على أجزاء، ويُعاد الطلب الذي ينقطع، وتُذكر حالة HTTP التي رفضت بها الوجهة الطلب."
+    "en": "The update notice is no longer held back as a secret, and the off-host copy of large backups keeps working.",
+    "ar": "لم يعد إشعار التحديث يُحجب على أنه سرّ، ويستمر نسخ النسخ الكبيرة خارج الخادم بلا مشاكل."
   },
   "migrations": []
 }
