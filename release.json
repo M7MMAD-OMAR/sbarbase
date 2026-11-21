@@ -1,9 +1,9 @@
 {
-  "version": "0.13.7",
+  "version": "0.13.8",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "Deleted environments no longer hold database connection room, and the Projects and Agent access pages are English again.",
-    "ar": "لم تعد البيئات المحذوفة تحجز سعة اتصالات قاعدة البيانات، وعادت صفحتا المشاريع وصلاحيات الوكلاء إلى الإنجليزية."
+    "en": "A server restarts again after environments were deleted: the start check no longer counts the stopped containers of deleted environments.",
+    "ar": "يعود الخادم إلى البدء بعد حذف بيئات: لم يعد فحص البدء يحسب الحاويات المتوقفة للبيئات المحذوفة."
   },
   "migrations": []
 }
