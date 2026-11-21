@@ -6,7 +6,14 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-This source release is 0.13.6. Check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for publication and downloadable assets. [Status](docs/reference/status.md) distinguishes source from the installed revision.
+This source release is 0.13.7. Check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for publication and downloadable assets. [Status](docs/reference/status.md) distinguishes source from the installed revision.
+
+## [0.13.7] - 2026-11-22
+
+### Fixed
+
+- A deleted environment kept its database connection limit in the room checks for direct database access, Studio, Realtime, scheduled jobs and the side by side swap, so a few deleted test projects could block new work on a server with memory to spare. A database now counts only while one of its Auth, REST or Storage logins can sign in; a restore opens them again.
+- The Projects page, the archive of deleted projects, the delete project confirmation and the Agent access page were written in Arabic with a right to left layout. They are English again like the rest of the console.
 
 ## [0.13.6] - 2026-11-21
 
