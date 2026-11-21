@@ -1,6 +1,6 @@
 import {bindReadyEnvironmentPublication} from './ready-publication';
 import {refreshCurrentManagement} from './management-context';
-import {lstatSync,mkdirSync,readFileSync,renameSync,writeFileSync} from 'node:fs';
+import {lstatSync,mkdirSync,readFileSync,renameSync,rmSync,writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {Catalog} from './catalog';
 import {authenticate,reply,type ManagementIdentity} from './auth';
@@ -207,26 +207,40 @@ function file(directory:string,runtime:string) {
  return join(directory,runtime+'-auth.json');
 }
 
-export function readSettings(directory:string,runtime:string):SignInSettings|null {
- const path=file(directory,runtime);
- // As lab/auth_settings.py `read_private`: a link (a dangling one included), or a file open to other users, is not read.
+/** Telegram's entry has a file of its own beside the main one (lab/auth_settings.py `telegram_path`): the main file keeps the shape a
+ * build from before Telegram reads, so a rollback never makes it refuse the environment's other providers. */
+function telegramFile(directory:string,runtime:string){return file(directory,runtime).replace(/-auth\.json$/,'-auth.telegram.json');}
+
+/** A private file read as JSON, or null when there is none: a link, or a file open to other users, is refused. */
+function readPrivate(path:string):unknown {
  let status;
  try{status=lstatSync(path);}catch(error){if((error as {code?:string}).code==='ENOENT')return null;throw error;}
  if(!status.isFile()||(status.mode&0o077)!==0)throw new SettingsError('file');
+ return JSON.parse(readFileSync(path,'utf8'));
+}
+
+export function readSettings(directory:string,runtime:string):SignInSettings|null {
+ const path=file(directory,runtime);
+ // As lab/auth_settings.py `read_private`: a link (a dangling one included), or a file open to other users, is not read.
+ const document=readPrivate(path);
+ if(document===null)return null;
  // A file written before sessions were saved has no `session`: it reads as no cap and stays
  // as it is on disk until the next save writes the whole object.
- const saved=JSON.parse(readFileSync(path,'utf8')) as SignInSettings&{version?:number};
+ const saved=document as SignInSettings&{version?:number};
  // A file from a newer version is not rewritten by this one: its fields would be dropped.
  if(saved.version!==undefined&&saved.version>FILE_VERSION)throw new SettingsError('file');
  const session=saved.session&&typeof saved.session==='object'?saved.session:NO_CAP;
+ const telegram=readPrivate(telegramFile(directory,runtime)) as Provider|null;
  // A file may lack `providers`, which the Python validator reads as none.
  // Files from before manual linking and the provider switches have none of them: all off, as Auth's own default.
- const providers=Object.fromEntries(Object.entries(saved.providers??{}).map(([name,entry])=>[name,{...entry,skip_nonce_check:entry.skip_nonce_check??false,email_optional:entry.email_optional??false}]));
+ const providers=Object.fromEntries(Object.entries({...(saved.providers??{}),...(telegram?{telegram}:{})}).map(([name,entry])=>[name,{...entry,skip_nonce_check:entry.skip_nonce_check??false,email_optional:entry.email_optional??false}]));
  return {...saved,manual_linking:saved.manual_linking??false,config:withoutRetired(saved.config??{}),providers,session:{...NO_CAP,...session}};
 }
 
 /** As lab/auth_settings.py `file_form`: the version 1 shape while no switch added with version 2 is on. */
-function fileForm(settings:SignInSettings):Record<string,unknown> {
+function fileForm(full:SignInSettings):Record<string,unknown> {
+ // Telegram is not in the main file (see telegramFile).
+ const settings={...full,providers:Object.fromEntries(Object.entries(full.providers).filter(([name])=>!CUSTOM_PROVIDERS.includes(name)))};
  const plain=!settings.manual_linking&&Object.keys(settings.config??{}).length===0&&!Object.values(settings.providers).some(entry=>entry.skip_nonce_check||entry.email_optional);
  // An empty config is left out, so a build from before the simple settings still reads a file that only uses version 2 switches.
  if(!plain){const {config,...rest}=settings;return {...rest,...(Object.keys(config??{}).length>0?{config}:{}),version:FILE_VERSION};}
@@ -237,11 +251,18 @@ function fileForm(settings:SignInSettings):Record<string,unknown> {
 /** Writes the settings file (private, replaced in one step); the SMTP route uses it to keep the revision in step. */
 export function writeSettingsFile(directory:string,runtime:string,settings:SignInSettings) {writeSettings(directory,runtime,settings);}
 
+function writePrivate(path:string,text:string) {
+ const pending=path+'.pending';
+ writeFileSync(pending,text,{mode:0o600});
+ renameSync(pending,path);
+}
+
 function writeSettings(directory:string,runtime:string,settings:SignInSettings) {
  mkdirSync(directory,{recursive:true,mode:0o700});
- const path=file(directory,runtime),pending=path+'.pending';
- writeFileSync(pending,JSON.stringify(fileForm(settings)),{mode:0o600});
- renameSync(pending,path);
+ const telegram=settings.providers.telegram,sibling=telegramFile(directory,runtime);
+ // Telegram's file first: a reader that sees the new main file then also sees the entry it goes with.
+ if(telegram)writePrivate(sibling,JSON.stringify(telegram));else rmSync(sibling,{force:true});
+ writePrivate(file(directory,runtime),JSON.stringify(fileForm(settings)));
 }
 
 /** GET and PUT `/environments/{id}/sign-in`, and GET `/environments/{id}/auth-config` (the read only

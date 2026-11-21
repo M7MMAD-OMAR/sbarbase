@@ -727,7 +727,10 @@ def token(secret, role):
     return message + '.' + signature
 
 
-def apply_custom_providers(base, secret, wanted, send=None, record=None):
+NO_PROXY = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
+def apply_custom_providers(base, secret, wanted, send=None, on_plan=None):
     """Write the custom provider rows the sign-in settings own into one environment's Auth, through its admin API
     (GOTRUE_ has no variables for them: docs/engineering/plans/2026-11-21-telegram-login.md). `base` is the Auth container's
     address, `secret` the environment's JWT secret, `wanted` what `auth_settings.custom_providers` returns. Only the identifiers
@@ -735,8 +738,8 @@ def apply_custom_providers(base, secret, wanted, send=None, record=None):
     another type under an owned name is seen: a row that is not the fixed OIDC provider (another type or issuer) is deleted and
     created again, so the row always ends as the settings say. An update never names the issuer, so Auth fetches nothing then; a
     create fetches the issuer's discovery document, which is why Auth needs its outbound network first. Returns which owned
-    identifiers had a row before, for `restore_custom_providers`; `record`, when given, is filled with the same as soon as the list is read, so a failure
-    half way still leaves it (an empty record means nothing was changed). A refusal raises with the status and Auth's error code, never a body
+    identifiers had a row before, for `restore_custom_providers`; `on_plan`, when given, is called with the same as soon as the list is read and
+    before the first change, so a caller can journal how to undo it. A refusal raises with the status and Auth's error code, never a body
     (it may hold the secret)."""
     if not wanted:
         return {}
@@ -747,7 +750,9 @@ def apply_custom_providers(base, secret, wanted, send=None, record=None):
             return send(method, base + path, body, headers)
         request = urllib.request.Request(base + path, data=None if body is None else json.dumps(body).encode(), method=method, headers=headers)
         try:
-            response = urllib.request.urlopen(request, timeout=45)
+            # The Auth container is on this host's own network: a proxy named in the environment (HTTP_PROXY and the like) must never see
+            # the service token or a client secret, so this opener has no proxy handler at all.
+            response = NO_PROXY.open(request, timeout=45)
         except urllib.error.HTTPError as error:
             response = error
         with response:
@@ -768,8 +773,8 @@ def apply_custom_providers(base, secret, wanted, send=None, record=None):
     except (ValueError, AttributeError, TypeError):
         raise RuntimeError('Auth answered the custom provider list with something unreadable') from None
     before = {identifier: identifier in present for identifier in wanted}
-    if record is not None:
-        record.update(before)
+    if on_plan is not None:
+        on_plan(before)
     for identifier, payload in sorted(wanted.items()):
         path = '/admin/custom-providers/' + urllib.parse.quote(identifier, safe=':')
         row = present.get(identifier)
@@ -795,21 +800,26 @@ def apply_custom_providers(base, secret, wanted, send=None, record=None):
     return before
 
 
-def restore_custom_providers(base, secret, new, prior, before, send=None):
-    """Put the rows `apply_custom_providers` changed back to what they were: `new` is what it was given, `prior` what the last
-    applied settings owned (`auth_settings.custom_providers` of them) and `before` what it returned. An owned row the applied
-    settings had gets those settings again (the secret of a present row is never readable, so it comes from the applied copy);
-    one they did not have and that did not exist before is removed; a row that existed with no applied settings behind it (made
-    by hand, then overwritten) cannot be restored and is left. Best effort: returns None when done, or the refusal's message."""
+def custom_undo(new, prior, before):
+    """What puts the rows of `new` back after `apply_custom_providers` changed them: `prior` is what the last applied settings owned
+    (`auth_settings.custom_providers` of them) and `before` which owned rows existed. An owned row the applied settings had gets those
+    settings again (the secret of a present row is never readable, so it comes from the applied copy); one they did not have and that
+    did not exist before is removed; a row that existed with no applied settings behind it (made by hand, then overwritten) cannot be
+    restored and is left."""
     undo = {}
     for identifier in new:
         if identifier in prior:
             undo[identifier] = prior[identifier]
         elif not before.get(identifier):
             undo[identifier] = None
+    return undo
+
+
+def restore_custom_providers(base, secret, undo, send=None):
+    """Apply an undo plan (`custom_undo`). Best effort: returns None when done, or the refusal's message, never raises."""
     try:
         apply_custom_providers(base, secret, undo, send=send)
-    except Exception as error:  # best effort: any failure is reported, never raised over the original one
+    except Exception as error:  # reported, never raised over the failure that made the restore necessary
         return f'{type(error).__name__}: {error}'
     return None
 
@@ -1620,6 +1630,23 @@ class Runtime:
         lab.docker('start', name)
         self.wait(self.endpoint(name, 9999)+'/health')
         self.publish_auth(e, name)
+        self.replay_custom_journal(e, name)
+
+    def replay_custom_journal(self, e, name):
+        """A supervisor that stopped after custom provider rows were written (lab/auth_settings.py `journal_path`) leaves the plan that
+        puts them back: replay it through the running Auth, then drop it. Best effort, never raises: a refusal keeps the journal."""
+        file = auth_settings.journal_path(e)
+        if not os.path.lexists(file):
+            return
+        try:
+            undo = json.loads(auth_settings.read_private(file))['undo']
+            refused = restore_custom_providers(self.endpoint(name, 9999), self.values['environments'][e]['jwt'], undo)
+        except Exception as error:
+            refused = f'{type(error).__name__}: {error}'
+        if refused:
+            print(f'Custom sign-in providers of {e} could not be put back: {refused}', file=sys.stderr)
+        else:
+            file.unlink(missing_ok=True)
 
     def reconcile_auth(self, e):
         """Apply one environment's sign-in settings: recreate its Auth with them, as mail does."""
@@ -1639,6 +1666,8 @@ class Runtime:
         self.restore_stray_previous(e)
         if not inspect('container', name):
             raise RuntimeError('Sign-in settings need the retained Auth container')
+        # A restore of the custom provider rows that was refused or interrupted last time is tried again before anything new is written.
+        self.replay_custom_journal(e, name)
         settings = auth_settings.load(e)
         mail = mail_config.load(e)
         try:
@@ -1657,7 +1686,14 @@ class Runtime:
             applied = None
         custom_wanted = auth_settings.custom_providers(settings, applied)
         custom_prior = auth_settings.custom_providers(applied)
-        custom_before = {}
+        custom_undo_plan = {}
+        jwt = self.values['environments'][e]['jwt']
+
+        def journal(before):
+            # Written before the first row changes, so a supervisor that dies from here on can still put the rows back
+            # (restore_stray_previous replays it with the old Auth it brings back).
+            custom_undo_plan.update(custom_undo(custom_wanted, custom_prior, before))
+            auth_settings.write_private(auth_settings.journal_path(e), json.dumps({'undo': custom_undo_plan}))
         # The running Auth steps aside rather than going away, so a new one that does not
         # start leaves the environment exactly as it was.
         if inspect('container', previous):
@@ -1670,11 +1706,11 @@ class Runtime:
             self.wait(self.endpoint(name, 9999)+'/health')
             # Telegram (and any later custom provider): rows of Auth's own table, written once it answers and before the copy below,
             # so a refusal rolls back like a failed start. The outbound network above is what lets Auth fetch the issuer's document.
-            apply_custom_providers(self.endpoint(name, 9999), self.values['environments'][e]['jwt'], custom_wanted, record=custom_before)
+            apply_custom_providers(self.endpoint(name, 9999), jwt, custom_wanted, on_plan=journal)
             # The copy every restart uses, from the very settings this Auth started with, kept before the
             # old Auth is removed: a failure here rolls back like a failed start.
             if settings is None:
-                auth_settings.applied_path(e).unlink(missing_ok=True)
+                auth_settings.remove_applied(e)
             else:
                 auth_settings.write_applied(e, settings)
             # The same for the email templates and the phone settings: restarts read these copies, never a save still waiting.
@@ -1687,16 +1723,19 @@ class Runtime:
             lab.docker('start', name)
             self.wait(self.endpoint(name, 9999)+'/health')
             self.publish_auth(e, name)
-            if custom_before:
-                # The rows were written: put them back through the Auth that is running again. A refusal here cannot hide the
-                # failure that brought us here, so it is only added to the log.
+            if custom_undo_plan:
+                # The rows were written (or were about to be): put them back through the Auth that is running again. A refusal here
+                # cannot hide the failure that brought us here, so it is only logged, and the journal stays for the next apply.
                 try:
-                    refused = restore_custom_providers(self.endpoint(name, 9999), self.values['environments'][e]['jwt'], custom_wanted, custom_prior, custom_before)
+                    refused = restore_custom_providers(self.endpoint(name, 9999), jwt, custom_undo_plan)
                 except Exception as error:
                     refused = f'{type(error).__name__}: {error}'
                 if refused:
                     print(f'Custom sign-in providers of {e} could not be put back: {refused}', file=sys.stderr)
+                else:
+                    auth_settings.journal_path(e).unlink(missing_ok=True)
             raise
+        auth_settings.journal_path(e).unlink(missing_ok=True)
         lab.docker('rm', '-f', previous)
         self.publish_auth(e, name)
         # The Email card on the Overview reads this record: an apply that carried a mail configuration says so.

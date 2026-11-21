@@ -229,6 +229,22 @@ def applied_path(e):
     return DIRECTORY / f'{e}-auth.applied.json'
 
 
+def telegram_path(e, applied=False):
+    """Telegram's entry has a file of its own beside the main one (`-auth.telegram.json`, `-auth.telegram.applied.json`): the main file
+    keeps the shape an older build reads (no `telegram` key, version 1 while nothing newer is on), so rolling the code back never
+    makes it refuse the environment's other providers. A build from before Telegram simply never reads the sibling."""
+    if not RUNTIME.fullmatch(e):
+        raise SettingsError('environment')
+    return DIRECTORY / f'{e}-auth.telegram{".applied" if applied else ""}.json'
+
+
+def journal_path(e):
+    """The custom provider change an apply is about to make and how to undo it (see `durable_runtime.restore_stray_previous`)."""
+    if not RUNTIME.fullmatch(e):
+        raise SettingsError('environment')
+    return DIRECTORY / f'{e}-auth.journal.json'
+
+
 def read_private(file):
     """Text of a settings file, refused when it is a link or readable by anyone but the owner."""
     status = file.lstat()
@@ -237,17 +253,36 @@ def read_private(file):
     return file.read_text()
 
 
+def read_with_sibling(main, sibling):
+    """The validated settings of a main file, with the Telegram entry of its sibling file when there is one."""
+    document = json.loads(read_private(main))
+    if os.path.lexists(sibling):
+        entry = json.loads(read_private(sibling))
+        if not isinstance(document, dict) or not isinstance(entry, dict) or not isinstance(document.get('providers', {}), dict):
+            raise SettingsError('settings')
+        document = {**document, 'providers': {**document.get('providers', {}), 'telegram': entry}}
+    return validate(document)
+
+
 def load_applied(e):
     """The last applied settings, or None before the first apply. An unreadable copy raises."""
     file = applied_path(e)
     if not os.path.lexists(file):
         return None
-    return validate(json.loads(read_private(file)))
+    return read_with_sibling(file, telegram_path(e, applied=True))
+
+
+def split_telegram(settings):
+    """The settings without the custom provider entries (what the main file holds), and those entries by name."""
+    custom = {name: entry for name, entry in settings['providers'].items() if name in CUSTOM_PROVIDERS}
+    main = {**settings, 'providers': {name: entry for name, entry in settings['providers'].items() if name not in CUSTOM_PROVIDERS}}
+    return main, custom
 
 
 def file_form(settings):
-    """The settings as a file holds them. While none of the switches added with version 2 is on, the file
-    keeps the version 1 shape, so a build from before them still reads it (a rollback is not an outage)."""
+    """The settings as the main file holds them, without Telegram (`split_telegram`). While none of the switches added with version 2
+    is on, the file keeps the version 1 shape, so a build from before them still reads it (a rollback is not an outage)."""
+    settings, _ = split_telegram(settings)
     plain = not settings.get('manual_linking') and not settings.get('config') and not any(
         entry.get('skip_nonce_check') or entry.get('email_optional') for entry in settings['providers'].values())
     if not plain:
@@ -260,17 +295,33 @@ def file_form(settings):
     return {**stripped, 'version': 1}
 
 
-def write_applied(e, settings):
-    """Keeps the settings just applied, created private (mode 0600, never a link) and replaced in one step."""
-    file = applied_path(e)
+def write_private(file, text):
+    """A private file (mode 0600, never a link), replaced in one step."""
     pending = file.with_name(file.name + '.pending')
     pending.unlink(missing_ok=True)
     descriptor = os.open(pending, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
     with os.fdopen(descriptor, 'w') as handle:
-        handle.write(json.dumps(file_form(settings)))
+        handle.write(text)
         handle.flush()
         os.fsync(handle.fileno())
     os.replace(pending, file)
+
+
+def write_applied(e, settings):
+    """Keeps the settings just applied: the main copy and, when there is one, Telegram's, each private."""
+    _, custom = split_telegram(settings)
+    write_private(applied_path(e), json.dumps(file_form(settings)))
+    sibling = telegram_path(e, applied=True)
+    if 'telegram' in custom:
+        write_private(sibling, json.dumps(custom['telegram']))
+    else:
+        sibling.unlink(missing_ok=True)
+
+
+def remove_applied(e):
+    """Forgets the applied copy (settings were removed): the main one and Telegram's."""
+    applied_path(e).unlink(missing_ok=True)
+    telegram_path(e, applied=True).unlink(missing_ok=True)
 
 
 def load(e):
@@ -279,7 +330,7 @@ def load(e):
     # lexists: a link that points nowhere is a refusal, not "no settings".
     if not os.path.lexists(file):
         return None
-    return validate(json.loads(read_private(file)))
+    return read_with_sibling(file, telegram_path(e))
 
 
 def public_url():
@@ -456,6 +507,7 @@ def apply(e):
         if os.path.lexists(stale) and time.time() - stale.lstat().st_mtime > 60:
             stale.unlink(missing_ok=True)
         applied_path(e).with_name(applied_path(e).name + '.pending').unlink(missing_ok=True)
+        telegram_path(e, applied=True).with_name(telegram_path(e, applied=True).name + '.pending').unlink(missing_ok=True)
         settings = load(e)
     except (SettingsError, ValueError, OSError):
         record(e, 'failed', 'The saved settings are not valid. Save them again.')

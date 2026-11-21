@@ -309,3 +309,41 @@ test('telegram takes a numeric bot id, no address and no nonce switch, always al
  expect(keys.some(key=>key.startsWith('EXTERNAL_TELEGRAM_'))).toBe(false);
  expect(keys.join(' ')).not.toContain('bot-secret');
 });
+
+test('telegram is saved in a file of its own, so the main file stays the shape an older build reads, and both read back together',async()=>{
+ const catalog=new Catalog(':memory:');
+ const directory=mkdtempSync(join(tmpdir(),'sign-in-'));
+ try {
+  const org=catalog.createOrganization('alice','A');
+  const environment=catalog.createEnvironment('alice',catalog.createProject('alice',org,'P'),'production');
+  const job=catalog.claimProvision()!;catalog.finishProvision(environment,job.claim!,true);
+  const handler=signInHandler(catalog,async request=>request.headers.get('authorization'),directory,0);
+  const put=(body:unknown)=>handler(new Request(`http://local/management/v1/environments/${environment}/sign-in`,
+   {method:'PUT',headers:{authorization:'alice','content-type':'application/json'},body:JSON.stringify(body)}));
+  const runtime=catalog.getProvision('alice',environment).runtime;
+  const main=join(directory,runtime+'-auth.json'),sibling=join(directory,runtime+'-auth.telegram.json');
+  const telegram={enabled:true,client_id:'123456789',secret:'bot-secret'};
+  for(const entry of [telegram,{...telegram,enabled:false}]) {
+   expect((await put({...valid,providers:{...valid.providers,telegram:entry}})).status).toBe(202);
+   const written=JSON.parse(readFileSync(main,'utf8'));
+   // What a build from before Telegram accepts: version 1, no provider it does not know, no secret of Telegram's.
+   expect(written.version).toBe(1);
+   expect(Object.keys(written.providers)).toEqual(['github']);
+   expect(readFileSync(main,'utf8')).not.toContain('bot-secret');
+   expect(statSync(sibling).mode&0o777).toBe(0o600);
+   expect(JSON.parse(readFileSync(sibling,'utf8'))).toMatchObject({enabled:entry.enabled,client_id:'123456789',email_optional:true});
+   const read=readSettings(directory,runtime)!;
+   expect(read.providers.telegram).toMatchObject({enabled:entry.enabled,client_id:'123456789',secret:'bot-secret',email_optional:true});
+   expect(read.providers.github!.client_id).toBe('Iv1.abc');
+  }
+  // A save that no longer names Telegram removes its file; an empty secret keeps the saved one meanwhile.
+  expect((await put({...valid,providers:{...valid.providers,telegram:{enabled:true,client_id:'123456789',secret:''}}})).status).toBe(202);
+  expect(readSettings(directory,runtime)!.providers.telegram!.secret).toBe('bot-secret');
+  expect((await put(valid)).status).toBe(202);
+  expect(existsSync(sibling)).toBe(false);
+  expect(readSettings(directory,runtime)!.providers.telegram).toBeUndefined();
+  // A sibling open to other users is refused, as the main file would be.
+  writeFileSync(sibling,JSON.stringify(telegram),{mode:0o644});chmodSync(sibling,0o644);
+  expect(()=>readSettings(directory,runtime)).toThrow(SettingsError);
+ } finally {catalog.close();}
+});

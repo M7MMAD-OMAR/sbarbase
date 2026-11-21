@@ -198,8 +198,8 @@ class ReconcileTests(unittest.TestCase):
              patch.object(self.runtime.source_fence, 'is_fenced', return_value=False), \
              patch.object(self.runtime.auth_settings, 'load', return_value=settings), \
              patch.object(self.runtime.auth_settings, 'load_applied', return_value=applied), \
-             patch.object(self.runtime.auth_settings, 'write_applied', side_effect=RuntimeError('boom') if fail_after else None) as kept, \
-             patch.object(self.runtime.auth_settings, 'applied_path'), \
+             patch.object(self.runtime.auth_settings, 'write_applied', side_effect=(fail_after if isinstance(fail_after, BaseException) else RuntimeError('boom')) if fail_after else None) as kept, \
+             patch.object(self.runtime.auth_settings, 'DIRECTORY', self.state), \
              patch.object(self.runtime.mail_config, 'load', return_value=None), \
              patch.object(self.runtime, 'apply_custom_providers', lambda *a, **k: real_apply(*a, **{**k, 'send': fake})), \
              patch.object(self.runtime, 'restore_custom_providers', (lambda *a, **k: (_ for _ in ()).throw(restore_error)) if restore_error else (lambda *a, **k: real_restore(*a, **{**k, 'send': fake}))):
@@ -263,20 +263,162 @@ class ReconcileTests(unittest.TestCase):
     def test_a_transport_error_during_restore_is_reported_not_raised(self):
         def down(*args, **kwargs):
             raise OSError('connection refused')
-        message = durable_runtime.restore_custom_providers('http://auth.invalid', 'secret', {'custom:telegram': None}, {}, {}, send=down)
+        message = durable_runtime.restore_custom_providers('http://auth.invalid', 'secret', {'custom:telegram': None}, send=down)
         self.assertIn('connection refused', message)
 
     def test_a_garbled_response_during_restore_is_reported_not_raised(self):
         import http.client
         def garbled(*args, **kwargs):
             raise http.client.IncompleteRead(b'')
-        message = durable_runtime.restore_custom_providers('http://auth.invalid', 'secret', {'custom:telegram': None}, {}, {}, send=garbled)
+        message = durable_runtime.restore_custom_providers('http://auth.invalid', 'secret', {'custom:telegram': None}, send=garbled)
         self.assertIn('IncompleteRead', message)
 
     def test_a_restore_that_raises_never_hides_the_original_failure(self):
         fake = FakeAuth()
         with self.assertRaisesRegex(RuntimeError, 'boom'):
             self.reconcile(settings(), None, fake, fail_after=True, restore_error=KeyError('endpoint'))
+
+    def test_a_good_apply_leaves_no_journal_and_a_failed_one_with_a_good_restore_none(self):
+        self.reconcile(settings(), None, FakeAuth())
+        self.assertFalse((self.state / f'{E}-auth.journal.json').exists())
+        with self.assertRaises(RuntimeError):
+            self.reconcile(settings(client_id='5'), None, FakeAuth(), fail_after=True)
+        self.assertFalse((self.state / f'{E}-auth.journal.json').exists())
+
+    def test_the_undo_plan_is_journaled_before_the_first_row_changes_and_replayed_after_a_crash(self):
+        applied = settings(client_id='111', secret='old-secret')
+        fake = FakeAuth([self.row()])
+        seen = {}
+
+        def spy(method, url, body, headers):
+            if method in ('PUT', 'POST', 'DELETE'):
+                journal = self.state / f'{E}-auth.journal.json'
+                seen.setdefault('before_first_change', journal.exists())
+                seen.setdefault('mode', oct(journal.stat().st_mode & 0o777))
+            return fake(method, url, body, headers)
+        # A crash is a BaseException nothing in reconcile_auth catches: the supervisor dies after the row was written.
+        with self.assertRaises(SystemExit):
+            self.reconcile(settings(), applied, spy, fail_after=SystemExit())
+        self.assertTrue(seen['before_first_change'])
+        self.assertEqual(seen['mode'], '0o600')
+        self.assertEqual(fake.rows['custom:telegram']['client_id'], '123456789')
+        # The next start brings the old Auth back and replays the journal.
+        with patch.object(self.runtime.auth_settings, 'DIRECTORY', self.state), \
+             patch.object(self.runtime, 'apply_custom_providers', lambda *a, **k: _real_apply(*a, **{**k, 'send': fake})):
+            self.target.replay_custom_journal(E, 'auth')
+        self.assertEqual((fake.rows['custom:telegram']['client_id'], fake.rows['custom:telegram']['secret']), ('111', 'old-secret'))
+        self.assertFalse((self.state / f'{E}-auth.journal.json').exists())
+
+    def test_a_replay_that_is_refused_keeps_the_journal_and_never_raises(self):
+        (self.state / f'{E}-auth.journal.json').write_text('{"undo": {"custom:telegram": null}}')
+        (self.state / f'{E}-auth.journal.json').chmod(0o600)
+        down = FakeAuth([self.row()], refuse=(('GET', '/admin/custom-providers'), 503))
+        with patch.object(self.runtime.auth_settings, 'DIRECTORY', self.state), \
+             patch.object(self.runtime, 'apply_custom_providers', lambda *a, **k: _real_apply(*a, **{**k, 'send': down})):
+            self.target.replay_custom_journal(E, 'auth')
+        self.assertTrue((self.state / f'{E}-auth.journal.json').exists())
+
+    def test_the_admin_calls_ignore_proxy_variables(self):
+        import http.server
+        import os
+        import threading
+        seen = []
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                seen.append(self.path)
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'{"providers": []}')
+
+            def log_message(self, *args):
+                pass
+        server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.shutdown)
+        self.addCleanup(server.server_close)
+        # A proxy that nothing listens on: a call that honoured it would fail instead of reaching the server.
+        proxies = {'http_proxy': 'http://127.0.0.1:9', 'HTTP_PROXY': 'http://127.0.0.1:9', 'no_proxy': '', 'NO_PROXY': ''}
+        with patch.dict(os.environ, proxies):
+            durable_runtime.apply_custom_providers(f'http://127.0.0.1:{server.server_address[1]}', 'secret',
+                                                   {'custom:telegram': None})
+        self.assertEqual(seen, ['/admin/custom-providers'])
+
+
+class FileShapeTests(unittest.TestCase):
+    """The main settings file keeps the shape an older build reads; Telegram has a file of its own beside it."""
+
+    OLD_PROVIDERS = tuple(name for name in auth_settings.PROVIDERS if name != 'telegram')
+
+    def setUp(self):
+        import tempfile
+        from pathlib import Path
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.root = Path(directory.name)
+        patcher = patch.object(auth_settings, 'DIRECTORY', self.root)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def both(self, **telegram):
+        return auth_settings.validate({**BASE, 'providers': {'github': {'enabled': True, 'client_id': 'g', 'secret': 's', 'url': ''},
+                                                              'telegram': {'enabled': True, 'client_id': '123456789', 'secret': 'bot-secret', 'url': '', **telegram}}})
+
+    def old_reader_accepts(self, document):
+        """What a build from before Telegram does with the main file: refuses any provider it does not know, and any newer version."""
+        return (set(document.get('providers', {})) <= set(self.OLD_PROVIDERS)) and document.get('version', 1) == 1
+
+    def test_the_main_file_has_no_telegram_and_stays_version_one_while_nothing_newer_is_on(self):
+        for entry in ({}, {'enabled': False}):
+            document = auth_settings.file_form(self.both(**entry))
+            self.assertNotIn('telegram', document['providers'])
+            self.assertEqual(document['version'], 1)
+            self.assertTrue(self.old_reader_accepts(document))
+            self.assertNotIn('bot-secret', json.dumps(document))
+
+    def test_write_applied_and_load_round_trip_through_both_files(self):
+        settings_in = self.both()
+        auth_settings.write_applied(E, settings_in)
+        main = json.loads((self.root / f'{E}-auth.applied.json').read_text())
+        sibling = json.loads((self.root / f'{E}-auth.telegram.applied.json').read_text())
+        self.assertTrue(self.old_reader_accepts(main))
+        self.assertEqual(sibling['client_id'], '123456789')
+        self.assertEqual(oct((self.root / f'{E}-auth.telegram.applied.json').stat().st_mode & 0o777), '0o600')
+        self.assertEqual(auth_settings.load_applied(E), settings_in)
+
+    def test_load_merges_the_sibling_and_a_main_file_alone_loads_without_telegram(self):
+        settings_in = self.both()
+        main, custom = auth_settings.split_telegram(settings_in)
+        main_file = self.root / f'{E}-auth.json'
+        main_file.write_text(json.dumps(auth_settings.file_form(settings_in)))
+        main_file.chmod(0o600)
+        self.assertNotIn('telegram', auth_settings.load(E)['providers'])
+        sibling = self.root / f'{E}-auth.telegram.json'
+        sibling.write_text(json.dumps(custom['telegram']))
+        sibling.chmod(0o600)
+        self.assertEqual(auth_settings.load(E), settings_in)
+        sibling.chmod(0o644)
+        with self.assertRaises(auth_settings.SettingsError):
+            auth_settings.load(E)
+
+    def test_removing_the_applied_copy_removes_both_files_and_a_save_without_telegram_drops_the_sibling(self):
+        auth_settings.write_applied(E, self.both())
+        auth_settings.write_applied(E, auth_settings.validate({**BASE, 'providers': {}}))
+        self.assertFalse((self.root / f'{E}-auth.telegram.applied.json').exists())
+        auth_settings.write_applied(E, self.both())
+        auth_settings.remove_applied(E)
+        self.assertEqual(sorted(p.name for p in self.root.iterdir()), [])
+
+    def test_a_telegram_only_file_written_by_the_first_version_still_loads(self):
+        # A main file that still carries telegram (the first commit wrote it so) is read as before.
+        file = self.root / f'{E}-auth.json'
+        file.write_text(json.dumps({**BASE, 'version': 2, 'providers': {'telegram': {'enabled': True, 'client_id': '1', 'secret': 's', 'url': '',
+                                                                                  'skip_nonce_check': False, 'email_optional': True}}}))
+        file.chmod(0o600)
+        self.assertEqual(auth_settings.load(E)['providers']['telegram']['client_id'], '1')
+
+
+_real_apply = durable_runtime.apply_custom_providers
 
 
 if __name__ == '__main__':
