@@ -1,9 +1,9 @@
 {
-  "version": "0.13.6",
+  "version": "0.13.7",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "The update notice is no longer held back as a secret, and the off-host copy of large backups keeps working.",
-    "ar": "لم يعد إشعار التحديث يُحجب على أنه سرّ، ويستمر نسخ النسخ الكبيرة خارج الخادم بلا مشاكل."
+    "en": "Deleted environments no longer hold database connection room, and the Projects and Agent access pages are English again.",
+    "ar": "لم تعد البيئات المحذوفة تحجز سعة اتصالات قاعدة البيانات، وعادت صفحتا المشاريع وصلاحيات الوكلاء إلى الإنجليزية."
   },
   "migrations": []
 }
