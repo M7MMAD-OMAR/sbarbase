@@ -165,7 +165,14 @@ def fresh_placement():
     return resource_policy.start_placement(0)
 
 
-def planned_placement(inspect=None,targets=None):
+def parked(item,published):
+    """True for a container of an environment that is not published: a start does not run it."""
+    import re
+    found=re.fullmatch(r'sbarbase-durable-(e_[a-f0-9]{24})-(?:auth|rest|realtime|functions|studio|meta)',str(item.get('Name') or '').lstrip('/'))
+    return bool(found) and found.group(1) not in published
+
+
+def planned_placement(inspect=None,targets=None,published=None):
     """(MiB, CPUs, origin) of what the next start runs, derived from the placement.
 
     Retained source containers are counted at their own limits, the way the
@@ -186,6 +193,13 @@ def planned_placement(inspect=None,targets=None):
         def targets():return resource_policy.recovery_target_items(STATE,docker)
     unbounded=(PLANNED_MIB,PLANNED_CPUS,'full split placement (a retained container has no finite limit)')
     items=inspect()
+    # A start resumes only the published environments (durable_runtime.resume_published_environments). A deleted
+    # environment is unpublished by its quarantine and its containers stay stopped, so they are not counted.
+    if published is None:
+        try:published=set(runtime_files.read_endpoints(STATE,strict=True))
+        except Exception:published=None
+    if published is not None:
+        items=[item for item in items if not parked(item,published)]
     if items:
         source=resource_policy.retained_limits(items)
         if source is None:return unbounded

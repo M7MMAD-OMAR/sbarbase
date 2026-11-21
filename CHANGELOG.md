@@ -6,7 +6,13 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-This source release is 0.13.7. Check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for publication and downloadable assets. [Status](docs/reference/status.md) distinguishes source from the installed revision.
+This source release is 0.13.8. Check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for publication and downloadable assets. [Status](docs/reference/status.md) distinguishes source from the installed revision.
+
+## [0.13.8] - 2026-11-22
+
+### Fixed
+
+- A server could not start again after several environments had been deleted: the start preflight counted the stopped containers of deleted environments at their CPU ceilings and refused with "CPU count insufficient", although a start never runs them. The preflight and the admission checks for new environments, Realtime and Edge Functions now count only the environments a start runs, the published ones. A restore publishes an environment again and it counts again.
 
 ## [0.13.7] - 2026-11-22
 

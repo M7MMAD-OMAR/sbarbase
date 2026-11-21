@@ -273,3 +273,38 @@ class RecoveryTargetPlacementTests(unittest.TestCase):
         self.assertEqual(len(checks),3)
         for line in checks:self.assertIn('restart_placement(',line)
         self.assertNotIn('placement, cpus = resource_policy.start_placement',source)
+
+
+class ParkedEnvironmentTests(unittest.TestCase):
+    """A deleted environment is unpublished and its containers stay stopped, so a start does not run them."""
+    LIVE, GONE = 'e_' + 'a' * 24, 'e_' + 'b' * 24
+
+    @staticmethod
+    def item(name, memory_mib=256, cpus=.25):
+        return {'Name': '/' + name, 'HostConfig': {'Memory': memory_mib * 1024**2, 'NanoCpus': int(cpus * 1e9)}}
+
+    def items(self):
+        shared = [self.item('sbarbase-durable-db', 1024, 1), self.item('sbarbase-durable-storage', 512, .5)]
+        return shared + [self.item(f'sbarbase-durable-{e}-{s}') for e in (self.LIVE, self.GONE) for s in ('auth', 'rest')]
+
+    def test_containers_of_unpublished_environments_are_not_counted(self):
+        both = install_server.planned_placement(inspect=self.items, targets=lambda: [], published={self.LIVE, self.GONE})
+        only = install_server.planned_placement(inspect=self.items, targets=lambda: [], published={self.LIVE})
+        self.assertEqual(both[:2], (1536 + 4 * 256, 2.5))
+        self.assertEqual(only[:2], (1536 + 2 * 256, 2.0))
+        self.assertIn('4 containers', only[2])
+
+    def test_shared_containers_are_always_counted(self):
+        memory, cpus, _ = install_server.planned_placement(inspect=self.items, targets=lambda: [], published=set())
+        self.assertEqual((memory, cpus), (1536, 1.5))
+
+    def test_the_runtime_counts_published_environments_and_the_one_being_provisioned(self):
+        import durable_runtime as runtime
+        values = {'environments': {self.LIVE: {}, self.GONE: {}}}
+        with unittest.mock.patch.object(runtime.runtime_files, 'read_endpoints', return_value={self.LIVE: {}}):
+            self.assertEqual(runtime.started_environments(values), 1)
+            self.assertEqual(runtime.started_environments(values, self.GONE), 2)
+            self.assertEqual(runtime.started_environments(values, 'e_' + 'c' * 24), 2)
+            self.assertEqual(runtime.started_environments(values, self.LIVE), 1)
+        with unittest.mock.patch.object(runtime.runtime_files, 'read_endpoints', side_effect=RuntimeError('unreadable')):
+            self.assertEqual(runtime.started_environments(values), 2)
