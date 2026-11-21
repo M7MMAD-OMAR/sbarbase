@@ -279,13 +279,14 @@ class Bucket:
 
     def request(self, method, key='', query='', body=None, length=None, stream=False):
         url = f"{self.base}/{key}" + (f'?{query}' if query else '')
-        extra = {'content-length': str(length if length is not None else len(body or b''))} if method == 'PUT' else {}
+        extra = {'content-length': str(length if length is not None else len(body or b''))} if method in ('PUT', 'POST') else {}
         headers = signed_headers(method, url, self.config.get('region') or 'auto', self.config['access_key_id'],
                                  self.config['secret_access_key'], extra)
         connection = (http.client.HTTPSConnection if self.secure else http.client.HTTPConnection)(self.host, timeout=120)
         path = urllib.parse.urlsplit(url)
         connection.request(method, path.path + (f'?{path.query}' if path.query else ''), body=body, headers=headers)
         response = connection.getresponse()
+        self.etag = response.getheader('ETag')
         if stream and response.status == 200:
             return response
         data = response.read()
@@ -295,13 +296,56 @@ class Bucket:
             raise OffsiteError(f'{method} {key or "bucket"} answered {response.status} {code.group(1).decode() if code else ""}'.strip())
         return data
 
+    # An object above PART is sent in parts of this size: providers cap one PUT at 5 GiB and a
+    # multipart upload at 10,000 parts, so 64 MiB parts reach over 600 GB.
+    PART = 64 * 1024 * 1024
+
     def put_file(self, key, path, passphrase):
         salt = secrets.token_bytes(16)
         reader = EncryptingReader(path, derive_key(passphrase, salt), salt)
         try:
-            self.request('PUT', key, body=io.BufferedReader(reader, CHUNK), length=encrypted_size(reader.size))
+            length = encrypted_size(reader.size)
+            body = io.BufferedReader(reader, CHUNK)
+            if length <= self.PART:
+                self.request('PUT', key, body=body, length=length)
+            else:
+                self.put_parts(key, body, length)
         finally:
             reader.close()
+
+    def put_parts(self, key, body, length):
+        if -(-length // self.PART) > 10000:
+            raise OffsiteError('The backup is too large for a multipart upload')
+        reply = self.request('POST', key, query='uploads=', body=b'')
+        match = re.search(rb'<UploadId>([^<]+)</UploadId>', reply)
+        if not match:
+            raise OffsiteError('The storage did not start a multipart upload')
+        upload_id = urllib.parse.quote(match.group(1).decode(), safe='-_.~')
+        try:
+            etags = []
+            for number in range(1, -(-length // self.PART) + 1):
+                data = body.read(min(self.PART, length - (number - 1) * self.PART))
+                for attempt in (1, 2, 3):
+                    try:
+                        self.request('PUT', key, query=f'partNumber={number}&uploadId={upload_id}', body=data)
+                        break
+                    except (OffsiteError, OSError, http.client.HTTPException):
+                        if attempt == 3:
+                            raise
+                if not self.etag:
+                    raise OffsiteError('The storage returned no ETag for a part')
+                etags.append(self.etag)
+            done = ''.join(f'<Part><PartNumber>{n}</PartNumber><ETag>{tag}</ETag></Part>'
+                           for n, tag in enumerate(etags, 1))
+            if b'<Error>' in self.request('POST', key, query=f'uploadId={upload_id}',
+                                          body=f'<CompleteMultipartUpload>{done}</CompleteMultipartUpload>'.encode()):
+                raise OffsiteError('The storage did not complete the multipart upload')
+        except BaseException:
+            try:
+                self.request('DELETE', key, query=f'uploadId={upload_id}')
+            except Exception:
+                pass
+            raise
 
     def put_bytes(self, key, data):
         self.request('PUT', key, body=data)

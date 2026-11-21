@@ -4,6 +4,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -36,6 +37,8 @@ class FakeS3(ThreadingHTTPServer):
         self.fail = set()
         self.requests = []
         self.bad_signatures = 0
+        self.uploads = {}
+        self.single_limit = 1 << 40
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -45,7 +48,7 @@ class Handler(BaseHTTPRequestHandler):
     def check(self, body):
         parts = urlsplit(self.path)
         headers = {'host': self.headers['host']}
-        if self.command == 'PUT':
+        if self.command in ('PUT', 'POST'):
             headers['content-length'] = self.headers['content-length']
         payload = self.headers['x-amz-content-sha256']
         expected = offsite.sign(self.command, parts.path, parse_qsl(parts.query, keep_blank_values=True), headers,
@@ -74,7 +77,31 @@ class Handler(BaseHTTPRequestHandler):
         bucket, _, key = parts.path.lstrip('/').partition('/')
         if bucket != 'bucket':
             return self.reply(404)
+        query = dict(parse_qsl(parts.query, keep_blank_values=True))
+        if self.command == 'POST' and 'uploads' in query:
+            self.server.uploads[key] = {}
+            return self.reply(200, b'<InitiateMultipartUploadResult><UploadId>u1</UploadId>'
+                                   b'</InitiateMultipartUploadResult>')
+        if self.command == 'POST' and query.get('uploadId') == 'u1':
+            held = self.server.uploads.pop(key)
+            order = [int(n) for n in re.findall(rb'<PartNumber>(\d+)</PartNumber>', body)]
+            self.server.objects[key] = b''.join(held[n] for n in order)
+            return self.reply(200, b'<CompleteMultipartUploadResult/>')
+        if self.command == 'PUT' and 'partNumber' in query:
+            if len(body) > self.server.single_limit:
+                return self.reply(400)
+            self.server.uploads[key][int(query['partNumber'])] = body
+            self.send_response(200)
+            self.send_header('ETag', f'"p{query["partNumber"]}"')
+            self.send_header('content-length', '0')
+            self.end_headers()
+            return None
+        if self.command == 'DELETE' and 'uploadId' in query:
+            self.server.uploads.pop(key, None)
+            return self.reply(204)
         if self.command == 'PUT':
+            if len(body) > self.server.single_limit:
+                return self.reply(400)
             self.server.objects[key] = body
             return self.reply(200)
         if self.command == 'DELETE':
@@ -89,7 +116,7 @@ class Handler(BaseHTTPRequestHandler):
                f'{keys}<IsTruncated>false</IsTruncated></ListBucketResult>')
         return self.reply(200, xml.encode())
 
-    do_GET = do_PUT = do_DELETE = handle_one
+    do_GET = do_PUT = do_DELETE = do_POST = handle_one
 
 
 def private(path, value):
@@ -104,6 +131,9 @@ def tree(path):
 
 class Fixture(unittest.TestCase):
     def setUp(self):
+        patcher = patch.object(offsite.S3, 'PAUSE', 0)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         # What a run prints for the operator; kept out of the unittest summary.
         self.enterContext(contextlib.redirect_stdout(io.StringIO()))
         directory = tempfile.TemporaryDirectory()
@@ -396,6 +426,54 @@ class TargetTests(Fixture):
         with self.assertRaises(backup.BackupError):
             offsite.fetch(stamp)
         self.assertFalse((self.backups / 'management' / stamp).exists())
+
+    def test_a_set_above_the_part_size_goes_up_in_parts_and_a_failed_part_is_aborted(self):
+        server = self.serve()
+        client = offsite.S3(offsite.load_config())
+        client.PART = 1000
+        data = os.urandom(3500)
+        source = self.root / 'big.bin'
+        source.write_bytes(data)
+        server.single_limit = 1000
+        client.put('sbarbase/big.sbb', source)
+        self.assertEqual(server.objects['sbarbase/big.sbb'], data)
+        self.assertEqual(server.bad_signatures, 0)
+        self.assertEqual(server.uploads, {})
+        server.single_limit = 10
+        with self.assertRaises(backup.BackupError):
+            client.put('sbarbase/other.sbb', source)
+        self.assertNotIn('sbarbase/other.sbb', server.objects)
+        self.assertEqual(server.uploads, {})
+
+    def test_a_dropped_part_is_sent_again_and_a_refusal_names_its_http_status(self):
+        server = self.serve()
+        client = offsite.S3(offsite.load_config())
+        client.PART = 1000
+        data = os.urandom(2500)
+        source = self.root / 'retry.bin'
+        source.write_bytes(data)
+        real = offsite.S3.request
+        calls = {'n': 0}
+
+        def flaky(self, method, key='', query=(), **kwargs):
+            if method == 'PUT' and query and calls['n'] == 0:
+                calls['n'] += 1
+                raise backup.BackupError('Off-host PUT failed: ConnectionResetError')
+            return real(self, method, key, query, **kwargs)
+        with patch.object(offsite.S3, 'request', flaky):
+            client.put('sbarbase/retry.sbb', source)
+        self.assertEqual(server.objects['sbarbase/retry.sbb'], data)
+        self.assertEqual(calls['n'], 1)
+
+    def test_too_little_free_disk_space_refuses_before_encrypting(self):
+        self.serve()
+        stamp = '20260924T030000Z'
+        self.run_set(stamp)
+        usage = shutil.disk_usage(self.backups)
+        with patch.object(shutil, 'disk_usage', return_value=usage._replace(free=1000)):
+            with contextlib.redirect_stderr(io.StringIO()) as error:
+                self.assertFalse(offsite.after_run(stamp, [E1, E2], 1))
+        self.assertIn('Not enough free disk space', error.getvalue())
 
     def test_a_failed_upload_leaves_local_backups_untouched_prunes_nothing_and_notifies(self):
         catalog = self.root / 'control.sqlite'

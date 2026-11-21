@@ -6,7 +6,13 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-This source release is 0.13.4. Check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for publication and downloadable assets. [Status](docs/reference/status.md) distinguishes source from the installed revision.
+This source release is 0.13.5. Check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for publication and downloadable assets. [Status](docs/reference/status.md) distinguishes source from the installed revision.
+
+## [0.13.5] - 2026-11-21
+
+### Fixed
+
+- The off-host copy failed with `BrokenPipeError` once a daily set passed 5 GiB, the provider's single upload limit, because the set was sent as one PUT. A set above 128 MiB now goes up as a multipart upload, and a failed one is aborted so no parts stay on the target. The same limit applied to the older `lab/offsite.py` push, which now uploads in 64 MiB parts too. A dropped request is sent again up to 3 times, a target that refuses a request is reported by its HTTP status instead of `BrokenPipeError`, and the copy is refused with a clear message when the disk has too little room for the encrypted set. The local backups were never affected.
 
 ## [0.13.4] - 2026-11-14
 

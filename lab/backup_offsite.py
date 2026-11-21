@@ -34,6 +34,7 @@ import shutil
 import sqlite3
 import sys
 import tarfile
+import time
 import xml.etree.ElementTree as ElementTree
 from pathlib import Path
 from urllib.parse import quote, urlsplit
@@ -445,6 +446,19 @@ def sign(method, path, query, headers, payload_hash, access_key, secret_key, reg
     return signed
 
 
+class Slice:
+    """At most ``length`` bytes of an open file from its current position."""
+
+    def __init__(self, handle, length):
+        self.handle, self.left = handle, length
+
+    def read(self, size=-1):
+        size = self.left if size < 0 else min(size, self.left)
+        data = self.handle.read(size)
+        self.left -= len(data)
+        return data
+
+
 class S3:
     TIMEOUT = 300
 
@@ -464,7 +478,7 @@ class S3:
         path = f"/{config['bucket']}" + (f'/{key}' if key else '')
         amz_date = datetime.datetime.now(datetime.UTC).strftime('%Y%m%dT%H%M%SZ')
         headers = {'host': config['netloc']}
-        if method == 'PUT':
+        if method in ('PUT', 'POST'):
             headers['content-length'] = str(length)
         headers = sign(method, path, query, headers, payload_hash, self.access_key, self.secret_key,
                        config['region'], amz_date)
@@ -472,14 +486,24 @@ class S3:
         connection = connection_class(config['host'], config['port'], timeout=self.TIMEOUT)
         try:
             target = quote(path, safe='/-_.~') + (f'?{canonical_query(query)}' if query else '')
-            connection.putrequest(method, target, skip_host=True, skip_accept_encoding=True)
-            for name, value in headers.items():
-                connection.putheader(name, value)
-            connection.endheaders()
-            if body is not None:
-                while block := body.read(1 << 20):
-                    connection.send(block)
+            try:
+                connection.putrequest(method, target, skip_host=True, skip_accept_encoding=True)
+                for name, value in headers.items():
+                    connection.putheader(name, value)
+                connection.endheaders()
+                if body is not None:
+                    while block := body.read(1 << 20):
+                        connection.send(block)
+            except (BrokenPipeError, ConnectionResetError):
+                # A target that refuses a request answers and closes before the body is read. The
+                # answer says why; without it every refusal looks like a broken pipe.
+                try:
+                    refused = connection.getresponse().status
+                except (OSError, http.client.HTTPException):
+                    raise
+                raise BackupError(f'Off-host {method} returned HTTP {refused} and closed the connection') from None
             response = connection.getresponse()
+            self.etag = response.getheader('ETag')
             if response.status not in expect:
                 response.read(1 << 16)
                 raise BackupError(f'Off-host {method} returned HTTP {response.status}')
@@ -493,9 +517,75 @@ class S3:
         finally:
             connection.close()
 
+    # A set above PART is sent in parts of this size. Providers cap one PUT at 5 GiB and a
+    # multipart upload at 10,000 parts, so 128 MiB parts reach over 1 TB.
+    PART = 128 << 20
+    ATTEMPTS = 3
+    PAUSE = 5
+
+    def attempt(self, send):
+        """Run one request again after a short pause when the network or the target fails, so one
+        dropped connection in a long upload does not fail the whole day's copy."""
+        for number in range(1, self.ATTEMPTS + 1):
+            try:
+                return send()
+            except BackupError:
+                if number == self.ATTEMPTS:
+                    raise
+                time.sleep(self.PAUSE * number)
+
     def put(self, key, path):
-        with path.open('rb') as handle:
-            self.request('PUT', key, body=handle, length=path.stat().st_size, payload_hash=backup.digest(path))
+        size = path.stat().st_size
+        if size <= self.PART:
+            digest = backup.digest(path)
+
+            def send():
+                with path.open('rb') as handle:
+                    self.request('PUT', key, body=handle, length=size, payload_hash=digest)
+            self.attempt(send)
+            return
+        count = -(-size // self.PART)
+        if count > 10000:
+            raise BackupError('Off-host set is too large for a multipart upload')
+        reply = self.request('POST', key, query=[('uploads', '')])
+        upload_id = None
+        with contextlib.suppress(ElementTree.ParseError):
+            for element in ElementTree.fromstring(reply).iter():
+                if element.tag.rsplit('}', 1)[-1] == 'UploadId':
+                    upload_id = element.text
+        if not upload_id:
+            raise BackupError('Off-host target did not start a multipart upload')
+        try:
+            etags = []
+            with path.open('rb') as handle:
+                for number in range(1, count + 1):
+                    length = min(self.PART, size - (number - 1) * self.PART)
+                    handle.seek((number - 1) * self.PART)
+                    digest = hashlib.sha256()
+                    left = length
+                    while left and (block := handle.read(min(left, 1 << 20))):
+                        digest.update(block)
+                        left -= len(block)
+                    def send():
+                        handle.seek((number - 1) * self.PART)
+                        self.request('PUT', key, query=[('partNumber', str(number)), ('uploadId', upload_id)],
+                                     body=Slice(handle, length), length=length, payload_hash=digest.hexdigest())
+                    self.attempt(send)
+                    if not self.etag:
+                        raise BackupError('Off-host target returned no ETag for a part')
+                    etags.append(self.etag)
+            parts = ''.join(f'<Part><PartNumber>{n}</PartNumber><ETag>{tag}</ETag></Part>'
+                            for n, tag in enumerate(etags, 1))
+            body = f'<CompleteMultipartUpload>{parts}</CompleteMultipartUpload>'.encode()
+            # A target can answer 200 and still report a failure in the body.
+            if b'<Error>' in self.request('POST', key, query=[('uploadId', upload_id)], body=io.BytesIO(body),
+                                          length=len(body), payload_hash=hashlib.sha256(body).hexdigest()):
+                raise BackupError('Off-host target did not complete the multipart upload')
+        except BaseException:
+            # Parts left behind are billed storage; a failed abort must not hide the first error.
+            with contextlib.suppress(Exception):
+                self.request('DELETE', key, query=[('uploadId', upload_id)], expect=(200, 204))
+            raise
 
     def put_empty(self, key):
         self.request('PUT', key, body=io.BytesIO(b''), length=0, payload_hash=EMPTY_SHA256)
@@ -570,6 +660,13 @@ def prune_remote(client, prefix, keep, newest):
 def upload(stamp, runtimes, keep, config):
     key = load_key(config['keyFile'])
     client = S3(config)
+    need = sum(file.stat().st_size for runtime in runtimes
+               for file in (backup.BACKUPS / runtime / stamp).glob('*') if file.is_file())
+    free = shutil.disk_usage(backup.BACKUPS).free
+    if free < need + (1 << 30):
+        # The set is encrypted to this disk before it goes up; running out halfway wastes the run.
+        raise BackupError(f'Not enough free disk space for the off-host copy: it needs about {need >> 20} MiB '
+                          f'and {free >> 20} MiB is free')
     work = backup.BACKUPS / f'.offsite-{stamp}{SUFFIX}'
     try:
         fd = os.open(work, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)

@@ -271,6 +271,55 @@ class EncryptionTests(unittest.TestCase):
             self.assertFalse(list(self.root.glob('.*.decrypt-*')))
 
 
+class MultipartTests(unittest.TestCase):
+    class Fake(offsite.Bucket):
+        PART = 1000
+
+        def __init__(self):
+            super().__init__({'endpoint': 'http://127.0.0.1:1', 'bucket': 'b'})
+            self.parts, self.calls, self.fail_once, self.etag = {}, [], True, None
+            self.done = self.aborted = None
+
+        def request(self, method, key='', query='', body=None, length=None, stream=False):
+            self.calls.append((method, query.split('&')[0]))
+            if method == 'POST' and query == 'uploads=':
+                return b'<UploadId>u 1</UploadId>'
+            if method == 'PUT' and 'partNumber' in query:
+                if self.fail_once:
+                    self.fail_once = False
+                    raise offsite.OffsiteError('PUT answered 500')
+                number = int(query.split('&')[0].split('=')[1])
+                self.parts[number] = body
+                self.etag = f'"p{number}"'
+                return b''
+            if method == 'POST':
+                self.done = body
+                return b'<CompleteMultipartUploadResult/>'
+            self.aborted = query
+            return b''
+
+    def test_an_object_above_the_part_size_goes_up_in_parts_and_a_failed_part_is_tried_again(self):
+        bucket = self.Fake()
+        data = os.urandom(3500)
+        bucket.put_parts('k', io.BytesIO(data), len(data))
+        self.assertEqual(b''.join(bucket.parts[n] for n in sorted(bucket.parts)), data)
+        self.assertEqual(sorted(bucket.parts), [1, 2, 3, 4])
+        self.assertIn(b'<PartNumber>4</PartNumber><ETag>"p4"</ETag>', bucket.done)
+        self.assertIsNone(bucket.aborted)
+
+    def test_a_part_that_keeps_failing_aborts_the_upload(self):
+        bucket = self.Fake()
+        bucket.request = lambda method, key='', query='', body=None, length=None, stream=False: (
+            b'<UploadId>u</UploadId>' if query == 'uploads=' else
+            (_ for _ in ()).throw(offsite.OffsiteError('PUT answered 500')) if method == 'PUT' else
+            bucket.aborted_set(query))
+        aborted = []
+        bucket.aborted_set = lambda query: aborted.append(query) or b''
+        with self.assertRaises(offsite.OffsiteError):
+            bucket.put_parts('k', io.BytesIO(b'x' * 2500), 2500)
+        self.assertEqual(aborted, ['uploadId=u'])
+
+
 class MemoryBucket:
     objects = {}
 
