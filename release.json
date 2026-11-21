@@ -1,9 +1,9 @@
 {
-  "version": "0.13.8",
+  "version": "0.13.9",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "A server restarts again after environments were deleted: the start check no longer counts the stopped containers of deleted environments.",
-    "ar": "يعود الخادم إلى البدء بعد حذف بيئات: لم يعد فحص البدء يحسب الحاويات المتوقفة للبيئات المحذوفة."
+    "en": "Opening the dashboard is faster and shows each step; deleting an environment turns its services off for you.",
+    "ar": "فتح اللوحة أسرع ويعرض كل خطوة، وحذف البيئة يوقف خدماتها عنك."
   },
   "migrations": []
 }
