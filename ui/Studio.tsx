@@ -3,10 +3,24 @@ import {ExternalLink,Square} from 'lucide-react';
 import {useData,type Api} from './api';
 import {ErrorMessage,Loading} from './components';
 type Studio={desired:'running'|'stopped';state:'stopped'|'starting'|'running'|'failed';failure:string|null};
+type Progress={step:string;startedAt:number;steps:string[]};
+/** What the worker does to start Studio, in order (lab/studio.py STEPS), as the person sees it. */
+const STEPS:[string,string][]=[['checks','Checking the environment'],['database','Opening the dashboard\'s database login'],['network','Preparing its private network'],
+ ['studio','Starting Supabase Studio'],['meta','Starting the database service Studio uses (postgres-meta)'],['serving','Waiting for Studio to answer'],
+ ['warm','Loading the first pages so they open fast'],['route','Checking its route to Auth and Storage']];
+function StartSteps({progress,since}:{progress?:Progress|null;since:number}){
+ const [now,setNow]=useState(Date.now());
+ useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(timer);},[]);
+ const active=STEPS.findIndex(([id])=>id===progress?.step),seconds=Math.max(0,Math.round((now-(progress?.startedAt??since))/1000));
+ return <div className="studio-start" role="status" aria-live="polite"><p className="small"><strong>Preparing your dashboard</strong> <span className="muted">{seconds} s</span></p>
+  <ol className="studio-steps">{progress?STEPS.map(([id,label],index)=><li key={id} data-state={index<active?'done':index===active?'active':'todo'}>{label}</li>)
+   :<li data-state="active">Asking the server to start the dashboard</li>}</ol>
+  <p className="small muted">A first start takes about ten seconds. The dashboard opens in a new tab when every step is done.</p></div>;
+}
 /** One click starts the dashboard and opens it after the worker confirms readiness. */
 export function StudioSection({path,request,ready=true,compact=false,environmentName,autoOpen=false,autoOpenTab,onAutoOpenFinished}:{autoOpen?:boolean;autoOpenTab?:Window|null;onAutoOpenFinished?:()=>void;path:string;request:Api;ready?:boolean;compact?:boolean;environmentName?:string}){
- const studio=useData<{data:Studio;public?:boolean}|null>(signal=>ready?request(path+'/studio','GET',undefined,signal):Promise.resolve(null),[path,request,ready]);
- const [busy,setBusy]=useState(false),[opening,setOpening]=useState(false),[automatic,setAutomatic]=useState(false),[error,setError]=useState(''),[tunnel,setTunnel]=useState(false);
+ const studio=useData<{data:Studio;public?:boolean;progress?:Progress|null}|null>(signal=>ready?request(path+'/studio','GET',undefined,signal):Promise.resolve(null),[path,request,ready]);
+ const [busy,setBusy]=useState(false),[since,setSince]=useState(0),[readyUrl,setReadyUrl]=useState(''),[opening,setOpening]=useState(false),[automatic,setAutomatic]=useState(false),[error,setError]=useState(''),[tunnel,setTunnel]=useState(false);
  const autoStarted=useRef(false),autoCancelled=useRef(false),autoMode=useRef(false);
  const openingSnapshot=useRef<unknown>(null);
  const tab=useRef<Window|null>(autoOpenTab??null),mounted=useRef(true);
@@ -22,7 +36,7 @@ export function StudioSection({path,request,ready=true,compact=false,environment
   try{opened.document.title='Supabase dashboard';opened.document.body.textContent='This server gives Supabase Studio no public address yet. Close this tab and follow the steps in the console.';}catch{}
   opened.close();}
  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;tab.current?.close();};},[]);
- useEffect(()=>{if(!ready||!waiting&&!opening)return;const timer=setTimeout(studio.refresh,2000);return()=>clearTimeout(timer);},[ready,waiting,opening,studio.data]);
+ useEffect(()=>{if(!ready||!waiting&&!opening)return;const timer=setTimeout(studio.refresh,1000);return()=>clearTimeout(timer);},[ready,waiting,opening,studio.data]);
  async function enter(){
   try{
    const {host,path:entry,public:reachable}=await request(path+'/studio/session','POST') as {host:string;path:string;public?:boolean};
@@ -30,7 +44,8 @@ export function StudioSection({path,request,ready=true,compact=false,environment
    if(!reachable&&!local){release();setTunnel(true);return;}
    if(autoMode.current&&(!tab.current||tab.current.closed)){setError('The dashboard is ready. Choose Open Supabase dashboard to open it.');return;}
    const url=reachable?`https://${host}${entry}`:`${location.protocol}//${host}${location.port?':'+location.port:''}${entry}`;
-   if(tab.current&&!tab.current.closed){tab.current.opener=null;tab.current.location.href=url;tab.current=null;}else location.href=url;
+   if(tab.current&&!tab.current.closed){tab.current.opener=null;tab.current.location.href=url;tab.current=null;}
+   else if(!window.open(url,'_blank','noopener'))setReadyUrl(url);
   }catch(reason){tab.current?.close();tab.current=null;if(mounted.current)setError((reason as Error).message);}
   finally{if(mounted.current){setBusy(false);setOpening(false);setAutomatic(false);if(autoMode.current)onAutoOpenFinished?.();}}
  }
@@ -42,8 +57,8 @@ export function StudioSection({path,request,ready=true,compact=false,environment
   if(busy||opening)return;
   openingSnapshot.current=studio.data;autoMode.current=automatically;autoCancelled.current=false;setAutomatic(automatically);
   if(unreachable){release();setTunnel(true);}
-  else if(!automatically)tab.current=window.open('about:blank','_blank');if(tab.current&&!tab.current.closed){tab.current.opener=null;tab.current.document.title='Opening Supabase dashboard';tab.current.document.body.textContent='Starting Supabase Studio. This tab will open your dashboard when ready.';}
-  setError('');setBusy(true);
+  if(tab.current&&!tab.current.closed){tab.current.opener=null;tab.current.document.title='Opening Supabase dashboard';tab.current.document.body.textContent='Starting Supabase Studio. This tab opens your dashboard when ready. The steps are shown in the Sbarbase console.';}
+  setError('');setReadyUrl('');setSince(Date.now());setBusy(true);
   if(running){await enter();return;}
   try{if(current?.desired!=='running'||current.state==='failed')await request(path+'/studio','POST');if(!mounted.current||automatically&&autoCancelled.current)return;setOpening(true);studio.refresh();}
   catch(reason){tab.current?.close();tab.current=null;if(mounted.current){setAutomatic(false);setError((reason as Error).message);if(automatically)onAutoOpenFinished?.();}}
@@ -58,10 +73,12 @@ export function StudioSection({path,request,ready=true,compact=false,environment
  return <section className="details" aria-label="Supabase dashboard"><div className="page-heading"><div><h2>Supabase dashboard</h2><p className="muted small">{environmentName?`${environmentName}: `:''}Manage tables, SQL, users and storage in Supabase Studio.</p></div>
  <button className="primary" disabled={!ready||studio.loading||!!studio.error||busy||opening||current?.desired==='stopped'&&waiting} onClick={()=>void open()}><ExternalLink aria-hidden="true"/>{busy||opening?'Opening Supabase dashboard...':'Open Supabase dashboard'}</button></div>
  {(autoOpen||automatic)&&!tunnel&&!unreachable&&<div><p className="small muted" role="status">Your Supabase dashboard will open in its new tab when ready.</p><button onClick={stay}>Stay in console</button></div>}
+ {readyUrl&&<div className="callout small" role="status"><p><strong>The dashboard is ready.</strong> Your browser blocked the new tab.</p><a className="button primary" href={readyUrl} target="_blank" rel="noopener">Open Supabase dashboard</a></div>}
  <ErrorMessage message={error||studio.error}/>
  {tunnel&&<div className="callout small" role="status"><p><strong>This server gives Studio no public address yet.</strong> Open it through an SSH tunnel: run <code>ssh -N -L 8787:127.0.0.1:8787 you@your-server</code> (with the console's port), open <code>http://localhost:8787</code> and open the dashboard from there. To open it from here instead, the operator sets one domain up once: on the server run <code>/usr/bin/python3 lab/studio_address.py plan your-domain.com</code>, which lists the single wildcard DNS record and certificate. After that every project opens Studio with no more setup (see the Studio guide).</p></div>}
  {ready&&studio.error&&<button disabled={studio.loading} onClick={()=>{setError('');studio.refresh();}}>Retry dashboard status</button>}
  {!ready?<p className="small muted" role="status">Available after environment provisioning finishes.</p>:studio.loading?<Loading/>:<>
+ {(opening||waiting&&current?.desired==='running')&&!tunnel&&!unreachable&&!readyUrl&&<StartSteps progress={studio.data?.progress} since={since||Date.now()}/>}
  <p className="small muted" role="status">{opening?(tunnel||unreachable?'Starting the dashboard for the SSH tunnel.':'Starting the dashboard. It will open automatically when ready.'):running?'Dashboard ready. It uses your console sign-in.':waiting?'The dashboard is changing state. This page updates automatically.':current?.state==='failed'?'The dashboard could not start. Try opening it again.':'Opening starts Supabase Studio for this environment.'}</p>
  {!compact&&running&&<button disabled={busy||opening} onClick={()=>void stop()}><Square aria-hidden="true"/>Stop dashboard</button>}
  </>}

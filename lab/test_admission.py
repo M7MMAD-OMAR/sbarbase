@@ -10,12 +10,22 @@ class AdmissionTests(unittest.TestCase):
         self.runtime.values = {'environments': {'e_'+f'{i:024x}': {} for i in range(runtime.ENVIRONMENT_LIMIT)}}
 
     def test_full_runtime_refuses_before_persistence_or_sql(self):
-        with patch.object(runtime, 'inspect', return_value={'owned': True}), patch.object(runtime, 'atomic') as persist, patch.object(runtime.lab, 'provision_environment') as provision:
+        published = {name: {} for name in self.runtime.values['environments']}
+        with patch.object(runtime.runtime_files, 'read_endpoints', return_value=published), patch.object(runtime, 'inspect', return_value={'owned': True}), patch.object(runtime, 'atomic') as persist, patch.object(runtime.lab, 'provision_environment') as provision:
             with self.assertRaises(runtime.AdmissionLimitError):
                 self.runtime.provision('e_'+'f'*24)
             persist.assert_not_called()
             provision.assert_not_called()
             self.assertEqual(len(self.runtime.values['environments']), runtime.ENVIRONMENT_LIMIT)
+
+    def test_deleted_environments_do_not_fill_the_runtime(self):
+        with patch.object(runtime.runtime_files, 'read_endpoints', return_value={}), patch.object(runtime, 'inspect', return_value={'owned': True}), patch.object(runtime, 'atomic'), patch.object(runtime.lab, 'provision_environment'):
+            try:
+                self.runtime.provision('e_'+'f'*24)
+            except runtime.AdmissionLimitError as error:
+                self.assertNotEqual(str(error), 'Local runtime admission limit reached')
+            except RuntimeError:
+                pass  # later steps need a real host; only the environment limit is under test
 
     def test_direct_reconciliation_requires_worker_receipt(self):
         with patch.object(runtime.source_fence,'is_fenced',return_value=False), patch.object(runtime, 'inspect', return_value={'owned': True}), patch.object(runtime, 'atomic') as persist, patch.object(runtime.lab, 'provision_environment', side_effect=RuntimeError('reached reconciliation')):

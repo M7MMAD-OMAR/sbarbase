@@ -6,7 +6,28 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-This source release is 0.13.6. Check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for publication and downloadable assets. [Status](docs/reference/status.md) distinguishes source from the installed revision.
+This source release is 0.13.10. Check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for publication and downloadable assets. [Status](docs/reference/status.md) distinguishes source from the installed revision.
+
+## [0.13.10] - 2026-11-22
+
+### Changed
+
+- Opening the Supabase dashboard is faster and no longer starts with a blank tab. A start asked its parts whether they were ready every two seconds; it now asks every 0.3 seconds, and it asks Studio for its first pages in parallel before it counts as running, so the first visit does not wait for Studio to load them. On the owner server a start took about twelve seconds.
+- While Studio starts, the console lists each step as it happens, with the seconds so far, and opens the dashboard in a new tab when every step is done. If the browser blocks that tab, an Open Supabase dashboard button appears. The journal records how long each step took.
+- Deleting an environment is one step. It used to refuse until the owner had found and turned off the dashboard, Realtime, Edge Functions, scheduled jobs and direct database access, one by one. It now asks each of them that is on to turn off, shows that it is doing so, and deletes when they have stopped. The confirmation is a panel under the table instead of text squeezed into a table cell, and Rename and Delete no longer open together.
+
+## [0.13.8] - 2026-11-22
+
+### Fixed
+
+- A server could not start again after several environments had been deleted: the start preflight counted the stopped containers of deleted environments at their CPU ceilings and refused with "CPU count insufficient", although a start never runs them. The preflight and the admission checks for new environments, Realtime and Edge Functions now count only the environments a start runs, the published ones. A restore publishes an environment again and it counts again.
+
+## [0.13.7] - 2026-11-22
+
+### Fixed
+
+- A deleted environment kept its database connection limit in the room checks for direct database access, Studio, Realtime, scheduled jobs and the side by side swap, so a few deleted test projects could block new work on a server with memory to spare. A database now counts only while one of its Auth, REST or Storage logins can sign in; a restore opens them again.
+- The Projects page, the archive of deleted projects, the delete project confirmation and the Agent access page were written in Arabic with a right to left layout. They are English again like the rest of the console.
 
 ## [0.13.6] - 2026-11-21
 

@@ -1,3 +1,4 @@
+import {studioProgress} from './studio-progress';
 import {bindReadyEnvironmentPublication} from './ready-publication';
 import {createHmac,randomBytes,timingSafeEqual} from 'node:crypto';
 import {chmodSync,existsSync,readFileSync,writeFileSync} from 'node:fs';
@@ -144,9 +145,10 @@ export function studioHandler(catalog:Catalog,identify:ManagementIdentity,key:()
     const ticket=signStudio(key(),{runtime:current.runtime,actor,expires:Date.now()+TICKET_MS,kind:'ticket',epoch:catalog.managementSecurity.epoch(actor),runtimeEpoch:catalog.runtimeEpoch(current.runtime),console:consoleAddress(request)});
     return answer(reply(201,{host:studioHost(current.runtime),public:hosts.public,path:'/__sbarbase/enter?ticket='+encodeURIComponent(ticket)}),current.runtime);
    }
-   if(request.method==='GET'){const data=catalog.studio(actor,environment!);return answer(reply(200,{data,public:hosts.public}),data.runtime);}
+   const progress=(data:{runtime:string;desired:string;state:string})=>data.desired==='running'&&data.state!=='running'&&data.state!=='failed'?studioProgress(data.runtime):null;
+   if(request.method==='GET'){const data=catalog.studio(actor,environment!);return answer(reply(200,{data,public:hosts.public,progress:progress(data)}),data.runtime);}
    const next=catalog.requestStudio(actor,environment!,request.method==='POST'?'running':'stopped');
-   return answer(reply(202,{data:next}),next.runtime);
+   return answer(reply(202,{data:next,progress:progress(next)}),next.runtime);
   } catch(error) {
    const message=error instanceof Error?error.message:'';
    if(message==='Forbidden')return reply(403,{message:'Forbidden'});

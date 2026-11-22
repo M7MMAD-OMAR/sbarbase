@@ -1968,6 +1968,21 @@ export class Catalog {
       this.record('system:lifecycle',row?.inventory?'lifecycle.resources_refreshed':'lifecycle.resources_enrolled',job.environment,{runtime,resources:resources.length,coverage:DURABLE_COVERAGE});
     }).immediate();
   }
+  /** For a deletion: asks every optional service of the environment that is on to turn off, so the owner does not have to
+   * find and stop each one first. Returns true while any service is still on or changing (the deletion has to wait for
+   * the supervisor), false when the environment can be deleted now. Records only requests the owner could make by hand. */
+  turnOffServicesForDeletion(actor:string,environment:string):boolean {
+    this.retainedProject(actor,environment,['owner']);
+    const job=this.job(environment);
+    if(!job||job.state!=='succeeded'||this.runtimeDeleted(job.runtime)||!this.runtimeServicesActive(job.runtime))return false;
+    const ask=(run:()=>unknown)=>{try{run();}catch{/* one already changing is waited for, not asked twice */}};
+    if(this.studio(actor,environment).desired==='running')ask(()=>this.requestStudio(actor,environment,'stopped'));
+    for(const [read,request] of [[this.realtime,this.requestRealtime],[this.functions,this.requestFunctions],[this.scheduledJobs,this.requestScheduledJobs],[this.databaseAccess,this.requestDatabaseAccess]] as const) {
+      const current=read.call(this,actor,environment);
+      if(current.desired==='on'&&current.state!=='pending')ask(()=>request.call(this,actor,environment,false));
+    }
+    return true;
+  }
   /** Retain hierarchy, settings and receipts while revoking all runtime access immediately. */
   deleteEnvironment(actor:string,environment:string):{runtime:string|null} {
     return this.db.transaction(()=>{

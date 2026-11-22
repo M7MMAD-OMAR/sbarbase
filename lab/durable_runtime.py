@@ -107,6 +107,20 @@ def recovery_target_items():
     return resource_policy.recovery_target_items(STATE, lab.docker)
 
 
+def started_environments(values, also=None):
+    """How many environments a start runs, and so how many the admission checks count: the published ones
+    (resume_published_environments), plus `also` when it is not published yet (the one being provisioned).
+    A deleted environment is unpublished by its quarantine (lab/durable_lifecycle.py) and its containers stay
+    stopped, so it holds none of the CPU, memory or environment slots until a restore publishes it again.
+    Endpoints that cannot be read count every environment."""
+    names = set(values['environments'])
+    try:
+        published = runtime_files.read_endpoints(STATE, strict=True)
+    except Exception:
+        return len(names | ({also} if also else set()))
+    return len({name for name in names if name in published} | ({also} if also else set()))
+
+
 def restart_placement(environments, realtime=0, functions=0):
     """(MiB, CPUs) the next start runs: the source rows plus the current recovery target."""
     return resource_policy.restart_placement(resource_policy.start_placement(environments, realtime, functions), recovery_target_items())
@@ -1403,11 +1417,11 @@ class Runtime:
         new_environment = e not in self.values['environments']
         if new_environment or os.environ.get('SBARBASE_EFFECT_TOKEN'):
             # With management Auth: at most eight environments, 5888 MiB/5.75 CPUs before Realtime or Functions.
-            if len(self.values['environments']) + int(new_environment) > ENVIRONMENT_LIMIT:
+            if started_environments(self.values, e) > ENVIRONMENT_LIMIT:
                 raise AdmissionLimitError('Local runtime admission limit reached')
             try:
                 reason = resource_admission.refusal(resource_admission.snapshot())
-                placement, cpus = restart_placement(len(self.values['environments']) + int(new_environment), realtime_count(), functions_count())
+                placement, cpus = restart_placement(started_environments(self.values, e), realtime_count(), functions_count())
                 restart = resource_policy.restart_fits(placement, cpus, available_memory_bytes(), owned_usage_bytes(), os.cpu_count() or 0)
             except Exception:
                 raise RuntimeError('Resource measurement unavailable') from None
@@ -1421,7 +1435,7 @@ class Runtime:
             if pressure_admission.refusal(pressure_admission.snapshot()):
                 raise AdmissionLimitError('Runtime pressure exceeds admission threshold')
             limits = self.sql("SELECT current_setting('max_connections'), current_setting('superuser_reserved_connections'), current_setting('reserved_connections');").stdout.strip().split('|')
-            if len(limits) != 3 or not connection_budget.fits(len(self.values['environments'])+int(new_environment), *(int(value) for value in limits)):
+            if len(limits) != 3 or not connection_budget.fits(started_environments(self.values, e), *(int(value) for value in limits)):
                 raise AdmissionLimitError('Connection budget unavailable')
         effect_receipt.sql_identity(STATE,e,'preflight')
         if new_environment:
@@ -2048,8 +2062,8 @@ GRANT CREATE ON DATABASE {e} TO {role};
         if not direct_on(e):
             available, promised = (int(value) for value in self.sql(
                 "SELECT current_setting('max_connections')::int - current_setting('superuser_reserved_connections')::int "
-                "- current_setting('reserved_connections')::int, coalesce(sum(greatest(datconnlimit, 0)), 0) "
-                "FROM pg_database WHERE datallowconn AND datname <> 'template1';").stdout.strip().split('|'))
+                "- current_setting('reserved_connections')::int, coalesce(sum(greatest(datconnlimit, 0)), 0) " +
+                connection_budget.PROMISED_FROM + ';').stdout.strip().split('|'))
             if promised + connection_budget.DIRECT_CONNECTIONS > available:
                 raise AdmissionLimitError('Connection headroom unavailable')
 
@@ -2305,7 +2319,7 @@ GRANT CREATE ON DATABASE {e} TO {role};
     def functions_switch(self, e, on, name):
         if on:
             if not functions_on(e):
-                placement, cpus = restart_placement(len(self.values['environments']), realtime_count(), functions_count() + 1)
+                placement, cpus = restart_placement(started_environments(self.values), realtime_count(), functions_count() + 1)
                 if not resource_policy.restart_fits(placement, cpus, available_memory_bytes(), owned_usage_bytes(), os.cpu_count() or 0):
                     raise AdmissionLimitError('Restart headroom unavailable')
             entry = self.functions_start(e)
@@ -2357,14 +2371,14 @@ GRANT CREATE ON DATABASE {e} TO {role};
             if self.sql(f"SELECT count(*) FROM pg_hba_file_rules WHERE '{e}_realtime' = ANY(user_name) AND error IS NULL;").stdout.strip() != '1':
                 raise RuntimeError('Realtime access rule not published; restart Sbarbase once')
             if not realtime_on(e):
-                placement, cpus = restart_placement(len(self.values['environments']), realtime_count() + 1, functions_count())
+                placement, cpus = restart_placement(started_environments(self.values), realtime_count() + 1, functions_count())
                 if not resource_policy.restart_fits(placement, cpus, available_memory_bytes(), owned_usage_bytes(), os.cpu_count() or 0):
                     raise AdmissionLimitError('Restart headroom unavailable')
                 # The connections Realtime adds must fit what the cluster can serve, as Studio's do.
                 available, promised = (int(value) for value in self.sql(
                     "SELECT current_setting('max_connections')::int - current_setting('superuser_reserved_connections')::int "
-                    "- current_setting('reserved_connections')::int, coalesce(sum(greatest(datconnlimit, 0)), 0) "
-                    "FROM pg_database WHERE datallowconn AND datname <> 'template1';").stdout.strip().split('|'))
+                    "- current_setting('reserved_connections')::int, coalesce(sum(greatest(datconnlimit, 0)), 0) " +
+                    connection_budget.PROMISED_FROM + ';').stdout.strip().split('|'))
                 if promised + connection_budget.REALTIME_CONNECTIONS > available:
                     raise AdmissionLimitError('Connection headroom unavailable')
             asleep = endpoints[e].get('asleep', {}).get('realtime') if wake else None
@@ -2460,8 +2474,8 @@ END $$;""")
         if not cron_on(e):
             available, promised = (int(value) for value in self.sql(
                 "SELECT current_setting('max_connections')::int - current_setting('superuser_reserved_connections')::int "
-                "- current_setting('reserved_connections')::int, coalesce(sum(greatest(datconnlimit, 0)), 0) "
-                "FROM pg_database WHERE datallowconn AND datname <> 'template1';").stdout.strip().split('|'))
+                "- current_setting('reserved_connections')::int, coalesce(sum(greatest(datconnlimit, 0)), 0) " +
+                connection_budget.PROMISED_FROM + ';').stdout.strip().split('|'))
             if promised + connection_budget.SCHEDULER_CONNECTIONS > available:
                 raise AdmissionLimitError('Connection headroom unavailable')
         # Closed while its grants are written, so no session of an older turn holds what they need.

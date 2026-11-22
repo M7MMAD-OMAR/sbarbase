@@ -1,9 +1,9 @@
 {
-  "version": "0.13.6",
+  "version": "0.13.10",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "The update notice is no longer held back as a secret, and the off-host copy of large backups keeps working.",
-    "ar": "لم يعد إشعار التحديث يُحجب على أنه سرّ، ويستمر نسخ النسخ الكبيرة خارج الخادم بلا مشاكل."
+    "en": "Opening the dashboard is faster and shows each step; deleting an environment turns its services off for you.",
+    "ar": "فتح اللوحة أسرع ويعرض كل خطوة، وحذف البيئة يوقف خدماتها عنك."
   },
   "migrations": []
 }

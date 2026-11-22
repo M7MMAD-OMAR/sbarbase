@@ -74,18 +74,31 @@ test('a deleted environment\'s key returns 401 and the key is revoked',async()=>
   } finally {s.close();}
 });
 
-test('an environment is not deleted while provisioning or a service it runs is still on',async()=>{
+test('an environment is not deleted while provisioning is active, and deleting turns its services off first',async()=>{
   const s=setup();
   try {
     const queued=s.catalog.createEnvironment('alice',s.project,'staging');
     expect(await s.call('alice','DELETE',`environments/${queued}`)).toEqual({status:409,body:{message:'Provisioning is active'}});
     s.catalog.requestStudio('alice',s.environment,'running');
     const {token}=s.keys.issue(s.runtime);
-    expect(await s.call('alice','DELETE',`environments/${s.environment}`)).toEqual({status:409,body:{message:'Environment services are still on'}});
-    // The refusal changed nothing: the key still works.
+    // Deleting turns the services off itself and says so; nothing is deleted yet and the key still works.
+    expect(await s.call('alice','DELETE',`environments/${s.environment}`)).toEqual({status:202,body:{deleted:false,turning_off:true}});
+    expect(s.catalog.studio('alice',s.environment).desired).toBe('stopped');
     expect((await s.app(token)).status).toBe(200);
-    s.catalog.requestStudio('alice',s.environment,'stopped');
+    // Once the supervisor has stopped them, the same request deletes.
     expect((await s.call('alice','DELETE',`environments/${s.environment}`)).status).toBe(200);
+  } finally {s.close();}
+});
+
+test('deleting asks every optional service that is on to turn off, and waits while one is changing',async()=>{
+  const s=setup();
+  try {
+    s.catalog.requestRealtime('alice',s.environment,true);
+    s.catalog.requestDatabaseAccess('alice',s.environment,true);
+    // A change already in progress is waited for, not asked twice.
+    expect(await s.call('alice','DELETE',`environments/${s.environment}`)).toEqual({status:202,body:{deleted:false,turning_off:true}});
+    expect(s.catalog.realtime('alice',s.environment).desired).toBe('on');
+    expect(s.catalog.databaseAccess('alice',s.environment).desired).toBe('on');
   } finally {s.close();}
 });
 
