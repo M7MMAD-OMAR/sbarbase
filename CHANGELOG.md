@@ -8,6 +8,16 @@ still change between releases.
 
 This source release is 0.13.10. Check [Latest on GitHub](https://github.com/M7MMAD-OMAR/sbarbase/releases/latest) for publication and downloadable assets. [Status](docs/reference/status.md) distinguishes source from the installed revision.
 
+## [Unreleased]
+
+### Added
+
+- A test runs the connection headroom rule against a real PostgreSQL catalog: a deleted environment keeps its database with connections allowed and only its logins closed, stops counting, counts again after a restore, and counting twice changes nothing.
+
+### Changed
+
+- The guides no longer say that deleting an environment holds its connections, CPU and memory. Since 0.13.7 and 0.13.8 it does not; only one of the eight environment places is held until the purge.
+
 ## [0.13.10] - 2026-11-22
 
 ### Changed

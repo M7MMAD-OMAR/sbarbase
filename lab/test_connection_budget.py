@@ -51,3 +51,66 @@ class PromisedLimitsTests(unittest.TestCase):
             text = (Path(__file__).parent / name).read_text()
             self.assertNotIn("FROM pg_database WHERE datallowconn", text, name)
             self.assertIn('connection_budget.PROMISED_FROM', text, name)
+
+
+import json
+import shutil
+import subprocess
+import uuid
+
+
+@unittest.skipUnless(shutil.which('docker'), 'needs docker for a real PostgreSQL')
+class PromisedLimitsOnRealCatalogTests(unittest.TestCase):
+    """PROMISED_FROM against real pg_database and pg_roles rows, the way a server looks after environments were
+    deleted: a deleted environment keeps its database (connections allowed, limit 18) and only its logins closed."""
+    IMAGE = 'postgres:17-alpine'
+
+    @classmethod
+    def setUpClass(cls):
+        have = subprocess.run(['docker', 'image', 'inspect', cls.IMAGE], capture_output=True)
+        if have.returncode:
+            raise unittest.SkipTest(cls.IMAGE + ' is not present')
+        cls.name = 'sbarbase-budget-test-' + uuid.uuid4().hex[:8]
+        subprocess.run(['docker', 'run', '-d', '--rm', '--name', cls.name, '-e', 'POSTGRES_PASSWORD=x', cls.IMAGE],
+                       check=True, capture_output=True)
+        for _ in range(60):
+            if not subprocess.run(['docker', 'exec', cls.name, 'pg_isready', '-U', 'postgres'], capture_output=True).returncode:
+                break
+            subprocess.run(['sleep', '1'])
+        cls.sql('SELECT 1;')
+        for env in ('e_live', 'e_gone'):
+            cls.sql(f'CREATE DATABASE {env} CONNECTION LIMIT {budget.ENVIRONMENT_LIMIT};')
+            for suffix in ('auth', 'rest', 'storage'):
+                cls.sql(f'CREATE ROLE {env}_{suffix} LOGIN;')
+
+    @classmethod
+    def tearDownClass(cls):
+        subprocess.run(['docker', 'rm', '-f', cls.name], capture_output=True)
+
+    @classmethod
+    def sql(cls, text):
+        for _ in range(30):
+            done = subprocess.run(['docker', 'exec', cls.name, 'psql', '-U', 'postgres', '-Atq', '-c', text],
+                                  capture_output=True, text=True)
+            if not done.returncode:
+                return done.stdout.strip()
+            subprocess.run(['sleep', '1'])
+        raise AssertionError(done.stderr)
+
+    def promised(self):
+        return int(self.sql('SELECT coalesce(sum(greatest(datconnlimit, 0)), 0) ' + budget.PROMISED_FROM + ';'))
+
+    def logins(self, env, state):
+        for suffix in ('auth', 'rest', 'storage'):
+            self.sql(f'ALTER ROLE {env}_{suffix} {state};')
+
+    def test_deleted_environment_stops_promising_and_restore_promises_again(self):
+        self.logins('e_gone', 'LOGIN')
+        both = self.promised()
+        self.logins('e_gone', 'NOLOGIN')  # what quarantine does on delete; the database stays and allows connections
+        self.assertEqual(self.sql("SELECT datallowconn FROM pg_database WHERE datname='e_gone'"), 't')
+        self.assertEqual(both - self.promised(), budget.ENVIRONMENT_LIMIT)
+        self.logins('e_gone', 'LOGIN')  # restore
+        self.assertEqual(self.promised(), both)
+        self.logins('e_gone', 'NOLOGIN')
+        self.assertEqual(self.promised(), both - budget.ENVIRONMENT_LIMIT)  # counting twice changes nothing
