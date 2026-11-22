@@ -1,9 +1,9 @@
 {
-  "version": "0.13.10",
+  "version": "0.13.11",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "Opening the dashboard is faster and shows each step; deleting an environment turns its services off for you.",
-    "ar": "فتح اللوحة أسرع ويعرض كل خطوة، وحذف البيئة يوقف خدماتها عنك."
+    "en": "Sign in with Telegram: a Telegram provider (OpenID Connect, Log In With Telegram) in each environment's sign-in settings, applied and restored with the other auth settings. Docs and a real PostgreSQL test for the connection headroom of deleted environments.",
+    "ar": "الدخول بتيليجرام: مزوّد Telegram (OpenID Connect، Log In With Telegram) في إعدادات الدخول لكل بيئة، يُطبَّق ويُستعاد مع بقية إعدادات الدخول. وتوثيق واختبار على PostgreSQL حقيقي لحساب الاتصالات بعد حذف البيئات."
   },
   "migrations": []
 }
